@@ -193,6 +193,10 @@ namespace AssetOps
                 }
                 foreach (JToken entry in list)
                 {
+                    if (!Spec.CheckKeys(ctx, entry, specKey + " entry", "From", "To"))
+                    {
+                        return false;
+                    }
                     string f = Json.Str(entry, "From");
                     string t = Json.Str(entry, "To");
                     if (f == null || t == null)

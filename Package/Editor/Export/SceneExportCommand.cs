@@ -54,6 +54,7 @@ namespace AssetOps
             }
             Scene scene = SceneManager.GetSceneByPath(path);
             bool openedByUs = false;
+            bool wasListed = scene.IsValid() && !scene.isLoaded;
             if (!scene.IsValid() || !scene.isLoaded)
             {
                 string error;
@@ -101,7 +102,7 @@ namespace AssetOps
             {
                 if (openedByUs)
                 {
-                    SceneSession.CloseAfterRun(scene);
+                    SceneSession.CloseAfterRun(scene, wasListed);
                 }
             }
         }

@@ -47,7 +47,7 @@ namespace AssetOps
                 List<string> inside = AssetDatabase.IsValidFolder(path) ? AssetScan.All(new[] { path }) : new List<string> { path };
                 var users = inside
                     .SelectMany(p => AssetScan.ReferencersOf(index, p).Select(r => new { Asset = p, User = r }))
-                    .Where(u => !AssetScan.Under(u.User, new[] { path }) && !targets.Contains(u.User))
+                    .Where(u => !AssetScan.Under(u.User, targets))
                     .ToList();
                 foreach (var u in users.Take(20))
                 {

@@ -163,7 +163,8 @@ namespace AssetOps
             }
             if (wc.Errors.Count != before)
             {
-                // Nothing of a failed write reaches the object.
+                // A failed write is not applied. The one exception is a new [SerializeReference] instance, applied
+                // early so its fields can be written, which the caller's session or snapshot rolls back.
                 return false;
             }
             Commit(so, wc.UseUndo);

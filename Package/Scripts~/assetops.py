@@ -257,10 +257,22 @@ def read_alive(queue_root):
     return None
 
 
+def same_path(a, b):
+    try:
+        return os.path.normcase(os.path.realpath(a)) == os.path.normcase(os.path.realpath(b))
+    except (TypeError, ValueError):
+        return False
+
+
 def live_editor(queue_root):
-    """The heartbeat of a running editor, or None."""
+    """The heartbeat of a running editor of this project, or None."""
     alive = read_alive(queue_root)
     if not alive:
+        return None
+    # A heartbeat copied along with the project, or left by a crash whose pid now belongs to another editor,
+    # names a different project.
+    project = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(queue_root))))
+    if alive.get("ProjectPath") and not same_path(alive["ProjectPath"], project):
         return None
     try:
         pid = int(alive.get("Pid", 0))

@@ -22,8 +22,13 @@ First release, the Unity counterpart of uasset-workbench 2.6.
 - A string reference that is not an asset path fails with a hint to use `{"Object": ...}`
 - `Static: true` sets every defined flag, the `RemoveMissingScripts` op skips objects owned by a source prefab
 - Integer writes are range-checked against the field's size, a Hash128 must be 32 hex digits
-- A failed property write leaves the object untouched, appends grow the array instead of inserting past the end
+- A failed property write is not applied (a new `[SerializeReference]` instance is, and the target's session rolls it back), appends grow the array instead of inserting past the end
 - New GameObjects are created directly in the target scene, never parked in another open scene
 - A failed target reports its own first error, not the run's
 - Transition targets are matched by full state path, `ImporterExport` folders skip native-format files
+- Op keys, `Components` entries, conditions, blend tree blocks and move/copy/remap pairs are checked, a misspelt key fails instead of being dropped
+- A failed `CreateAsset` entry removes the folders it made, `-apply` is accepted (and ignored) by Import and Audit runs
+- A scene listed but unloaded in the editor stays listed after a run, a rolled-back asset keeps its hide flags
+- `DeleteAsset` ignores referencers inside any deleted folder, Int64 and UInt64 writes are range-checked too
+- The wrapper ignores a heartbeat that names another project, the smoke test refuses leftovers unless `--clean`
 - Not yet compiled inside Unity: written and checked against Unity's C# reference source for 2022.3 and 6000.3

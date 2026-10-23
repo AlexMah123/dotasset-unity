@@ -125,7 +125,7 @@ Commands are plain classes: derive from `AssetOpsCommand`, name the class `<RunN
 0.1.0 is a preview. It was written against Unity's C# reference source for 2022.3 and 6000.3. Every Unity API it calls was checked against both, and an independent review found no compile errors, but it has not yet been compiled and run inside Unity.
 
 - `python -m unittest discover -s tests` covers the wrapper: both routes, startup wait, fallback, quoting, timeouts, exit codes.
-- `python tests/smoke/run_smoke.py --project <your project>` runs every group end to end in a real project, under `Assets/AssetOpsSmoke`, and cleans up. Run it once with the editor closed and once with it open.
+- `python tests/smoke/run_smoke.py --project <your project>` runs every group end to end in a real project, under `Assets/AssetOpsSmoke`, and cleans up (`--clean` removes leftovers of an interrupted run first). Run it once with the editor closed and once with it open.
 
 The first run in Unity should confirm the behaviour that lives in Unity's native code and cannot be read from the C# source: `ArrayOps` `Append` (`InsertArrayElementAtIndex` at the end), undo coverage of `RemoveMissingScripts` in an open scene, and the undo revert of an `EditAnimatorController` dry run in batch mode (a failed or dry target is never saved either way). Please open issues with the Console output.
 

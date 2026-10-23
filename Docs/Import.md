@@ -8,7 +8,7 @@ Builds new assets from a spec. Changing existing assets is [Edit](Edit.md), movi
 python assetops.py CreateAsset --args '-spec="C:/temp/create.json"'
 ```
 
-Import writes without `-apply`: creating is not destructive, and an existing path is never overwritten. It is skipped with a warning and counted under `already existed`.
+Import writes without `-apply` (it is accepted and ignored): creating is not destructive, and an existing path is never overwritten. It is skipped with a warning and counted under `already existed`.
 
 Entries run in order, so a later entry can use what an earlier one created. Each entry is all or nothing: a failing entry leaves no file behind and the run continues with the next. Folders that a `Path` needs are created.
 

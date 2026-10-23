@@ -96,9 +96,11 @@ namespace AssetOps
                 case CommandGroup.Migrate:
                     return new[] { "apply" };
                 case CommandGroup.Audit:
-                    return new[] { "report" };
+                    // -apply is accepted and ignored: audits never write, so a habitual -apply must not refuse the run.
+                    return new[] { "report", "apply" };
                 default:
-                    return Array.Empty<string>();
+                    // Import writes without -apply, and accepts it for the same reason.
+                    return new[] { "apply" };
             }
         }
     }

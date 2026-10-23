@@ -75,6 +75,7 @@ namespace AssetOps
                     continue;
                 }
                 ctx.BeginTarget();
+                createdFolders.Clear();
                 string error = null;
                 bool ok;
                 switch (kind)
@@ -108,6 +109,7 @@ namespace AssetOps
                 if (!ok || ctx.TargetFailed())
                 {
                     ctx.FailTarget(path, error ?? ctx.TargetError);
+                    RemoveCreatedFolders(ctx);
                     continue;
                 }
                 created++;
@@ -144,6 +146,23 @@ namespace AssetOps
             return keys.ToArray();
         }
 
+        // Folders made while the current entry runs, removed again when the entry fails.
+        static readonly List<string> createdFolders = new List<string>();
+
+        static void RemoveCreatedFolders(RunContext ctx)
+        {
+            for (int i = createdFolders.Count - 1; i >= 0; i--)
+            {
+                string folder = createdFolders[i];
+                if (AssetDatabase.IsValidFolder(folder) && AssetDatabase.FindAssets(string.Empty, new[] { folder }).Length == 0)
+                {
+                    AssetDatabase.DeleteAsset(folder);
+                    ctx.Log.Info("removed folder " + folder + ", its entry failed");
+                }
+            }
+            createdFolders.Clear();
+        }
+
         public static bool EnsureFolder(string path, out string error)
         {
             error = null;
@@ -168,6 +187,7 @@ namespace AssetOps
                 error = "Unity could not create folder " + path;
                 return false;
             }
+            createdFolders.Add(path);
             return true;
         }
 
@@ -273,8 +293,7 @@ namespace AssetOps
             }
             string rootName = Json.Str(entry, "Root", Path.GetFileNameWithoutExtension(path));
             var scratch = new ScratchScene();
-            var root = new GameObject(rootName);
-            scratch.Adopt(root);
+            GameObject root = scratch.Spawn(rootName);
             if (Json.Bool(entry, "RectTransform", false))
             {
                 root.AddComponent<RectTransform>();

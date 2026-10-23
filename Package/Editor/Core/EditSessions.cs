@@ -91,6 +91,7 @@ namespace AssetOps
 
         int undoGroup;
         bool saved;
+        bool wasListed;
         Scene previousActive;
 
         SceneSession()
@@ -118,6 +119,8 @@ namespace AssetOps
             }
             else
             {
+                // Listed in the Hierarchy but unloaded: load it for the run, and leave it listed afterwards.
+                session.wasListed = scene.IsValid();
                 scene = OpenForRun(path, out error);
                 if (!scene.IsValid())
                 {
@@ -177,7 +180,8 @@ namespace AssetOps
             return scene;
         }
 
-        public static void CloseAfterRun(Scene scene)
+        // keepListed: the scene was in the Hierarchy (unloaded) before the run, unload it but keep the entry.
+        public static void CloseAfterRun(Scene scene, bool keepListed = false)
         {
             if (!scene.IsValid())
             {
@@ -189,7 +193,7 @@ namespace AssetOps
             }
             else
             {
-                EditorSceneManager.CloseScene(scene, true);
+                EditorSceneManager.CloseScene(scene, !keepListed);
             }
         }
 
@@ -201,13 +205,29 @@ namespace AssetOps
             }
             if (OpenedByUs)
             {
-                CloseAfterRun(Scene);
+                CloseAfterRun(Scene, wasListed);
                 return;
             }
             if (!saved)
             {
                 Undo.RevertAllDownToGroup(undoGroup);
             }
+        }
+    }
+
+    public static class GameObjects
+    {
+        // A new GameObject placed straight into the target scene. Created hidden and not saved first, so the
+        // scene that happens to be active is never touched, and without the editor's default parent.
+        public static GameObject Spawn(string name, Scene target)
+        {
+            GameObject go = EditorUtility.CreateGameObjectWithHideFlags(name, HideFlags.HideAndDontSave);
+            if (target.IsValid() && go.scene != target)
+            {
+                SceneManager.MoveGameObjectToScene(go, target);
+            }
+            go.hideFlags = HideFlags.None;
+            return go;
         }
     }
 
@@ -246,13 +266,10 @@ namespace AssetOps
             get { return scene; }
         }
 
-        // Objects made with new GameObject() land in the active scene, move them when that is not ours.
-        public void Adopt(GameObject go)
+        // A root GameObject in the scratch scene, or in the active (untitled) scene headless.
+        public GameObject Spawn(string name)
         {
-            if (preview && scene.IsValid())
-            {
-                SceneManager.MoveGameObjectToScene(go, scene);
-            }
+            return GameObjects.Spawn(name, scene.IsValid() ? scene : SceneManager.GetActiveScene());
         }
 
         public void Dispose()
@@ -286,12 +303,14 @@ namespace AssetOps
         readonly Object clone;
         readonly string json;
         readonly string name;
+        readonly HideFlags hideFlags;
         bool committed;
 
         public AssetSnapshot(Object target)
         {
             this.target = target;
             name = target.name;
+            hideFlags = target.hideFlags;
             if (target is AssetImporter)
             {
                 json = EditorJsonUtility.ToJson(target);
@@ -319,8 +338,9 @@ namespace AssetOps
                 else if (clone != null)
                 {
                     EditorUtility.CopySerialized(clone, target);
-                    // The clone is named "<name>(Clone)" and CopySerialized carries the name over.
+                    // The clone is named "<name>(Clone)" and hidden, CopySerialized may carry both over.
                     target.name = name;
+                    target.hideFlags = hideFlags;
                 }
                 EditorUtility.ClearDirty(target);
             }

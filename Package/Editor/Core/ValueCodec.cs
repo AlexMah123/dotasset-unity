@@ -831,6 +831,8 @@ namespace AssetOps
                     : System.Runtime.Serialization.FormatterServices.GetUninitializedObject(t);
                 prop.managedReferenceValue = instance;
                 // The new instance's fields only show up as child properties after a round trip through the object.
+                // This applies the instance early. Callers hold the target in a session, a snapshot or an undo group,
+                // so a later failure still leaves nothing changed.
                 string path = prop.propertyPath;
                 SerializedObject so = prop.serializedObject;
                 PropertyIO.Commit(so, wc.UseUndo);
@@ -921,10 +923,18 @@ namespace AssetOps
                     max = uint.MaxValue;
                     break;
                 case SerializedPropertyNumericType.UInt64:
-                    min = 0;
-                    max = ulong.MaxValue;
-                    break;
+                    // 2^64 itself does not fit, and is the nearest double to ulong.MaxValue.
+                    if (d < 0 || d >= 18446744073709551616.0)
+                    {
+                        return Show(value) + " is outside the UInt64 range";
+                    }
+                    return null;
                 default:
+                    // Int64, and integer fields Unity reports no size for.
+                    if (d < -9223372036854775808.0 || d >= 9223372036854775808.0)
+                    {
+                        return Show(value) + " is outside the Int64 range";
+                    }
                     return null;
             }
             if (d < min || d > max)

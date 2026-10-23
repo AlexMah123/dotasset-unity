@@ -58,7 +58,7 @@ A missing `Parent` in `AddGameObject` / `AddPrefabInstance` / `Reparent` means a
 
 ## Hierarchy ops
 
-Shared by `EditPrefab`, `EditScene` and `CreateAsset`. `Path` and `Parent` are [GameObject paths](Export.md#paths). The first failing op stops the target.
+Shared by `EditPrefab`, `EditScene` and `CreateAsset`. `Path` and `Parent` are [GameObject paths](Export.md#paths). The first failing op stops the target. Every op, `Components` entry, condition and blend tree child is checked against the keys listed here, and an unknown key fails the op.
 
 | Op | Keys | Does |
 | --- | --- | --- |

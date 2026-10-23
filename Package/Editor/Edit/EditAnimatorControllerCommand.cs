@@ -143,6 +143,11 @@ namespace AssetOps
                     string name = Json.Str(op, "Op");
                     label = "Ops[" + i + "] " + (name ?? "(no Op)");
                     int before = Errors.Count;
+                    string[] keys;
+                    if (name != null && OpKeys.TryGetValue(name, out keys) && !Keys(op, keys))
+                    {
+                        return false;
+                    }
                     try
                     {
                         One(name, op);
@@ -162,6 +167,62 @@ namespace AssetOps
             void Fail(string message)
             {
                 Errors.Add(label + ": " + message);
+            }
+
+            static readonly string[] StateFields =
+            {
+                "NewName", "Motion", "Speed", "Tag", "WriteDefaultValues", "SpeedParameter", "TimeParameter", "Mirror",
+                "MirrorParameter", "CycleOffset", "CycleOffsetParameter", "IKOnFeet", "Default", "Properties",
+            };
+
+            static readonly string[] TransitionFields =
+            {
+                "Name", "Solo", "Mute", "HasExitTime", "ExitTime", "Duration", "FixedDuration", "Offset", "Interruption",
+                "OrderedInterruption", "CanTransitionToSelf", "Conditions",
+            };
+
+            static string[] With(string[] fields, params string[] keys)
+            {
+                return keys.Concat(fields).ToArray();
+            }
+
+            // Keys each op reads. A misspelt key ("Conditons") fails the op instead of being dropped.
+            static readonly Dictionary<string, string[]> OpKeys = new Dictionary<string, string[]>
+            {
+                { "AddParameter", new[] { "Op", "Layer", "Name", "Type", "Default" } },
+                { "SetParameter", new[] { "Op", "Layer", "Name", "Default" } },
+                { "RenameParameter", new[] { "Op", "Layer", "Name", "NewName" } },
+                { "RemoveParameter", new[] { "Op", "Layer", "Name" } },
+                { "AddLayer", new[] { "Op", "Name", "Weight", "Blending", "IKPass", "AvatarMask" } },
+                { "SetLayer", new[] { "Op", "Layer", "NewName", "Weight", "Blending", "IKPass", "AvatarMask" } },
+                { "RemoveLayer", new[] { "Op", "Layer" } },
+                { "AddStateMachine", new[] { "Op", "Layer", "Path", "Position" } },
+                { "AddState", With(StateFields, "Op", "Layer", "Path", "Position") },
+                { "SetState", With(StateFields, "Op", "Layer", "State") },
+                { "RemoveState", new[] { "Op", "Layer", "State" } },
+                { "SetDefaultState", new[] { "Op", "Layer", "State" } },
+                { "AddTransition", With(TransitionFields, "Op", "Layer", "From", "To", "StateMachine") },
+                { "SetTransition", With(TransitionFields, "Op", "Layer", "From", "To", "StateMachine", "Index") },
+                { "RemoveTransition", new[] { "Op", "Layer", "From", "To", "StateMachine", "Index" } },
+            };
+
+            bool Keys(JToken token, string[] allowed)
+            {
+                var obj = token as JObject;
+                if (obj == null)
+                {
+                    Fail("is not an object");
+                    return false;
+                }
+                var unknown = obj.Properties().Select(p => p.Name)
+                    .Where(n => !n.StartsWith("//", StringComparison.Ordinal) && !allowed.Contains(n, StringComparer.OrdinalIgnoreCase))
+                    .ToList();
+                if (unknown.Count > 0)
+                {
+                    Fail("unknown key" + (unknown.Count > 1 ? "s " : " ") + string.Join(", ", unknown) + ". Allowed: " + string.Join(", ", allowed));
+                    return false;
+                }
+                return true;
             }
 
             void One(string name, JToken op)
@@ -831,6 +892,10 @@ namespace AssetOps
             bool BuildTree(JToken block, out BlendTree tree)
             {
                 tree = null;
+                if (!Keys(block, new[] { "BlendTree", "BlendType", "Parameter", "ParameterY", "Children" }))
+                {
+                    return false;
+                }
                 BlendTreeType type;
                 if (!Enum.TryParse(Json.Str(block, "BlendType", "Simple1D"), true, out type))
                 {
@@ -856,6 +921,10 @@ namespace AssetOps
                 var list = new List<ChildMotion>();
                 foreach (JToken c in children)
                 {
+                    if (!Keys(c, new[] { "Motion", "Threshold", "Position", "DirectParameter", "TimeScale", "Mirror" }))
+                    {
+                        return false;
+                    }
                     Motion m;
                     if (!ResolveMotion(Json.Get(c, "Motion") ?? JValue.CreateNull(), out m))
                     {
@@ -1135,6 +1204,10 @@ namespace AssetOps
                     var list = new List<AnimatorCondition>();
                     foreach (JToken c in conditions)
                     {
+                        if (!Keys(c, new[] { "Parameter", "Mode", "Threshold" }))
+                        {
+                            return;
+                        }
                         string parameter = Json.Str(c, "Parameter");
                         AnimatorControllerParameter p = controller.parameters.FirstOrDefault(x => x.name == parameter);
                         if (p == null)

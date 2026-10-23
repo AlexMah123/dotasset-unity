@@ -250,6 +250,22 @@ class QueueRoute(Base):
         self.assertIn("running headless instead", out)
         self.assertIn("route: batchmode", out)
 
+    def test_heartbeat_of_another_project_is_ignored(self):
+        queue = os.path.join(self.project, ops.QUEUE_RELATIVE)
+        os.makedirs(queue, exist_ok=True)
+        with open(os.path.join(queue, ops.ALIVE), "w") as f:
+            json.dump({"Pid": os.getpid(), "State": "ready", "ProjectPath": os.path.join(self.tmp, "OtherProject")}, f)
+        code, out = self.call("PrefabExport", "Assets/A.prefab", "--unity", self.fake_unity)
+        self.assertEqual(code, 0)
+        self.assertIn("route: batchmode", out)
+
+    def test_heartbeat_of_this_project_is_used(self):
+        queue = os.path.join(self.project, ops.QUEUE_RELATIVE)
+        os.makedirs(queue, exist_ok=True)
+        with open(os.path.join(queue, ops.ALIVE), "w") as f:
+            json.dump({"Pid": os.getpid(), "State": "ready", "ProjectPath": self.project.replace(os.sep, "/")}, f)
+        self.assertIsNotNone(ops.live_editor(queue))
+
     def test_stale_heartbeat_pid_is_ignored(self):
         queue = os.path.join(self.project, ops.QUEUE_RELATIVE)
         os.makedirs(queue, exist_ok=True)

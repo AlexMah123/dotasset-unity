@@ -33,6 +33,7 @@ def main():
     p.add_argument("--project", required=True)
     p.add_argument("--unity")
     p.add_argument("--keep", action="store_true", help="leave Assets/AssetOpsSmoke in place")
+    p.add_argument("--clean", action="store_true", help="delete a leftover Assets/AssetOpsSmoke before starting")
     p.add_argument("--timeout", type=int, default=1200, help="per step, headless starts of a big project are slow (default 1200)")
     args = p.parse_args()
     tmp = tempfile.mkdtemp(prefix="assetops_smoke_")
@@ -102,6 +103,17 @@ def main():
         steps.append(("cleanup", ["DeleteAsset", ROOT, "--args", "-force -permanent -apply"], 0))
 
     base = [sys.executable, WRAPPER, "--project", args.project, "--quiet", "--timeout", str(args.timeout)]
+
+    # The steps assume a fresh folder: a second run on leftovers adds a second Lid and finds Red.mat gone.
+    if os.path.isdir(os.path.join(args.project, *ROOT.split("/"))):
+        if not args.clean:
+            print("%s already exists, from a --keep or interrupted run. Delete it, or rerun with --clean" % ROOT)
+            return 2
+        r = subprocess.run(base + ["DeleteAsset", ROOT, "--args", "-force -permanent -apply"], capture_output=True, text=True)
+        print("%-4s %-28s exit %s" % ("ok" if r.returncode == 0 else "FAIL", "clean leftovers", r.returncode), flush=True)
+        if r.returncode != 0:
+            print(r.stdout + r.stderr)
+            return 1
     if args.unity:
         base += ["--unity", args.unity]
     failed = 0

@@ -23,7 +23,7 @@ namespace AssetOps
 
         public readonly List<string> FailedTargets = new List<string>();
 
-        // Edit and Migrate write only with -apply. Import and Audit ignore it.
+        // Edit and Migrate write only with -apply. Import and Audit accept it and ignore it.
         public bool Apply
         {
             get { return Args.Has("apply"); }

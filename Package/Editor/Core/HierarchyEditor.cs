@@ -85,6 +85,11 @@ namespace AssetOps
                 string name = Json.Str(op, "Op");
                 string label = "Ops[" + i + "] " + (name ?? "(no Op)");
                 int before = Errors.Count;
+                string[] keys;
+                if (name != null && OpKeys.TryGetValue(name, out keys) && !CheckKeys(op, keys, label))
+                {
+                    return false;
+                }
                 try
                 {
                     ApplyOne(name, op, label);
@@ -106,6 +111,44 @@ namespace AssetOps
         void Fail(string label, string message)
         {
             Errors.Add(label + ": " + message);
+        }
+
+        static readonly string[] Placement = { "Op", "Parent", "Name", "SiblingIndex", "Active", "Tag", "Layer", "Static" };
+
+        // Keys each op reads. A misspelt key fails the op instead of being dropped.
+        static readonly Dictionary<string, string[]> OpKeys = new Dictionary<string, string[]>
+        {
+            { "AddGameObject", Placement.Concat(new[] { "Components", "RectTransform" }).ToArray() },
+            { "AddPrefabInstance", Placement.Concat(new[] { "Prefab" }).ToArray() },
+            { "Delete", new[] { "Op", "Path" } },
+            { "Rename", new[] { "Op", "Path", "NewName" } },
+            { "Reparent", new[] { "Op", "Path", "Parent", "SiblingIndex", "WorldPositionStays" } },
+            { "SetGameObject", new[] { "Op", "Path", "Active", "Tag", "Layer", "Static" } },
+            { "AddComponent", new[] { "Op", "Path", "Type", "Properties" } },
+            { "RemoveComponent", new[] { "Op", "Path", "Type", "Index" } },
+            { "Set", new[] { "Op", "Path", "Component", "Index", "Properties", "ArrayOps" } },
+            { "RevertOverrides", new[] { "Op", "Path", "Component", "Index" } },
+            { "UnpackPrefab", new[] { "Op", "Path", "Completely" } },
+            { "RemoveMissingScripts", new[] { "Op", "Path", "Recursive" } },
+        };
+
+        bool CheckKeys(JToken token, string[] allowed, string label)
+        {
+            var obj = token as JObject;
+            if (obj == null)
+            {
+                Fail(label, "is not an object");
+                return false;
+            }
+            var unknown = obj.Properties().Select(p => p.Name)
+                .Where(n => !n.StartsWith("//", StringComparison.Ordinal) && !allowed.Contains(n, StringComparer.OrdinalIgnoreCase))
+                .ToList();
+            if (unknown.Count > 0)
+            {
+                Fail(label, "unknown key" + (unknown.Count > 1 ? "s " : " ") + string.Join(", ", unknown) + ". Allowed: " + string.Join(", ", allowed));
+                return false;
+            }
+            return true;
         }
 
         GameObject Find(JToken op, string key, string label)
@@ -236,10 +279,8 @@ namespace AssetOps
             {
                 return;
             }
-            // Created straight in the target scene (the prefab's preview scene, or the edited scene), so no other
-            // open scene is touched even for a moment.
-            Scene target = prefabRoot != null ? prefabRoot.scene : scene;
-            GameObject go = target.IsValid() ? ObjectFactory.CreateGameObject(target, HideFlags.None, goName) : new GameObject(goName);
+            // Straight into the target scene (the prefab's preview scene, or the edited scene).
+            GameObject go = GameObjects.Spawn(goName, prefabRoot != null ? prefabRoot.scene : scene);
             if (Json.Bool(op, "RectTransform", false) || (parent != null && parent is RectTransform))
             {
                 go.AddComponent<RectTransform>();
@@ -258,6 +299,10 @@ namespace AssetOps
             {
                 foreach (JToken entry in components)
                 {
+                    if (entry.Type == JTokenType.Object && !CheckKeys(entry, new[] { "Type", "Properties" }, label + " Components entry"))
+                    {
+                        return;
+                    }
                     string type = entry.Type == JTokenType.String ? (string)entry : Json.Str(entry, "Type");
                     var props = entry.Type == JTokenType.Object ? Json.Get(entry, "Properties") as JObject : null;
                     if (AddComponentTo(go, type, props, label) == null)

@@ -15,7 +15,7 @@ namespace AssetOps
                 ["ExporterVersion"] = AssetOpsVersion.Version,
                 ["ExportType"] = ctx.RunName,
                 ["UnityVersion"] = Application.unityVersion,
-                ["ExportedUtc"] = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+                ["ExportedUtc"] = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ", System.Globalization.CultureInfo.InvariantCulture),
             };
             if (assetPath != null)
             {

@@ -85,6 +85,7 @@ The same format in every export and every edit, so an exported value can be writ
 | array, `List<T>` | a JSON array. A write replaces the whole array; `ArrayOps` edits single entries |
 | `[SerializeReference]` | `{"$type": "<Assembly> <Namespace.Type>", ...fields}`, `null` for none. A write with a different `$type` creates that type |
 | object reference | see below |
+| Unity 6.3 `EntityId` | not supported yet, exports as `{"$unsupported": "EntityId"}` |
 
 ## Object references
 

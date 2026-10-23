@@ -69,6 +69,7 @@ namespace AssetOps
                     EditorUtility.SetDirty(mat);
                     AssetDatabase.SaveAssetIfDirty(mat);
                     snapshot.Commit();
+                    ctx.WarnIfSavedWithErrors(path);
                     written++;
                     ctx.Log.Info("wrote " + path);
                 }

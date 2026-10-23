@@ -315,19 +315,21 @@ namespace AssetOps
                         wc.Fail(prop, "expects an integer, got " + Show(value));
                         return;
                     }
-                    string range = OutOfRange(prop.numericType, value, d);
+                    string range = value.Type == JTokenType.Integer ? OutOfRangeExact(prop.numericType, value) : null;
+                    range = range ?? (value.Type == JTokenType.Integer && Is64(prop.numericType) ? null : OutOfRange(prop.numericType, value, d));
                     if (range != null)
                     {
                         wc.Fail(prop, range);
                         return;
                     }
+                    string digits = value.Type == JTokenType.Integer ? value.ToString(Newtonsoft.Json.Formatting.None) : null;
                     if (prop.numericType == SerializedPropertyNumericType.UInt64)
                     {
-                        prop.ulongValue = value.Type == JTokenType.Integer ? (ulong)value : (ulong)d;
+                        prop.ulongValue = digits != null ? ulong.Parse(digits, CultureInfo.InvariantCulture) : (ulong)d;
                     }
                     else
                     {
-                        prop.longValue = value.Type == JTokenType.Integer ? (long)value : (long)d;
+                        prop.longValue = digits != null ? long.Parse(digits, CultureInfo.InvariantCulture) : (long)d;
                     }
                     return;
                 }
@@ -739,10 +741,16 @@ namespace AssetOps
                     wc.Fail(prop, "this array was truncated on export, write the full array or use ArrayOps");
                     return;
                 }
+                int oldSize = prop.arraySize;
                 prop.arraySize = array.Count;
                 for (int i = 0; i < array.Count; i++)
                 {
                     SerializedProperty element = prop.GetArrayElementAtIndex(i);
+                    if (i >= oldSize && element.propertyType == SerializedPropertyType.ManagedReference)
+                    {
+                        // A grown [SerializeReference] array repeats the last reference. A new slot must not share it.
+                        element.managedReferenceValue = null;
+                    }
                     if (!Write(element, array[i], wc))
                     {
                         return;
@@ -891,6 +899,29 @@ namespace AssetOps
         }
 
         // ------------------------------------------------------------------ helpers
+
+        static bool Is64(SerializedPropertyNumericType type)
+        {
+            return type == SerializedPropertyNumericType.Int64 || type == SerializedPropertyNumericType.UInt64
+                || type == SerializedPropertyNumericType.Unknown;
+        }
+
+        // JSON integers can exceed what a double holds exactly, so 64-bit fields compare the digits themselves.
+        static string OutOfRangeExact(SerializedPropertyNumericType type, JToken value)
+        {
+            if (!Is64(type))
+            {
+                return null;
+            }
+            string digits = value.ToString(Newtonsoft.Json.Formatting.None);
+            if (type == SerializedPropertyNumericType.UInt64)
+            {
+                ulong u;
+                return ulong.TryParse(digits, NumberStyles.None, CultureInfo.InvariantCulture, out u) ? null : digits + " is outside the UInt64 range";
+            }
+            long l;
+            return long.TryParse(digits, NumberStyles.AllowLeadingSign, CultureInfo.InvariantCulture, out l) ? null : digits + " is outside the Int64 range";
+        }
 
         // An int field must not silently wrap: 3000000000 into an int, or -1 into a uint, is refused.
         static string OutOfRange(SerializedPropertyNumericType type, JToken value, double d)

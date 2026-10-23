@@ -19,11 +19,19 @@ namespace AssetOps
 
         public IReadOnlyList<string> Keys => order;
 
+        // Tokens that do not start with -, refused by the dispatcher: a bare "apply" must not act as -apply.
+        public readonly List<string> Stray = new List<string>();
+
         public static RunArgs Parse(string raw)
         {
             var args = new RunArgs { Raw = raw ?? string.Empty };
             foreach (string token in Tokenize(args.Raw))
             {
+                if (!token.StartsWith("-", StringComparison.Ordinal))
+                {
+                    args.Stray.Add(token);
+                    continue;
+                }
                 string body = token.TrimStart('-');
                 if (body.Length == 0)
                 {

@@ -20,7 +20,7 @@ namespace AssetOps
         public override ExitCode Execute(RunContext ctx)
         {
             List<string> entries;
-            if (!ExportHelper.Entries(ctx, HasSourceImporter, out entries))
+            if (!ExportHelper.Entries(ctx, AssetScan.HasSourceImporter, out entries))
             {
                 return ExitCode.Refused;
             }
@@ -52,19 +52,6 @@ namespace AssetOps
                 ExportHelper.Save(ctx, path, json);
             }
             return failed ? ExitCode.Failed : ExitCode.Success;
-        }
-
-        // Importers of Unity's own formats (.mat, .prefab, .asset, scripts) hold nothing worth reading, a folder skips them.
-        static readonly HashSet<string> NativeImporters = new HashSet<string>
-        {
-            "NativeFormatImporter", "PrefabImporter", "DefaultImporter", "MonoImporter", "AssemblyDefinitionImporter",
-            "AssemblyDefinitionReferenceImporter", "PackageManifestImporter", "TextScriptImporter",
-        };
-
-        static bool HasSourceImporter(string path)
-        {
-            AssetImporter importer = AssetImporter.GetAtPath(path);
-            return importer != null && !NativeImporters.Contains(importer.GetType().Name);
         }
 
         // Keys match EditImporter's "Texture" block, so a summary edits and feeds back as is.

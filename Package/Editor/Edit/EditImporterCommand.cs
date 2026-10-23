@@ -87,7 +87,7 @@ namespace AssetOps
                 list.AddRange(many.Select(t => (string)t));
             }
             bool textureOnly = Json.Has(target, "Texture");
-            return AssetScan.Expand(list, p => textureOnly ? AssetImporter.GetAtPath(p) is TextureImporter : AssetImporter.GetAtPath(p) != null, ctx.Log);
+            return AssetScan.Expand(list, p => textureOnly ? AssetImporter.GetAtPath(p) is TextureImporter : AssetScan.HasSourceImporter(p), ctx.Log);
         }
 
         static bool WriteOne(RunContext ctx, string path, JToken target)
@@ -135,6 +135,7 @@ namespace AssetOps
                 snapshot.Commit();
                 EditorUtility.SetDirty(importer);
                 importer.SaveAndReimport();
+                ctx.WarnIfSavedWithErrors(path);
                 ctx.Log.Info("reimported " + path);
                 return true;
             }

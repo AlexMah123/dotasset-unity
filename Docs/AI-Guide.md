@@ -83,7 +83,7 @@ Every run prints its log, then `[assetops] <summary>` and the path of its log fi
 | Exit code | Meaning |
 | --- | --- |
 | 0 | success (Edit and Migrate without `-apply`: the dry run passed) |
-| 1 | a target failed; nothing of that target was saved. Or Unity failed before the run (compile errors, license) |
+| 1 | a target failed and nothing of it was saved, or the run logged an error (an AssetList entry that does not exist), or Unity failed before the run (compile errors, license) |
 | 2 | refused: unknown run, unknown argument, unreadable spec, unknown spec key, editor queue paused |
 | 3 | audit only: the run worked and the report lists issues. Not a failure |
 
@@ -105,6 +105,7 @@ Audit reports land in `Library/AssetOps/Audit/`, with `-report=` to choose the p
 | Calling the wrapper right after opening the editor | The wrapper sees the locked project, prints `waiting up to 300s` and waits for the queue heartbeat. Let it wait |
 | The task waits forever while the editor is open | The queue only runs when the editor is `ready`: not compiling, importing, in play mode, or showing a modal dialog. `assetops.py --status` shows the state. On macOS an editor in the background can be throttled by App Nap; bring it forward or disable App Nap for Unity |
 | Edit run returns 0 but nothing changed | It was a dry run. Add `-apply` |
+| `apply` without the dash in `--args` |  Refused with exit 2 as a stray argument, it does not act as `-apply` |
 | `-aply` or another typo | Refused with exit 2 and the list of accepted arguments, the run does not fall back to a dry run silently |
 | Writing `mass` instead of `m_Mass` | A key without `m_` is retried with it, so `mass` finds `m_Mass`. The error lists the real names when neither exists |
 | Two GameObjects with the same name under one parent | Paths need `Name[0]`, `Name[1]`. Exports write the index whenever names repeat |

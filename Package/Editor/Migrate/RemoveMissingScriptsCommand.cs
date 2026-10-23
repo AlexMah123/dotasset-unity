@@ -55,10 +55,14 @@ namespace AssetOps
                 string error;
                 int removed;
                 bool ok = path.EndsWith(".unity") ? Scene(ctx, path, out removed, out error) : Prefab(ctx, path, out removed, out error);
-                if (!ok || ctx.TargetFailed())
+                if (!ok || (ctx.DryRun && ctx.TargetFailed()))
                 {
                     ctx.FailTarget(path, error ?? ctx.TargetError);
                     continue;
+                }
+                if (!ctx.DryRun && removed > 0)
+                {
+                    ctx.WarnIfSavedWithErrors(path);
                 }
                 total += removed;
             }
@@ -107,7 +111,11 @@ namespace AssetOps
                     return false;
                 }
                 removed = Clean(ctx, path, new[] { session.Root }, false, ctx.DryRun);
-                return removed == 0 || ctx.DryRun || session.Save(out error);
+                if (removed == 0 || ctx.DryRun)
+                {
+                    return true;
+                }
+                return ctx.ReadyToSave(out error) && session.Save(out error);
             }
         }
 
@@ -121,7 +129,11 @@ namespace AssetOps
                     return false;
                 }
                 removed = Clean(ctx, path, session.Scene.GetRootGameObjects(), session.UseUndo, ctx.DryRun);
-                return removed == 0 || ctx.DryRun || session.Save(out error);
+                if (removed == 0 || ctx.DryRun)
+                {
+                    return true;
+                }
+                return ctx.ReadyToSave(out error) && session.Save(out error);
             }
         }
     }

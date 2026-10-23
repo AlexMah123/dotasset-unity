@@ -241,6 +241,12 @@ namespace AssetOps
                 {
                     array.InsertArrayElementAtIndex(at);
                 }
+                SerializedProperty slot = array.GetArrayElementAtIndex(at);
+                if (slot.propertyType == SerializedPropertyType.ManagedReference)
+                {
+                    // The copy of a [SerializeReference] neighbour is the same instance, start the new entry empty.
+                    slot.managedReferenceValue = null;
+                }
                 if (value != null && !ValueCodec.Write(array.GetArrayElementAtIndex(at), value, wc))
                 {
                     return;

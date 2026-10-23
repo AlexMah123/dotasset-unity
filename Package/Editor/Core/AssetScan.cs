@@ -114,6 +114,20 @@ namespace AssetOps
             return index.TryGetValue(path, out list) ? list : new List<string>();
         }
 
+        // Importers of Unity's own formats (.mat, .prefab, .asset, scripts). They hold no import settings worth
+        // reading or writing, so folder expansion for importer runs skips them.
+        static readonly HashSet<string> NativeImporters = new HashSet<string>
+        {
+            "NativeFormatImporter", "PrefabImporter", "DefaultImporter", "MonoImporter", "AssemblyDefinitionImporter",
+            "AssemblyDefinitionReferenceImporter", "PackageManifestImporter", "TextScriptImporter",
+        };
+
+        public static bool HasSourceImporter(string path)
+        {
+            AssetImporter importer = AssetImporter.GetAtPath(path);
+            return importer != null && !NativeImporters.Contains(importer.GetType().Name);
+        }
+
         public static bool IsForceText()
         {
             return EditorSettings.serializationMode == SerializationMode.ForceText;

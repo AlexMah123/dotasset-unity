@@ -72,11 +72,12 @@ namespace AssetOps
                         ctx.Log.Info(path + ": " + editor.Changes + " op(s) would apply");
                         continue;
                     }
-                    if (!session.Save(out error) || ctx.TargetFailed())
+                    if (!session.Save(out error))
                     {
                         ctx.FailTarget(path, error ?? ctx.TargetError);
                         continue;
                     }
+                    ctx.WarnIfSavedWithErrors(path);
                     written++;
                     ctx.Log.Info("saved " + path + " (" + editor.Changes + " op(s))");
                 }

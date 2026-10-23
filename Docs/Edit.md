@@ -66,7 +66,7 @@ Shared by `EditPrefab`, `EditScene` and `CreateAsset`. `Path` and `Parent` are [
 | `AddPrefabInstance` | `Parent`, `Prefab`, `Name`, `SiblingIndex`, `Active`, `Tag`, `Layer`, `Static` | nested prefab instance, linked to its source |
 | `Delete` | `Path` | removes the GameObject and its children. Refused for the prefab root and for objects inside a prefab instance |
 | `Rename` | `Path`, `NewName` | |
-| `Reparent` | `Path`, `Parent`, `SiblingIndex`, `WorldPositionStays` (default false) | |
+| `Reparent` | `Path`, `Parent`, `SiblingIndex`, `WorldPositionStays` (default false) | `SiblingIndex` on a scene root is refused in a scene open in the editor, undo cannot restore root order |
 | `SetGameObject` | `Path`, `Active`, `Tag`, `Layer` (name or 0-31), `Static` (`true`, `false`, or `["BatchingStatic", ...]`) | tags and layers must exist |
 | `AddComponent` | `Path`, `Type`, `Properties` | refused when Unity refuses (DisallowMultipleComponent, a script that does not compile) |
 | `RemoveComponent` | `Path`, `Type`, `Index` | refused while another component `[RequireComponent]`s it |

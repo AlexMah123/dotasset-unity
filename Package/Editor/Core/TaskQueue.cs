@@ -221,7 +221,8 @@ namespace AssetOps
             var assetsToken = Json.Get(task, "Assets") as JArray;
             if (assetsToken != null)
             {
-                assets.AddRange(assetsToken.Select(t => (string)t).Where(s => !string.IsNullOrEmpty(s)));
+                // Json.Str-style reading: a number or object in the list must not throw before a result is written.
+                assets.AddRange(assetsToken.Select(t => t.Type == JTokenType.String ? (string)t : t.ToString(Newtonsoft.Json.Formatting.None)).Where(s => !string.IsNullOrEmpty(s)));
             }
             string extra = Json.Str(task, "ExtraArgs", string.Empty);
 
@@ -306,7 +307,7 @@ namespace AssetOps
                     ["UnityVersion"] = Application.unityVersion,
                     ["AssetOpsVersion"] = AssetOpsVersion.Version,
                     ["ProjectPath"] = AssetOpsPaths.ProjectRoot,
-                    ["UpdatedUtc"] = DateTime.UtcNow.ToString("o"),
+                    ["UpdatedUtc"] = DateTime.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture),
                 };
                 string tmp = AlivePath + ".tmp";
                 File.WriteAllText(tmp, alive.ToString(Newtonsoft.Json.Formatting.None), new UTF8Encoding(false));
@@ -339,7 +340,7 @@ namespace AssetOps
                     ["UnityVersion"] = Application.unityVersion,
                     ["AssetOpsVersion"] = AssetOpsVersion.Version,
                     ["ProjectPath"] = AssetOpsPaths.ProjectRoot,
-                    ["UpdatedUtc"] = DateTime.UtcNow.ToString("o"),
+                    ["UpdatedUtc"] = DateTime.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture),
                 };
                 File.WriteAllText(AlivePath, alive.ToString(Newtonsoft.Json.Formatting.None), new UTF8Encoding(false));
             }

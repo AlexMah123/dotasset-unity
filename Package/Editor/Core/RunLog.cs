@@ -12,6 +12,9 @@ namespace AssetOps
         public readonly List<string> Lines = new List<string>();
         public int Warnings { get; private set; }
         public int Errors { get; private set; }
+
+        // Errors the run logged itself, as opposed to errors Unity logged while the run was going.
+        public int OwnErrors { get; private set; }
         public string FirstError { get; private set; }
         public readonly List<string> ErrorMessages = new List<string>();
 
@@ -43,6 +46,7 @@ namespace AssetOps
         public void Error(string message)
         {
             Errors++;
+            OwnErrors++;
             if (FirstError == null)
             {
                 FirstError = message;

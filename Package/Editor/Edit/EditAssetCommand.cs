@@ -90,6 +90,7 @@ namespace AssetOps
                     EditorUtility.SetDirty(obj);
                     AssetDatabase.SaveAssetIfDirty(obj);
                     snapshot.Commit();
+                    ctx.WarnIfSavedWithErrors(label);
                     written++;
                 }
             }

@@ -47,6 +47,11 @@ namespace AssetOps
             report.Rule("T8", "imported larger than the size budget");
 
             int budget = ctx.Args.GetInt("maxsize", 2048);
+            if (budget < 32 || budget > 16384 || (budget & (budget - 1)) != 0)
+            {
+                ctx.Log.Error("-maxsize must be a power of two between 32 and 16384, the fix spec writes it as a max size");
+                return ExitCode.Refused;
+            }
             var rules = new HashSet<string>(ctx.Args.GetList("rules"), StringComparer.OrdinalIgnoreCase);
             string[] normal = ctx.Args.Has("normalsuffix") ? ctx.Args.GetList("normalsuffix").ToArray() : DefaultNormal;
             string[] data = ctx.Args.Has("datasuffix") ? ctx.Args.GetList("datasuffix").ToArray() : DefaultData;

@@ -266,6 +266,24 @@ class QueueRoute(Base):
             json.dump({"Pid": os.getpid(), "State": "ready", "ProjectPath": self.project.replace(os.sep, "/")}, f)
         self.assertIsNotNone(ops.live_editor(queue))
 
+    def test_long_dead_idle_heartbeat_is_ignored(self):
+        queue = os.path.join(self.project, ops.QUEUE_RELATIVE)
+        os.makedirs(queue, exist_ok=True)
+        alive = os.path.join(queue, ops.ALIVE)
+        with open(alive, "w") as f:
+            json.dump({"Pid": os.getpid(), "State": "ready"}, f)
+        old = time.time() - 600
+        os.utime(alive, (old, old))
+        self.assertIsNone(ops.live_editor(queue))
+        with open(alive, "w") as f:
+            json.dump({"Pid": os.getpid(), "State": "busy"}, f)
+        os.utime(alive, (old, old))
+        self.assertIsNotNone(ops.live_editor(queue), "a long run keeps the heartbeat old and busy")
+
+    def test_process_names(self):
+        self.assertIn("unity.exe", ops.UNITY_NAMES)
+        self.assertNotIn("unity hub.exe", ops.UNITY_NAMES)
+
     def test_stale_heartbeat_pid_is_ignored(self):
         queue = os.path.join(self.project, ops.QUEUE_RELATIVE)
         os.makedirs(queue, exist_ok=True)

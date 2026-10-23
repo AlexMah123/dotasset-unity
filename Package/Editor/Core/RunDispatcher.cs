@@ -172,6 +172,13 @@ namespace AssetOps
             ctx.RunName = cmd.Name;
             ctx.Group = cmd.Group;
 
+            if (ctx.Args.Stray.Count > 0)
+            {
+                ctx.Log.Error("stray argument" + (ctx.Args.Stray.Count > 1 ? "s " : " ") + string.Join(", ", ctx.Args.Stray.Select(t => "'" + t + "'"))
+                    + ", every argument starts with - (e.g. -apply)");
+                return ExitCode.Refused;
+            }
+
             var accepted = new HashSet<string>(cmd.Arguments.Concat(CommandRegistry.CommonArguments(cmd.Group)), StringComparer.OrdinalIgnoreCase);
             var unknown = ctx.Args.Keys.Where(k => !accepted.Contains(k)).ToList();
             if (unknown.Count > 0)
@@ -220,6 +227,14 @@ namespace AssetOps
                 Application.logMessageReceived -= hook;
                 IsRunning = false;
                 ctx.ClearProgress();
+            }
+
+            // A run that logged an error of its own did not fully succeed, whatever it returned:
+            // e.g. one AssetList entry that does not exist among several that do.
+            if ((code == ExitCode.Success || code == ExitCode.IssuesFound) && ctx.Log.OwnErrors > 0)
+            {
+                ctx.Log.Info("the run logged " + ctx.Log.OwnErrors + " error(s), exit code 1");
+                code = ExitCode.Failed;
             }
 
             if (cmd.Group == CommandGroup.Export && (code == ExitCode.Success))

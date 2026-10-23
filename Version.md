@@ -31,4 +31,12 @@ First release, the Unity counterpart of uasset-workbench 2.6.
 - A scene listed but unloaded in the editor stays listed after a run, a rolled-back asset keeps its hide flags
 - `DeleteAsset` ignores referencers inside any deleted folder, Int64 and UInt64 writes are range-checked too
 - The wrapper ignores a heartbeat that names another project, the smoke test refuses leftovers unless `--clean`
+- A run that logs an error of its own exits 1 even when its targets succeeded, e.g. an AssetList entry that does not exist
+- A target is never reported failed after it reached disk: checks run before the save, errors during it are warnings
+- Bare words in `--args` are refused, so `apply` cannot act as `-apply`
+- `RemapScript` with the editor open refuses files loaded there, `EditImporter` folders skip native-format files
+- Replacing a state's blend tree removes the old one from the controller, `RenameParameter` skips empty states
+- A grown `[SerializeReference]` array no longer shares the last element's instance
+- Root `SiblingIndex` is refused under undo, the queue survives malformed task files, a broken `.prefab` fails only its entry
+- The wrapper only trusts `Unity`/`Unity.exe` processes and ignores long-dead idle heartbeats, macOS paths compare case-insensitively
 - Not yet compiled inside Unity: written and checked against Unity's C# reference source for 2022.3 and 6000.3

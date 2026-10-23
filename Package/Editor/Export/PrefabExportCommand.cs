@@ -52,12 +52,26 @@ namespace AssetOps
                 return false;
             }
             PrefabAssetType type = PrefabUtility.GetPrefabAssetType(asset);
+            if (type == PrefabAssetType.NotAPrefab || type == PrefabAssetType.MissingAsset)
+            {
+                ctx.Log.Error(path + " is not a loadable prefab (" + type + ")");
+                return false;
+            }
             JObject json = ExportHelper.Header(ctx, path);
             json["PrefabAssetType"] = type.ToString();
 
             // Models are read straight from the asset, their hierarchy comes from the importer.
             // Regular prefabs and variants load into an isolated scene, where instance information is complete.
-            GameObject root = type == PrefabAssetType.Model ? asset : PrefabUtility.LoadPrefabContents(path);
+            GameObject root;
+            try
+            {
+                root = type == PrefabAssetType.Model ? asset : PrefabUtility.LoadPrefabContents(path);
+            }
+            catch (System.Exception e)
+            {
+                ctx.Log.Error(path + ": Unity could not load it (" + e.Message + ")");
+                return false;
+            }
             try
             {
                 if (type == PrefabAssetType.Variant)

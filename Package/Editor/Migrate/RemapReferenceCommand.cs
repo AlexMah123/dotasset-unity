@@ -100,10 +100,19 @@ namespace AssetOps
                 int count;
                 string error;
                 bool ok = Remap(ctx, path, all, unmapped, swaps, out count, out error);
-                if (!ok || ctx.TargetFailed())
+                if (!ok)
                 {
                     ctx.FailTarget(path, error ?? ctx.TargetError);
                     continue;
+                }
+                if (ctx.DryRun && ctx.TargetFailed())
+                {
+                    ctx.FailTarget(path, ctx.TargetError);
+                    continue;
+                }
+                if (!ctx.DryRun && count > 0)
+                {
+                    ctx.WarnIfSavedWithErrors(path);
                 }
                 if (count > 0)
                 {
@@ -225,7 +234,11 @@ namespace AssetOps
                         return false;
                     }
                     count += swapped;
-                    return count == 0 || ctx.DryRun || session.Save(out error);
+                    if (count == 0 || ctx.DryRun)
+                    {
+                        return true;
+                    }
+                    return ctx.ReadyToSave(out error) && session.Save(out error);
                 }
             }
             if (main == typeof(SceneAsset))
@@ -243,7 +256,11 @@ namespace AssetOps
                         return false;
                     }
                     count += swapped;
-                    return count == 0 || ctx.DryRun || session.Save(out error);
+                    if (count == 0 || ctx.DryRun)
+                    {
+                        return true;
+                    }
+                    return ctx.ReadyToSave(out error) && session.Save(out error);
                 }
             }
             if (main == typeof(GameObject))
@@ -260,6 +277,10 @@ namespace AssetOps
                 }
                 if (count > 0 && !ctx.DryRun)
                 {
+                    if (!ctx.ReadyToSave(out error))
+                    {
+                        return false;
+                    }
                     importer.SaveAndReimport();
                 }
                 return true;
@@ -273,6 +294,10 @@ namespace AssetOps
             }
             if (count > 0 && !ctx.DryRun)
             {
+                if (!ctx.ReadyToSave(out error))
+                {
+                    return false;
+                }
                 foreach (Object o in assetObjects)
                 {
                     EditorUtility.SetDirty(o);

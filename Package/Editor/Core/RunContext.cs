@@ -48,6 +48,23 @@ namespace AssetOps
             return Log.Errors > targetErrorMark;
         }
 
+        // Call right before writing a target to disk: false (with the reason) when anything failed since BeginTarget.
+        public bool ReadyToSave(out string error)
+        {
+            error = TargetFailed() ? TargetError : null;
+            return error == null;
+        }
+
+        // Call right after a target reached disk. An error Unity logs during the save cannot undo the write, so it is
+        // reported as a warning on a target that counts as written.
+        public void WarnIfSavedWithErrors(string target)
+        {
+            if (TargetFailed())
+            {
+                Log.Warn(target + " was saved, but Unity logged an error while saving it: " + TargetError);
+            }
+        }
+
         // The first error logged since BeginTarget, the reason a failed target gives.
         public string TargetError
         {

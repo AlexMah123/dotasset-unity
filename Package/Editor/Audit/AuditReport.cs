@@ -56,7 +56,7 @@ namespace AssetOps
                 ["ExporterVersion"] = AssetOpsVersion.Version,
                 ["ReportType"] = ctx.RunName,
                 ["UnityVersion"] = Application.unityVersion,
-                ["CreatedUtc"] = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ"),
+                ["CreatedUtc"] = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ", System.Globalization.CultureInfo.InvariantCulture),
                 ["Rules"] = rules,
                 ["Checked"] = Checked,
                 ["IssueCount"] = issues.Count,

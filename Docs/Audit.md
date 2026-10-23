@@ -85,7 +85,7 @@ Issues carry `Guid`, `FileID`, `Field` (the YAML key) and `LocalId` (the object 
 | Rule | Severity | Finds | Fix |
 | --- | --- | --- | --- |
 | T1 | Warning | named like a normal map (`_n`, `_normal`, `_nrm`, `_nm`, `_norm`, `_normalmap`) but not imported as one | `TextureType: NormalMap` |
-| T2 | Warning | named like a data map (`_mask`, `_orm`, `_mra`, `_arm`, `_ao`, `_rough`, `_roughness`, `_metal`, `_metallic`, `_height`, `_disp`, `_ms`, `_mt`, `_smoothness`, `_spec`) with sRGB on | `sRGB: false` |
+| T2 | Warning | named like a data map (`_mask`, `_orm`, `_mra`, `_arm`, `_ao`, `_rough`, `_roughness`, `_metal`, `_metallic`, `_height`, `_disp`, `_displacement`, `_ms`, `_mt`, `_smoothness`, `_spec`, `_specular`) with sRGB on | `sRGB: false` |
 | T3 | Warning | uncompressed at 256 px or larger | `Compression: Compressed` |
 | T4 | Info | Read/Write enabled, the texture stays in CPU memory too | `ReadWrite: false` |
 | T5 | Warning | mipmaps on a Sprite or GUI texture | `Mipmaps: false` |
@@ -95,7 +95,7 @@ Issues carry `Guid`, `FileID`, `Field` (the YAML key) and `LocalId` (the object 
 
 | Argument | Effect |
 | --- | --- |
-| `-maxsize=N` | the T8 budget, default 2048 |
+| `-maxsize=N` | the T8 budget, default 2048, a power of two from 32 to 16384 |
 | `-rules=T1,T3` | only these rules |
 | `-normalsuffix=_n,_nrm` | replaces the T1 name list |
 | `-datasuffix=_mask,_orm` | replaces the T2 name list |

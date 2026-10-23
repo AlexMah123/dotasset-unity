@@ -44,6 +44,8 @@ PROCESSING = "processing"
 DONE = "done"
 ALIVE = ".alive"
 HEARTBEAT_FRESHNESS_SEC = 15.0
+# Beyond this an idle heartbeat counts as dead for routing. Generous, an unfocused editor can tick slowly.
+STALE_HEARTBEAT_SEC = 120.0
 
 EXIT_SUCCESS = 0
 EXIT_FAILED = 1
@@ -202,9 +204,13 @@ def process_name(pid):
         return ""
 
 
+UNITY_NAMES = {"unity", "unity.exe"}
+
+
 def is_unity_process(pid):
-    """A pid from a stale heartbeat can be reused by another program. Only a live Unity counts."""
-    return pid_alive(pid) and "unity" in process_name(pid).lower()
+    """A pid from a stale heartbeat can be reused by another program. Only a live Unity editor counts,
+    not Unity Hub, the shader compiler, the crash handler or the licensing client."""
+    return pid_alive(pid) and process_name(pid).lower() in UNITY_NAMES
 
 
 def project_locked(project):
@@ -259,9 +265,14 @@ def read_alive(queue_root):
 
 def same_path(a, b):
     try:
-        return os.path.normcase(os.path.realpath(a)) == os.path.normcase(os.path.realpath(b))
+        x = os.path.normcase(os.path.realpath(a)).rstrip("\\/")
+        y = os.path.normcase(os.path.realpath(b)).rstrip("\\/")
     except (TypeError, ValueError):
         return False
+    if sys.platform == "darwin":
+        # APFS and HFS+ are case-insensitive by default, normcase does not fold case on macOS.
+        return x.lower() == y.lower()
+    return x == y
 
 
 def live_editor(queue_root):
@@ -273,6 +284,10 @@ def live_editor(queue_root):
     # names a different project.
     project = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(queue_root))))
     if alive.get("ProjectPath") and not same_path(alive["ProjectPath"], project):
+        return None
+    # A heartbeat that stopped long ago with a state that should be ticking belongs to a dead or hung editor whose
+    # pid got reused. busy, reloading, compiling and importing legitimately block the editor's update loop.
+    if alive.get("_age", 0) > STALE_HEARTBEAT_SEC and alive.get("State") not in ("busy", "reloading", "compiling", "importing"):
         return None
     try:
         pid = int(alive.get("Pid", 0))

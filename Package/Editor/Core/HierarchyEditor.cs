@@ -262,8 +262,19 @@ namespace AssetOps
             }
             if (Json.Has(op, "SiblingIndex"))
             {
-                go.transform.SetSiblingIndex(Json.Int(op, "SiblingIndex", 0));
+                SetSiblingIndex(go, Json.Int(op, "SiblingIndex", 0));
             }
+        }
+
+        // Undo records objects, not the order of a scene's roots. In a scene edited under undo (open in the editor)
+        // a root reorder could not be rolled back, so it is refused there.
+        void SetSiblingIndex(GameObject go, int index)
+        {
+            if (useUndo && go.transform.parent == null)
+            {
+                throw new InvalidOperationException("SiblingIndex for a scene root cannot be undone in a scene open in the editor. Close the scene and rerun, or leave SiblingIndex out");
+            }
+            go.transform.SetSiblingIndex(index);
         }
 
         void AddGameObject(JToken op, string label)
@@ -348,7 +359,7 @@ namespace AssetOps
             }
             if (Json.Has(op, "SiblingIndex"))
             {
-                instance.transform.SetSiblingIndex(Json.Int(op, "SiblingIndex", 0));
+                SetSiblingIndex(instance, Json.Int(op, "SiblingIndex", 0));
             }
             if (useUndo)
             {
@@ -447,11 +458,11 @@ namespace AssetOps
             }
             if (Json.Has(op, "SiblingIndex"))
             {
-                if (useUndo)
+                if (useUndo && go.transform.parent != null)
                 {
-                    Undo.RegisterFullObjectHierarchyUndo(go.transform.parent != null ? go.transform.parent.gameObject : go, "Reorder");
+                    Undo.RegisterFullObjectHierarchyUndo(go.transform.parent.gameObject, "Reorder");
                 }
-                go.transform.SetSiblingIndex(Json.Int(op, "SiblingIndex", 0));
+                SetSiblingIndex(go, Json.Int(op, "SiblingIndex", 0));
             }
             log.Info("moved " + before + " to " + HierarchyPath.Of(go));
         }

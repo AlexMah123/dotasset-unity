@@ -111,7 +111,7 @@ python assetops.py RemapScript --args '-from=4f2c9a1e0b8d4c7e9f3a2b1c0d9e8f7a -t
 | `-scandir=<dirs>` | default `Assets` |
 | `-fromfileid` | the old reference's fileID, default `11500000` (a `.cs` script). Scripts inside a DLL use another fileID |
 
-Rewrites `m_Script: {fileID: ..., guid: <old>, type: 3}` in every YAML asset (`.prefab`, `.unity`, `.asset`, `.controller`, ...) and reimports the changed files. Needs Asset Serialization Mode = Force Text. Field values survive when the new class has fields of the same names.
+Rewrites `m_Script: {fileID: ..., guid: <old>, type: 3}` in every YAML asset (`.prefab`, `.unity`, `.asset`, `.controller`, ...) and reimports the changed files. Needs Asset Serialization Mode = Force Text. Field values survive when the new class has fields of the same names. With the editor open, a file that is loaded there (an open scene, a prefab in Prefab Mode, an asset with unsaved changes) fails its target: the loaded copy would write the old GUID back on its next save.
 
 ## RemoveMissingScripts
 

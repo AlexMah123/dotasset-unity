@@ -106,12 +106,13 @@ namespace AssetOps
                         error = "\"Kind\" is Folder, ScriptableObject, Material, Prefab, PrefabVariant, AnimatorController or Scene, got " + (kind ?? "nothing");
                         break;
                 }
-                if (!ok || ctx.TargetFailed())
+                if (!ok)
                 {
                     ctx.FailTarget(path, error ?? ctx.TargetError);
                     RemoveCreatedFolders(ctx);
                     continue;
                 }
+                ctx.WarnIfSavedWithErrors(path);
                 created++;
                 ctx.Log.Info("created " + kind + " " + path);
             }
@@ -171,12 +172,13 @@ namespace AssetOps
             {
                 return true;
             }
-            if (!path.StartsWith("Assets/", StringComparison.Ordinal))
+            // Stops at the first folder that exists: Assets, or an embedded package's folder under Packages.
+            string parent = (Path.GetDirectoryName(path) ?? string.Empty).Replace('\\', '/');
+            if (parent.Length == 0 || path == "Packages")
             {
-                error = "'" + path + "' is not under Assets/";
+                error = "'" + path + "' is not inside Assets/ or an existing package folder";
                 return false;
             }
-            string parent = Path.GetDirectoryName(path).Replace('\\', '/');
             if (!EnsureFolder(parent, out error))
             {
                 return false;
@@ -223,7 +225,7 @@ namespace AssetOps
                 error = wc.Errors[0];
                 return false;
             }
-            if (!ParentFolder(path, out error))
+            if (!ParentFolder(path, out error) || !ctx.ReadyToSave(out error))
             {
                 Object.DestroyImmediate(instance);
                 return false;
@@ -263,7 +265,7 @@ namespace AssetOps
                 error = errors[0];
                 return false;
             }
-            if (!ParentFolder(path, out error))
+            if (!ParentFolder(path, out error) || !ctx.ReadyToSave(out error))
             {
                 Object.DestroyImmediate(mat);
                 return false;
@@ -307,6 +309,11 @@ namespace AssetOps
                 {
                     foreach (JToken c in components)
                     {
+                        if (c.Type == JTokenType.Object && !Spec.CheckKeys(ctx, c, path + " Components entry", "Type", "Properties"))
+                        {
+                            error = ctx.TargetError;
+                            return false;
+                        }
                         ops.Add(new JObject
                         {
                             ["Op"] = "AddComponent",
@@ -336,7 +343,7 @@ namespace AssetOps
                     error = editor.Errors[0];
                     return false;
                 }
-                if (!ParentFolder(path, out error))
+                if (!ParentFolder(path, out error) || !ctx.ReadyToSave(out error))
                 {
                     return false;
                 }
@@ -382,7 +389,7 @@ namespace AssetOps
                         return false;
                     }
                 }
-                if (!ParentFolder(path, out error))
+                if (!ParentFolder(path, out error) || !ctx.ReadyToSave(out error))
                 {
                     return false;
                 }
@@ -486,6 +493,10 @@ namespace AssetOps
                         error = editor.Errors[0];
                         return false;
                     }
+                }
+                if (!ctx.ReadyToSave(out error))
+                {
+                    return false;
                 }
                 if (!EditorSceneManager.SaveScene(scene, path))
                 {

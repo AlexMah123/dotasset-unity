@@ -100,6 +100,7 @@ namespace AssetOps
                     EditorUtility.SetDirty(controller);
                     AssetDatabase.SaveAssetIfDirty(controller);
                     keep = true;
+                    ctx.WarnIfSavedWithErrors(path);
                     written++;
                     ctx.Log.Info("saved " + path + " (" + ops.Count + " op(s))");
                 }
@@ -461,6 +462,10 @@ namespace AssetOps
                 foreach (ChildAnimatorState child in sm.states)
                 {
                     AnimatorState s = child.state;
+                    if (s == null)
+                    {
+                        continue;
+                    }
                     Undo.RecordObject(s, "Rename parameter");
                     if (s.speedParameter == from) { s.speedParameter = to; uses++; }
                     if (s.mirrorParameter == from) { s.mirrorParameter = to; uses++; }
@@ -785,7 +790,14 @@ namespace AssetOps
                     {
                         return;
                     }
+                    // A blend tree the state owned lives inside the controller file, drop it rather than leave it orphaned.
+                    var oldTree = state.motion as BlendTree;
                     state.motion = motion;
+                    if (oldTree != null && oldTree != motion && !AssetDatabase.IsMainAsset(oldTree)
+                        && AssetDatabase.GetAssetPath(oldTree) == AssetDatabase.GetAssetPath(controller) && !UsedElsewhere(oldTree, state))
+                    {
+                        DestroyTree(oldTree);
+                    }
                 }
                 if (Json.TryDouble(Json.Get(op, "Speed"), out d))
                 {
@@ -859,6 +871,33 @@ namespace AssetOps
                         Fail(wc.Errors[0]);
                     }
                 }
+            }
+
+            // Another state of any layer still playing this tree.
+            bool UsedElsewhere(BlendTree tree, AnimatorState except)
+            {
+                var states = new Dictionary<AnimatorState, string>();
+                foreach (AnimatorControllerLayer layer in controller.layers)
+                {
+                    if (layer.stateMachine != null)
+                    {
+                        AnimatorControllerExportCommand.IndexPaths(layer.stateMachine, string.Empty, states, new Dictionary<AnimatorStateMachine, string>());
+                    }
+                }
+                return states.Keys.Any(s => s != except && s.motion == tree);
+            }
+
+            static void DestroyTree(BlendTree tree)
+            {
+                foreach (ChildMotion child in tree.children)
+                {
+                    var sub = child.motion as BlendTree;
+                    if (sub != null && !AssetDatabase.IsMainAsset(sub))
+                    {
+                        DestroyTree(sub);
+                    }
+                }
+                Undo.DestroyObjectImmediate(tree);
             }
 
             // A clip path, {"Asset", "Sub"} for a clip inside a model, null, or a blend tree block as exported.

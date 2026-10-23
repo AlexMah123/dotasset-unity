@@ -221,12 +221,24 @@ namespace AssetOps
         // scene that happens to be active is never touched, and without the editor's default parent.
         public static GameObject Spawn(string name, Scene target)
         {
+            if (!target.IsValid() || target == SceneManager.GetActiveScene())
+            {
+                // The usual case: sessions make their scene the active one, so a plain new object lands right there.
+                return new GameObject(name);
+            }
+            // A preview scene (prefab contents) cannot be active. Create hidden, move, then show.
             GameObject go = EditorUtility.CreateGameObjectWithHideFlags(name, HideFlags.HideAndDontSave);
-            if (target.IsValid() && go.scene != target)
+            try
             {
                 SceneManager.MoveGameObjectToScene(go, target);
+                go.hideFlags = HideFlags.None;
             }
-            go.hideFlags = HideFlags.None;
+            catch (Exception)
+            {
+                // Should Unity refuse to move a hidden object, show it first and move it then.
+                go.hideFlags = HideFlags.None;
+                SceneManager.MoveGameObjectToScene(go, target);
+            }
             return go;
         }
     }

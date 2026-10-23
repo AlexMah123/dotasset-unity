@@ -4,6 +4,10 @@ using System.IO;
 using System.Text;
 using System.Text.RegularExpressions;
 using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using Object = UnityEngine.Object;
 
 namespace AssetOps
 {
@@ -23,6 +27,32 @@ namespace AssetOps
         public override IEnumerable<string> Arguments
         {
             get { return new[] { "from", "to", "scandir", "fromfileid" }; }
+        }
+
+        static string OpenInEditor(string path)
+        {
+            if (Application.isBatchMode)
+            {
+                return null;
+            }
+            if (path.EndsWith(".unity", StringComparison.OrdinalIgnoreCase))
+            {
+                Scene scene = SceneManager.GetSceneByPath(path);
+                return scene.IsValid() && scene.isLoaded ? "the scene is open in the editor, close it first" : null;
+            }
+            PrefabStage stage = PrefabStageUtility.GetCurrentPrefabStage();
+            if (stage != null && stage.assetPath == path)
+            {
+                return "the prefab is open in Prefab Mode, close it first";
+            }
+            foreach (Object o in AssetDatabase.LoadAllAssetsAtPath(path))
+            {
+                if (o != null && EditorUtility.IsDirty(o))
+                {
+                    return "it has unsaved changes in the editor, save or discard them first";
+                }
+            }
+            return null;
         }
 
         public override ExitCode Execute(RunContext ctx)
@@ -103,6 +133,13 @@ namespace AssetOps
                 int hits = pattern.Matches(text).Count;
                 if (hits == 0)
                 {
+                    continue;
+                }
+                string busy = OpenInEditor(path);
+                if (busy != null)
+                {
+                    // The file is rewritten on disk. A loaded copy would keep the old GUID and write it back on its next save.
+                    ctx.FailTarget(path, busy);
                     continue;
                 }
                 changedFiles++;

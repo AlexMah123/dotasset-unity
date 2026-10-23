@@ -199,6 +199,73 @@ namespace AssetOps
         }
     }
 
+    // Somewhere to build a new prefab without touching the user's scenes.
+    // Headless the active scene is the empty untitled one, nobody's work, so nothing is set up.
+    // In the editor a new empty scene opens next to the user's and becomes active while the prefab is built;
+    // when Unity refuses that (an Untitled scene is open) a preview scene takes the objects instead.
+    public sealed class ScratchScene : IDisposable
+    {
+        Scene scene;
+        Scene previous;
+        bool preview;
+        bool disposed;
+
+        public ScratchScene()
+        {
+            if (Application.isBatchMode)
+            {
+                return;
+            }
+            previous = SceneManager.GetActiveScene();
+            try
+            {
+                scene = EditorSceneManager.NewScene(NewSceneSetup.EmptyScene, NewSceneMode.Additive);
+                SceneManager.SetActiveScene(scene);
+            }
+            catch (Exception)
+            {
+                scene = EditorSceneManager.NewPreviewScene();
+                preview = true;
+            }
+        }
+
+        public Scene Scene
+        {
+            get { return scene; }
+        }
+
+        // Objects made with new GameObject() land in the active scene, move them when that is not ours.
+        public void Adopt(GameObject go)
+        {
+            if (preview && scene.IsValid())
+            {
+                SceneManager.MoveGameObjectToScene(go, scene);
+            }
+        }
+
+        public void Dispose()
+        {
+            if (disposed || Application.isBatchMode)
+            {
+                return;
+            }
+            disposed = true;
+            if (preview)
+            {
+                EditorSceneManager.ClosePreviewScene(scene);
+                return;
+            }
+            if (previous.IsValid() && previous.isLoaded)
+            {
+                SceneManager.SetActiveScene(previous);
+            }
+            if (scene.IsValid())
+            {
+                EditorSceneManager.CloseScene(scene, true);
+            }
+        }
+    }
+
     // Any other asset object. A clone taken up front is copied back when the session is dropped.
     // Importers are snapshotted through EditorJsonUtility instead, Object.Instantiate does not clone them.
     public sealed class AssetSnapshot : IDisposable

@@ -144,8 +144,28 @@ namespace AssetOps
             return rest;
         }
 
-        // -from/-to, or a spec array of {"From", "To"}.
+        // -from/-to, or a spec array of {"From", "To"}. Both ends must be under Assets/ or Packages/.
         public static bool Pairs(RunContext ctx, string specKey, out List<KeyValuePair<string, string>> pairs)
+        {
+            if (!PairsRaw(ctx, specKey, out pairs))
+            {
+                return false;
+            }
+            foreach (var pair in pairs)
+            {
+                foreach (string end in new[] { pair.Key, pair.Value })
+                {
+                    if (!end.StartsWith("Assets/", StringComparison.Ordinal) && !end.StartsWith("Packages/", StringComparison.Ordinal))
+                    {
+                        ctx.Log.Error("'" + end + "' is not a path under Assets/ or Packages/");
+                        return false;
+                    }
+                }
+            }
+            return true;
+        }
+
+        static bool PairsRaw(RunContext ctx, string specKey, out List<KeyValuePair<string, string>> pairs)
         {
             pairs = new List<KeyValuePair<string, string>>();
             string from = ctx.Args.Get("from");

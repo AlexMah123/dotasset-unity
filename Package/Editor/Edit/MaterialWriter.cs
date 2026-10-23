@@ -233,7 +233,7 @@ namespace AssetOps
                             }
                             mat.SetTextureOffset(name, new Vector2(f[0], f[1]));
                         }
-                        if (!(value as JObject).ContainsKey("Texture"))
+                        if (!Json.Has(value, "Texture") && Json.Get(value, "Texture") == null)
                         {
                             return null;
                         }

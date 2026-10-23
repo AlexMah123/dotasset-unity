@@ -289,8 +289,7 @@ namespace AssetOps
             if (typeof(Component).IsAssignableFrom(type) && !type.IsAbstract)
             {
                 // Inactive, so Awake and OnEnable of the added component do not run.
-                GameObject go = new GameObject("AssetOps.Defaults");
-                go.hideFlags = HideFlags.HideAndDontSave;
+                GameObject go = EditorUtility.CreateGameObjectWithHideFlags("AssetOps.Defaults", HideFlags.HideAndDontSave);
                 go.SetActive(false);
                 try
                 {

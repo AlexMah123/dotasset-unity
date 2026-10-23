@@ -233,11 +233,12 @@ namespace AssetOps
             }
             foreach (var kv in platforms)
             {
-                TextureImporterPlatformSettings ps = t.GetPlatformTextureSettings(kv.Key);
-                if (ps == null)
+                // Unity hands back fresh settings for any name, a typo would write an override nobody reads.
+                if (Array.IndexOf(PlatformNames, kv.Key) < 0)
                 {
-                    return "unknown platform '" + kv.Key + "'";
+                    return "unknown platform '" + kv.Key + "'. Platforms: " + string.Join(", ", PlatformNames);
                 }
+                TextureImporterPlatformSettings ps = t.GetPlatformTextureSettings(kv.Key);
                 JToken block = kv.Value;
                 ps.overridden = Json.Bool(block, "Override", true);
                 if (Json.Has(block, "MaxSize"))
@@ -280,6 +281,12 @@ namespace AssetOps
             }
             return null;
         }
+
+        public static readonly string[] PlatformNames =
+        {
+            "Standalone", "Android", "iPhone", "tvOS", "WebGL", "Windows Store Apps", "PS4", "PS5", "XboxOne",
+            "GameCoreXboxOne", "GameCoreXboxSeries", "Nintendo Switch", "Switch", "LinuxHeadlessSimulation", "Server", "VisionOS", "Lumin", "Stadia",
+        };
 
         static string CheckSize(int size)
         {

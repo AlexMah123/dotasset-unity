@@ -92,8 +92,7 @@ namespace AssetOps
                 }
                 else
                 {
-                    host = new GameObject("AssetOps.Catalog");
-                    host.hideFlags = HideFlags.HideAndDontSave;
+                    host = EditorUtility.CreateGameObjectWithHideFlags("AssetOps.Catalog", HideFlags.HideAndDontSave);
                     host.SetActive(false);
                     instance = t == typeof(Transform) ? host.transform : host.AddComponent(t);
                 }

@@ -189,11 +189,11 @@ namespace AssetOps
 
         static string Icon(int exitCode)
         {
-            switch (exitCode)
+            switch ((ExitCode)exitCode)
             {
-                case 0:
+                case ExitCode.Success:
                     return "ok ";
-                case 3:
+                case ExitCode.IssuesFound:
                     return "!! ";
                 default:
                     return "xx ";

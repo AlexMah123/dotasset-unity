@@ -94,12 +94,13 @@ namespace AssetOps
         public static JArray StaticNames(StaticEditorFlags flags)
         {
             var names = new JArray();
-            foreach (StaticEditorFlags f in System.Enum.GetValues(typeof(StaticEditorFlags)))
+            foreach (StaticEditorFlags f in System.Enum.GetValues(typeof(StaticEditorFlags)).Cast<StaticEditorFlags>().Distinct())
             {
                 int bits = (int)f;
                 if (bits != 0 && (bits & (bits - 1)) == 0 && (flags & f) == f)
                 {
-                    names.Add(f.ToString());
+                    // Value 1 has two names, ContributeGI and the obsolete LightmapStatic.
+                    names.Add(bits == 1 ? "ContributeGI" : f.ToString());
                 }
             }
             return names;

@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -146,10 +147,15 @@ namespace AssetOps
         public static bool EnsureFolder(string path, out string error)
         {
             error = null;
-            path = path.TrimEnd('/');
+            path = (path ?? string.Empty).TrimEnd('/');
             if (AssetDatabase.IsValidFolder(path))
             {
                 return true;
+            }
+            if (!path.StartsWith("Assets/", StringComparison.Ordinal))
+            {
+                error = "'" + path + "' is not under Assets/";
+                return false;
             }
             string parent = Path.GetDirectoryName(path).Replace('\\', '/');
             if (!EnsureFolder(parent, out error))
@@ -266,7 +272,9 @@ namespace AssetOps
                 return false;
             }
             string rootName = Json.Str(entry, "Root", Path.GetFileNameWithoutExtension(path));
+            var scratch = new ScratchScene();
             var root = new GameObject(rootName);
+            scratch.Adopt(root);
             if (Json.Bool(entry, "RectTransform", false))
             {
                 root.AddComponent<RectTransform>();
@@ -324,6 +332,7 @@ namespace AssetOps
             finally
             {
                 Object.DestroyImmediate(root);
+                scratch.Dispose();
             }
         }
 
@@ -337,7 +346,10 @@ namespace AssetOps
                 error = "\"Base\" must name a prefab or model, got " + (basePath ?? "nothing");
                 return false;
             }
-            var instance = (GameObject)PrefabUtility.InstantiatePrefab(basePrefab);
+            var scratch = new ScratchScene();
+            var instance = (GameObject)(scratch.Scene.IsValid()
+                ? PrefabUtility.InstantiatePrefab(basePrefab, scratch.Scene)
+                : PrefabUtility.InstantiatePrefab(basePrefab));
             try
             {
                 instance.name = Path.GetFileNameWithoutExtension(path);
@@ -366,6 +378,7 @@ namespace AssetOps
             finally
             {
                 Object.DestroyImmediate(instance);
+                scratch.Dispose();
             }
         }
 
@@ -430,7 +443,16 @@ namespace AssetOps
                 return false;
             }
             NewSceneMode mode = Application.isBatchMode ? NewSceneMode.Single : NewSceneMode.Additive;
-            Scene scene = EditorSceneManager.NewScene(setup, mode);
+            Scene scene;
+            try
+            {
+                scene = EditorSceneManager.NewScene(setup, mode);
+            }
+            catch (Exception e)
+            {
+                error = "Unity could not create a scene next to the open ones (" + e.Message + "). If the editor shows an Untitled scene, save it first";
+                return false;
+            }
             try
             {
                 var ops = Json.Get(entry, "Ops") as JArray;

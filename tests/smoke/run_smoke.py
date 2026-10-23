@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """End-to-end smoke test in a real Unity project. Exercises every group through assetops.py.
 
-Creates everything under Assets/AssetOpsSmoke and deletes it at the end. Run it once with the editor closed
+Creates everything under Assets/AssetopsSmoke and deletes it at the end. Run it once with the editor closed
 (headless route) and once with the editor open (queue route):
 
   python tests/smoke/run_smoke.py --project /path/to/UnityProject [--unity /path/to/Unity] [--keep]
@@ -18,7 +18,7 @@ import tempfile
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WRAPPER = os.path.join(HERE, "..", "..", "Package", "Scripts~", "assetops.py")
-ROOT = "Assets/AssetOpsSmoke"
+ROOT = "Assets/AssetopsSmoke"
 
 
 def spec(name, data, tmp):
@@ -32,8 +32,8 @@ def main():
     p = argparse.ArgumentParser()
     p.add_argument("--project", required=True)
     p.add_argument("--unity")
-    p.add_argument("--keep", action="store_true", help="leave Assets/AssetOpsSmoke in place")
-    p.add_argument("--clean", action="store_true", help="delete a leftover Assets/AssetOpsSmoke before starting")
+    p.add_argument("--keep", action="store_true", help="leave Assets/AssetopsSmoke in place")
+    p.add_argument("--clean", action="store_true", help="delete a leftover Assets/AssetopsSmoke before starting")
     p.add_argument("--timeout", type=int, default=1200, help="per step, headless starts of a big project are slow (default 1200)")
     args = p.parse_args()
     tmp = tempfile.mkdtemp(prefix="assetops_smoke_")

@@ -4,14 +4,14 @@ using System.Linq;
 using UnityEditor;
 using Object = UnityEngine.Object;
 
-namespace AssetOps
+namespace Assetops
 {
     // Rewrites assets through the current serializer: after [FormerlySerializedAs] on a renamed field, after a
     // package upgrade, or to normalize YAML before a diff. Pick assets by AssetList, by -dependson (every asset
     // under -scandir that directly uses that asset, e.g. a script), and by -type.
     // Usage: assetops.py ResaveAsset --args "-dependson=Assets/Scripts/Inventory.cs -apply"
     // Docs/Migrate.md
-    public sealed class ResaveAssetCommand : AssetOpsCommand
+    public sealed class ResaveAssetCommand : AssetopsCommand
     {
         public override string Summary
         {

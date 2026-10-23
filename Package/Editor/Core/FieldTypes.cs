@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Reflection;
 using UnityEditor;
 
-namespace AssetOps
+namespace Assetops
 {
     // The C# type behind a SerializedProperty, found by walking the property path over the target's fields.
     // Works for script fields. Native fields (the m_ fields of built-in components) have no C# field and return null.

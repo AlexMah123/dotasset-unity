@@ -42,7 +42,7 @@ Audit first, then fix with the spec the audit wrote: `AuditTexture` writes `<rep
 
 ## Call templates
 
-The wrapper is `assetops.py` (in the package's `Scripts~/`, or copied to the project root by the **Copy assetops.py** button in `Window > AssetOps`). Run it from anywhere inside the project, or give `--project`.
+The wrapper is `assetops.py` (in the package's `Scripts~/`, or copied to the project root by the **Copy assetops.py** button in `Window > Assetops`). Run it from anywhere inside the project, or give `--project`.
 
 Export. Entry assets are a comma-separated `AssetList`; folders expand to the matching assets beneath them.
 
@@ -71,7 +71,7 @@ Audit. Entry assets or `-scandir` (default `Assets`).
 
 ```bash
 python assetops.py AuditTexture --args "-scandir=Assets/Art -maxsize=2048"
-python assetops.py EditImporter --args '-spec="Library/AssetOps/Audit/AuditTexture_20261023-201500.fix.json" -apply'
+python assetops.py EditImporter --args '-spec="Library/Assetops/Audit/AuditTexture_20261023-201500.fix.json" -apply'
 ```
 
 Spec paths are absolute or relative to the project root. Quote values that contain spaces: `-spec="C:/My Specs/a.json"`. On Git Bash for Windows, `--args` values that start with `/` may need `MSYS_NO_PATHCONV=1`.
@@ -89,13 +89,13 @@ Every run prints its log, then `[assetops] <summary>` and the path of its log fi
 
 Failure lines have one shape: `<RunName> failed for <target>. Reason: <first error while writing it>`.
 
-Exports land in `Library/AssetOps/Export/<AssetPath>_<YYYYMMDD-HHMMSS>.json` and are printed as `output:` lines. They can be long: grep first, then read the line range.
+Exports land in `Library/Assetops/Export/<AssetPath>_<YYYYMMDD-HHMMSS>.json` and are printed as `output:` lines. They can be long: grep first, then read the line range.
 
 ```bash
-grep -n '"Path": "Player/Model' Library/AssetOps/Export/Assets/Prefabs/Player.prefab_*.json
+grep -n '"Path": "Player/Model' Library/Assetops/Export/Assets/Prefabs/Player.prefab_*.json
 ```
 
-Audit reports land in `Library/AssetOps/Audit/`, with `-report=` to choose the path. Run logs: `Library/AssetOps/Logs/`, and `Window > AssetOps` lists them in the editor.
+Audit reports land in `Library/Assetops/Audit/`, with `-report=` to choose the path. Run logs: `Library/Assetops/Logs/`, and `Window > Assetops` lists them in the editor.
 
 ## Pitfalls
 

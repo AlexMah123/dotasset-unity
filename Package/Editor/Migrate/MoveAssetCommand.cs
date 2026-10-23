@@ -5,14 +5,14 @@ using System.Linq;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
 
-namespace AssetOps
+namespace Assetops
 {
     // Moves or renames assets and folders through the AssetDatabase, so GUIDs and every reference survive.
     // Also flags what a GUID cannot carry: Resources.Load paths and other path strings in code.
     // Usage: assetops.py MoveAsset --args '-from=Assets/Old/Gun.prefab -to=Assets/Weapons/Gun.prefab -apply'
     //        assetops.py MoveAsset --args '-spec="C:/temp/moves.json" -apply'    {"Moves": [{"From": ..., "To": ...}]}
     // Docs/Migrate.md
-    public sealed class MoveAssetCommand : AssetOpsCommand
+    public sealed class MoveAssetCommand : AssetopsCommand
     {
         public override string Summary
         {
@@ -110,7 +110,7 @@ namespace AssetOps
                 string text;
                 try
                 {
-                    text = File.ReadAllText(AssetOpsPaths.Absolute(script));
+                    text = File.ReadAllText(AssetopsPaths.Absolute(script));
                 }
                 catch (Exception)
                 {
@@ -177,7 +177,7 @@ namespace AssetOps
                     ctx.Log.Error("give both -from and -to");
                     return false;
                 }
-                pairs.Add(new KeyValuePair<string, string>(AssetOpsPaths.Normalize(from).TrimEnd('/'), AssetOpsPaths.Normalize(to).TrimEnd('/')));
+                pairs.Add(new KeyValuePair<string, string>(AssetopsPaths.Normalize(from).TrimEnd('/'), AssetopsPaths.Normalize(to).TrimEnd('/')));
             }
             if (ctx.Args.Has("spec"))
             {
@@ -204,7 +204,7 @@ namespace AssetOps
                         ctx.Log.Error("every " + specKey + " entry needs \"From\" and \"To\"");
                         return false;
                     }
-                    pairs.Add(new KeyValuePair<string, string>(AssetOpsPaths.Normalize(f).TrimEnd('/'), AssetOpsPaths.Normalize(t).TrimEnd('/')));
+                    pairs.Add(new KeyValuePair<string, string>(AssetopsPaths.Normalize(f).TrimEnd('/'), AssetopsPaths.Normalize(t).TrimEnd('/')));
                 }
             }
             if (pairs.Count == 0)

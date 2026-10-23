@@ -7,14 +7,14 @@ using UnityEditor.Animations;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
-namespace AssetOps
+namespace Assetops
 {
     // Edits Animator Controllers: parameters, layers, sub-state machines, states, blend trees, transitions.
     // States are addressed by layer plus path ("Locomotion/Run"), exactly as AnimatorControllerExport prints them.
     // Every change is recorded on one undo group, a failed or dry run reverts it before anything is saved.
     // Usage: assetops.py EditAnimatorController --args '-spec="C:/temp/anim.json" -apply'
     // Docs/Edit.md
-    public sealed class EditAnimatorControllerCommand : AssetOpsCommand
+    public sealed class EditAnimatorControllerCommand : AssetopsCommand
     {
         static readonly string[] OpNames =
         {
@@ -81,7 +81,7 @@ namespace AssetOps
 
                 ctx.BeginTarget();
                 Undo.IncrementCurrentGroup();
-                Undo.SetCurrentGroupName("AssetOps: EditAnimatorController");
+                Undo.SetCurrentGroupName("Assetops: EditAnimatorController");
                 int group = Undo.GetCurrentGroup();
                 bool keep = false;
                 try

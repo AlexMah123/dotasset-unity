@@ -5,7 +5,7 @@ using System.Linq;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
 
-namespace AssetOps
+namespace Assetops
 {
     // Checks texture import settings against what the texture is for.
     //   T1  named like a normal map (_n, _normal, _nrm, _nm) but not imported as one
@@ -19,7 +19,7 @@ namespace AssetOps
     // Fix spec: EditImporter targets for T1 T2 T3 T4 T5 T6 T8. T7 needs the source resized.
     // Usage: assetops.py AuditTexture [Assets/Art] --args "-scandir=Assets -maxsize=2048 -rules=T1,T2"
     // Docs/Audit.md
-    public sealed class AuditTextureCommand : AssetOpsCommand
+    public sealed class AuditTextureCommand : AssetopsCommand
     {
         static readonly string[] DefaultNormal = { "_n", "_normal", "_nrm", "_nm", "_norm", "_normalmap" };
         static readonly string[] DefaultData = { "_mask", "_orm", "_mra", "_arm", "_ao", "_rough", "_roughness", "_metal", "_metallic", "_height", "_disp", "_displacement", "_ms", "_mt", "_smoothness", "_spec", "_specular" };

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEditor;
 
-namespace AssetOps
+namespace Assetops
 {
     // Everything a command sees of the run that invoked it.
     public sealed class RunContext
@@ -85,8 +85,8 @@ namespace AssetOps
 
         public void AddOutput(string absolutePath)
         {
-            Outputs.Add(AssetOpsPaths.Normalize(absolutePath));
-            Log.Info("output: " + AssetOpsPaths.ToProjectRelative(absolutePath));
+            Outputs.Add(AssetopsPaths.Normalize(absolutePath));
+            Log.Info("output: " + AssetopsPaths.ToProjectRelative(absolutePath));
         }
 
         // Progress for long runs. A progress bar in the editor, a log line every 10 percent headless.
@@ -98,7 +98,7 @@ namespace AssetOps
             }
             if (InEditor)
             {
-                EditorUtility.DisplayProgressBar("AssetOps: " + RunName, label, done / (float)total);
+                EditorUtility.DisplayProgressBar("Assetops: " + RunName, label, done / (float)total);
                 progressShown = true;
                 return;
             }

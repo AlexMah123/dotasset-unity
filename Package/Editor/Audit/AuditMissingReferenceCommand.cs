@@ -8,7 +8,7 @@ using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
-namespace AssetOps
+namespace Assetops
 {
     // Finds references that point at nothing.
     //   R1  a GUID that no asset in the project has (the asset was deleted, or its .meta lost)
@@ -20,7 +20,7 @@ namespace AssetOps
     // Fix spec: R2 entries grouped by GUID, for RemapScript or RemoveMissingScripts.
     // Usage: assetops.py AuditMissingReference [Assets/Prefabs,...] --args "-scandir=Assets -deep"
     // Docs/Audit.md
-    public sealed class AuditMissingReferenceCommand : AssetOpsCommand
+    public sealed class AuditMissingReferenceCommand : AssetopsCommand
     {
         static readonly Regex Reference = new Regex(@"\{fileID:\s*(-?\d+),\s*guid:\s*([0-9a-f]{32}),\s*type:\s*(\d+)\}", RegexOptions.Compiled);
         static readonly Regex DocHeader = new Regex(@"^--- !u!(\d+) &(-?\d+)", RegexOptions.Compiled | RegexOptions.Multiline);
@@ -101,7 +101,7 @@ namespace AssetOps
             string text;
             try
             {
-                text = File.ReadAllText(AssetOpsPaths.Absolute(path));
+                text = File.ReadAllText(AssetopsPaths.Absolute(path));
             }
             catch (Exception e)
             {

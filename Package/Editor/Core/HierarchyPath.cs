@@ -4,7 +4,7 @@ using System.Linq;
 using System.Text;
 using UnityEngine;
 
-namespace AssetOps
+namespace Assetops
 {
     // GameObject addressing shared by every export and edit:
     //   "Player/Model/Hand.R"   names from the root down, the root's own name included

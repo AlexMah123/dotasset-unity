@@ -7,7 +7,7 @@ using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
-namespace AssetOps
+namespace Assetops
 {
     public sealed class ReadOptions
     {

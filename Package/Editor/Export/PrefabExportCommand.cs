@@ -4,12 +4,12 @@ using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
 
-namespace AssetOps
+namespace Assetops
 {
     // Prefab hierarchy, components and properties as JSON. Variants and nested instances export as overrides.
     // Usage: assetops.py PrefabExport Assets/Prefabs/Player.prefab[,more or a folder] [--args "-expand -subtree=Player/UI"]
     // Docs/Export.md
-    public sealed class PrefabExportCommand : AssetOpsCommand
+    public sealed class PrefabExportCommand : AssetopsCommand
     {
         public override string Summary
         {

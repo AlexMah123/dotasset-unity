@@ -8,9 +8,9 @@ using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
 
-namespace AssetOps
+namespace Assetops
 {
-    // File contract between the wrapper and the open editor, all under <Project>/Library/AssetOps/Queue:
+    // File contract between the wrapper and the open editor, all under <Project>/Library/Assetops/Queue:
     //   .alive                 heartbeat JSON (Pid, State, versions), rewritten every HeartbeatSeconds
     //   pending/<id>.json      the wrapper writes a task {Id, RunName, Assets[], ExtraArgs}
     //   processing/<id>.json   the editor claims a task by moving it here
@@ -18,7 +18,7 @@ namespace AssetOps
     // Scripts~/assetops.py holds the same constants. Change both together.
     public static class TaskQueueProtocol
     {
-        public const string QueueRelative = "Library/AssetOps/Queue";
+        public const string QueueRelative = "Library/Assetops/Queue";
         public const string Pending = "pending";
         public const string Processing = "processing";
         public const string Done = "done";
@@ -38,27 +38,27 @@ namespace AssetOps
 
         static string QueueRoot
         {
-            get { return AssetOpsPaths.Combine(AssetOpsPaths.ProjectRoot, TaskQueueProtocol.QueueRelative); }
+            get { return AssetopsPaths.Combine(AssetopsPaths.ProjectRoot, TaskQueueProtocol.QueueRelative); }
         }
 
         static string PendingDir
         {
-            get { return AssetOpsPaths.Combine(QueueRoot, TaskQueueProtocol.Pending); }
+            get { return AssetopsPaths.Combine(QueueRoot, TaskQueueProtocol.Pending); }
         }
 
         static string ProcessingDir
         {
-            get { return AssetOpsPaths.Combine(QueueRoot, TaskQueueProtocol.Processing); }
+            get { return AssetopsPaths.Combine(QueueRoot, TaskQueueProtocol.Processing); }
         }
 
         static string DoneDir
         {
-            get { return AssetOpsPaths.Combine(QueueRoot, TaskQueueProtocol.Done); }
+            get { return AssetopsPaths.Combine(QueueRoot, TaskQueueProtocol.Done); }
         }
 
         static string AlivePath
         {
-            get { return AssetOpsPaths.Combine(QueueRoot, TaskQueueProtocol.AliveFile); }
+            get { return AssetopsPaths.Combine(QueueRoot, TaskQueueProtocol.AliveFile); }
         }
 
         // Disabled with the scripting define ASSETOPS_NO_QUEUE, or per editor session from the window.
@@ -69,12 +69,12 @@ namespace AssetOps
 #if ASSETOPS_NO_QUEUE
                 return false;
 #else
-                return !SessionState.GetBool("AssetOps.QueuePaused", false);
+                return !SessionState.GetBool("Assetops.QueuePaused", false);
 #endif
             }
             set
             {
-                SessionState.SetBool("AssetOps.QueuePaused", !value);
+                SessionState.SetBool("Assetops.QueuePaused", !value);
                 WriteHeartbeat();
             }
         }
@@ -104,7 +104,7 @@ namespace AssetOps
             }
             catch (Exception e)
             {
-                UnityEngine.Debug.LogWarning("[AssetOps] task queue could not start: " + e.Message);
+                UnityEngine.Debug.LogWarning("[Assetops] task queue could not start: " + e.Message);
                 return;
             }
             ready = true;
@@ -195,8 +195,8 @@ namespace AssetOps
         static void ProcessTask(string pendingPath)
         {
             string id = Path.GetFileNameWithoutExtension(pendingPath);
-            string processingPath = AssetOpsPaths.Combine(ProcessingDir, id + ".json");
-            string donePath = AssetOpsPaths.Combine(DoneDir, id + ".json");
+            string processingPath = AssetopsPaths.Combine(ProcessingDir, id + ".json");
+            string donePath = AssetopsPaths.Combine(DoneDir, id + ".json");
             try
             {
                 File.Move(pendingPath, processingPath);
@@ -261,7 +261,7 @@ namespace AssetOps
             }
             catch (Exception e)
             {
-                UnityEngine.Debug.LogError("[AssetOps] could not write " + path + ": " + e.Message);
+                UnityEngine.Debug.LogError("[Assetops] could not write " + path + ": " + e.Message);
             }
         }
 
@@ -276,7 +276,7 @@ namespace AssetOps
                 string runName = Json.TryReadFile(file, out task, out error) ? Json.Str(task, "RunName") : null;
                 var result = Refusal(runName, "the editor stopped while this task was running. Check the targets before rerunning, a write may have reached disk");
                 result.ExitCode = (int)ExitCode.Failed;
-                WriteDone(AssetOpsPaths.Combine(DoneDir, id + ".json"), result);
+                WriteDone(AssetopsPaths.Combine(DoneDir, id + ".json"), result);
                 TryDelete(file);
             }
         }
@@ -305,8 +305,8 @@ namespace AssetOps
                     ["Pid"] = Process.GetCurrentProcess().Id,
                     ["State"] = state,
                     ["UnityVersion"] = Application.unityVersion,
-                    ["AssetOpsVersion"] = AssetOpsVersion.Version,
-                    ["ProjectPath"] = AssetOpsPaths.ProjectRoot,
+                    ["AssetopsVersion"] = AssetopsVersion.Version,
+                    ["ProjectPath"] = AssetopsPaths.ProjectRoot,
                     ["UpdatedUtc"] = DateTime.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture),
                 };
                 string tmp = AlivePath + ".tmp";
@@ -338,8 +338,8 @@ namespace AssetOps
                     ["Pid"] = Process.GetCurrentProcess().Id,
                     ["State"] = "reloading",
                     ["UnityVersion"] = Application.unityVersion,
-                    ["AssetOpsVersion"] = AssetOpsVersion.Version,
-                    ["ProjectPath"] = AssetOpsPaths.ProjectRoot,
+                    ["AssetopsVersion"] = AssetopsVersion.Version,
+                    ["ProjectPath"] = AssetopsPaths.ProjectRoot,
                     ["UpdatedUtc"] = DateTime.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture),
                 };
                 File.WriteAllText(AlivePath, alive.ToString(Newtonsoft.Json.Formatting.None), new UTF8Encoding(false));

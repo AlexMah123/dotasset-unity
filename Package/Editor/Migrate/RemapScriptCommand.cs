@@ -9,7 +9,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
-namespace AssetOps
+namespace Assetops
 {
     // Points every MonoBehaviour and ScriptableObject that uses one script at another, by rewriting the m_Script
     // GUID in the YAML. This is the fix for "Missing Script" after a .cs file lost its .meta, or for moving a class
@@ -17,7 +17,7 @@ namespace AssetOps
     // Needs Asset Serialization Mode = Force Text. Field data is kept as long as the new class has the same fields.
     // Usage: assetops.py RemapScript --args '-from=<old guid or script path> -to=Assets/Scripts/New.cs -apply'
     // Docs/Migrate.md
-    public sealed class RemapScriptCommand : AssetOpsCommand
+    public sealed class RemapScriptCommand : AssetopsCommand
     {
         public override string Summary
         {
@@ -115,7 +115,7 @@ namespace AssetOps
                 {
                     ctx.Progress(i, files.Count, path);
                 }
-                string abs = AssetOpsPaths.Absolute(path);
+                string abs = AssetopsPaths.Absolute(path);
                 string text;
                 try
                 {

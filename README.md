@@ -1,4 +1,4 @@
-# AssetOps
+# Assetops
 
 ![Unity](https://img.shields.io/badge/Unity-2022.3%20%7C%206000.x-black?logo=unity)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
@@ -56,14 +56,14 @@ Every write goes through Unity's own API (`SerializedObject`, `PrefabUtility`, `
 Window > Package Manager > + > Add package from git URL:
 
 ```
-https://github.com/<you>/AssetOps.git?path=/Package
+https://github.com/<you>/Assetops.git?path=/Package
 ```
 
 Or copy `Package/` into your project as `Packages/com.assetops.editor/`. It pulls in `com.unity.nuget.newtonsoft-json`.
 
 **2. Get the wrapper**
 
-The **Copy assetops.py** button in `Window > AssetOps` puts it at the project root. It is one Python 3.8+ file with no dependencies, so it also works copied anywhere.
+The **Copy assetops.py** button in `Window > Assetops` puts it at the project root. It is one Python 3.8+ file with no dependencies, so it also works copied anywhere.
 
 **3. Run**
 
@@ -86,7 +86,7 @@ python assetops.py AuditTexture --args '-scandir=Assets'
 
 The wrapper finds the project from the current directory (or `--project`) and the editor from `ProjectSettings/ProjectVersion.txt` through Unity Hub's install folder (or `--unity`, or `ASSETOPS_UNITY`). `python assetops.py --list` prints every run, `--status` shows what the editor's queue is doing.
 
-Output: `Library/AssetOps/Export/<AssetPath>_<timestamp>.json`. Logs: `Library/AssetOps/Logs/`, and `Window > AssetOps` in the editor.
+Output: `Library/Assetops/Export/<AssetPath>_<timestamp>.json`. Logs: `Library/Assetops/Logs/`, and `Window > Assetops` in the editor.
 
 ## For AI agents
 
@@ -103,13 +103,13 @@ Output: `Library/AssetOps/Export/<AssetPath>_<timestamp>.json`. Logs: `Library/A
 
 ```
                          ┌───────── editor open ──────────┐
-python assetops.py ──┬──▶│ Library/AssetOps/Queue/pending │──▶ TaskQueue (main thread) ──┐
+python assetops.py ──┬──▶│ Library/Assetops/Queue/pending │──▶ TaskQueue (main thread) ──┐
                      │   └────────────────────────────────┘                              │
                      │                                                                   ├─▶ RunDispatcher ─▶ command ─▶ RunResult JSON
                      │   ┌──────── editor closed ─────────┐                              │
                      └──▶│ Unity -batchmode               │──▶ Cli.Run ──────────────────┘
                          │   -executeMethod               │
-                         │   AssetOps.Cli.Run             │
+                         │   Assetops.Cli.Run             │
                          └────────────────────────────────┘
 ```
 
@@ -118,14 +118,14 @@ python assetops.py ──┬──▶│ Library/AssetOps/Queue/pending │─�
 - Queue states: `ready`, `busy`, `compiling`, `importing`, `playmode`, `reloading`, `starting`, `paused`. Tasks wait until the editor is `ready`.
 - Both routes return the same `RunResult` (exit code, summary, every log line, outputs), and the wrapper prints it the same way.
 
-Commands are plain classes: derive from `AssetOpsCommand`, name the class `<RunName>Command`, and it is registered — including from your own editor assemblies. The name picks the group: `*Export`, `*Import` / `Create*`, `Edit*`, `Audit*`, everything else Migrate.
+Commands are plain classes: derive from `AssetopsCommand`, name the class `<RunName>Command`, and it is registered — including from your own editor assemblies. The name picks the group: `*Export`, `*Import` / `Create*`, `Edit*`, `Audit*`, everything else Migrate.
 
 ## Status
 
 0.1.0 is a preview. It was written against Unity's C# reference source for 2022.3 and 6000.3. Every Unity API it calls was checked against both, and an independent review found no compile errors, but it has not yet been compiled and run inside Unity.
 
 - `python -m unittest discover -s tests` covers the wrapper: both routes, startup wait, fallback, quoting, timeouts, exit codes.
-- `python tests/smoke/run_smoke.py --project <your project>` runs every group end to end in a real project, under `Assets/AssetOpsSmoke`, and cleans up (`--clean` removes leftovers of an interrupted run first). Run it once with the editor closed and once with it open.
+- `python tests/smoke/run_smoke.py --project <your project>` runs every group end to end in a real project, under `Assets/AssetopsSmoke`, and cleans up (`--clean` removes leftovers of an interrupted run first). Run it once with the editor closed and once with it open.
 
 The first run in Unity should confirm the behaviour that lives in Unity's native code and cannot be read from the C# source: `ArrayOps` `Append` (`InsertArrayElementAtIndex` at the end), undo coverage of `RemoveMissingScripts` in an open scene, and the undo revert of an `EditAnimatorController` dry run in batch mode (a failed or dry target is never saved either way). Please open issues with the Console output.
 

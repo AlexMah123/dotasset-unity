@@ -117,7 +117,7 @@ Rewrites `m_Script: {fileID: ..., guid: <old>, type: 3}` in every YAML asset (`.
 
 ```bash
 python assetops.py RemoveMissingScripts "Assets/Prefabs" --args "-apply"
-python assetops.py RemoveMissingScripts --args '-spec="Library/AssetOps/Audit/AuditMissingReference_20261023-201500.fix.json" -apply'
+python assetops.py RemoveMissingScripts --args '-spec="Library/Assetops/Audit/AuditMissingReference_20261023-201500.fix.json" -apply'
 ```
 
 AssetList, `-scandir`, or `-spec` with `{"Files": [...]}` (the fix spec `AuditMissingReference` writes). Missing scripts on objects inside a prefab instance belong to the source prefab: they are reported with the source path and left alone.

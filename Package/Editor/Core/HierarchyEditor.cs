@@ -8,7 +8,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
-namespace AssetOps
+namespace Assetops
 {
     // GameObject operations shared by EditPrefab, EditScene and CreateAsset's prefabs. Ops run in order, later ops
     // see what earlier ones made, and the first failing op stops the list. The caller decides whether to save.

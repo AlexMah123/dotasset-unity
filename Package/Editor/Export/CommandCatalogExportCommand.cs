@@ -2,13 +2,13 @@ using System.Collections.Generic;
 using System.Linq;
 using Newtonsoft.Json.Linq;
 
-namespace AssetWorkbench
+namespace AssetOps
 {
     // Every registered run with its group, summary and arguments, including commands from your own assemblies.
     // The wrapper's --list prints it.
-    // Usage: uaw.py CommandCatalogExport      (or: uaw.py --list)
+    // Usage: assetops.py CommandCatalogExport      (or: assetops.py --list)
     // Docs/AI-Guide.md
-    public sealed class CommandCatalogExportCommand : WorkbenchCommand
+    public sealed class CommandCatalogExportCommand : AssetOpsCommand
     {
         public override string Summary
         {
@@ -19,7 +19,7 @@ namespace AssetWorkbench
         {
             JObject json = ExportHelper.Header(ctx, null);
             var list = new JArray();
-            foreach (WorkbenchCommand cmd in CommandRegistry.All.Values.OrderBy(c => c.Group).ThenBy(c => c.Name))
+            foreach (AssetOpsCommand cmd in CommandRegistry.All.Values.OrderBy(c => c.Group).ThenBy(c => c.Name))
             {
                 list.Add(new JObject
                 {

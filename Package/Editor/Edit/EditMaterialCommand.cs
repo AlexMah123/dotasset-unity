@@ -3,12 +3,12 @@ using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
 
-namespace AssetWorkbench
+namespace AssetOps
 {
     // Changes materials through the shader's property names: values, textures, keywords, render queue, shader, variant parent.
-    // Usage: uaw.py EditMaterial --args '-spec="C:/temp/mat.json" -apply'
+    // Usage: assetops.py EditMaterial --args '-spec="C:/temp/mat.json" -apply'
     // Docs/Edit.md
-    public sealed class EditMaterialCommand : WorkbenchCommand
+    public sealed class EditMaterialCommand : AssetOpsCommand
     {
         public override string Summary
         {

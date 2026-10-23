@@ -7,7 +7,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
-namespace AssetWorkbench
+namespace AssetOps
 {
     // The hierarchy that local references resolve against: the open prefab contents, or a scene.
     public sealed class RefScope

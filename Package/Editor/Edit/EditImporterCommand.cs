@@ -5,14 +5,14 @@ using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
 
-namespace AssetWorkbench
+namespace AssetOps
 {
     // Changes import settings and reimports. "Texture" takes the keys ImporterExport's Summary prints, "Properties"
     // takes raw importer property paths for anything else (models, audio, custom importers).
     // A target names one asset in "AssetPath", or many in "AssetPaths" where folders expand to the assets beneath.
-    // Usage: uaw.py EditImporter --args '-spec="C:/temp/textures.json" -apply'
+    // Usage: assetops.py EditImporter --args '-spec="C:/temp/textures.json" -apply'
     // Docs/Edit.md
-    public sealed class EditImporterCommand : WorkbenchCommand
+    public sealed class EditImporterCommand : AssetOpsCommand
     {
         static readonly string[] TextureKeys =
         {

@@ -6,13 +6,13 @@ using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
-namespace AssetWorkbench
+namespace AssetOps
 {
     // The property paths a component or ScriptableObject type serializes, with their kind, default value and
     // enum options. Answers "what do I write in Properties" before editing anything. -filter is required.
-    // Usage: uaw.py TypeCatalogExport --args "-filter=Light"   (matches type names containing the text)
+    // Usage: assetops.py TypeCatalogExport --args "-filter=Light"   (matches type names containing the text)
     // Docs/Export.md
-    public sealed class TypeCatalogExportCommand : WorkbenchCommand
+    public sealed class TypeCatalogExportCommand : AssetOpsCommand
     {
         const int MaxTypes = 40;
 
@@ -92,7 +92,7 @@ namespace AssetWorkbench
                 }
                 else
                 {
-                    host = new GameObject("AssetWorkbench.Catalog");
+                    host = new GameObject("AssetOps.Catalog");
                     host.hideFlags = HideFlags.HideAndDontSave;
                     host.SetActive(false);
                     instance = t == typeof(Transform) ? host.transform : host.AddComponent(t);

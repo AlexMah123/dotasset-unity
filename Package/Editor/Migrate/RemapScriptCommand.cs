@@ -5,15 +5,15 @@ using System.Text;
 using System.Text.RegularExpressions;
 using UnityEditor;
 
-namespace AssetWorkbench
+namespace AssetOps
 {
     // Points every MonoBehaviour and ScriptableObject that uses one script at another, by rewriting the m_Script
     // GUID in the YAML. This is the fix for "Missing Script" after a .cs file lost its .meta, or for moving a class
     // into another file or assembly. The old script does not need to exist: AuditMissingReference lists the GUIDs.
     // Needs Asset Serialization Mode = Force Text. Field data is kept as long as the new class has the same fields.
-    // Usage: uaw.py RemapScript --args '-from=<old guid or script path> -to=Assets/Scripts/New.cs -apply'
+    // Usage: assetops.py RemapScript --args '-from=<old guid or script path> -to=Assets/Scripts/New.cs -apply'
     // Docs/Migrate.md
-    public sealed class RemapScriptCommand : WorkbenchCommand
+    public sealed class RemapScriptCommand : AssetOpsCommand
     {
         public override string Summary
         {
@@ -85,7 +85,7 @@ namespace AssetWorkbench
                 {
                     ctx.Progress(i, files.Count, path);
                 }
-                string abs = WorkbenchPaths.Absolute(path);
+                string abs = AssetOpsPaths.Absolute(path);
                 string text;
                 try
                 {

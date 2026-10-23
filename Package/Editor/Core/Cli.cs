@@ -4,12 +4,12 @@ using System.Text;
 using UnityEditor;
 using UnityEngine;
 
-namespace AssetWorkbench
+namespace AssetOps
 {
     // Headless entry point. The wrapper launches:
-    //   Unity -batchmode -nographics -projectPath <dir> -executeMethod AssetWorkbench.Cli.Run
-    //         -uawRun <RunName> [-uawAssetsB64 <base64 csv>] [-uawArgsB64 <base64 args>] [-uawResult <file>] -logFile <file>
-    // Plain -uawAssets / -uawArgs work too when calling by hand. Base64 keeps quoting intact across shells.
+    //   Unity -batchmode -nographics -projectPath <dir> -executeMethod AssetOps.Cli.Run
+    //         -assetopsRun <RunName> [-assetopsAssetsB64 <base64 csv>] [-assetopsArgsB64 <base64 args>] [-assetopsResult <file>] -logFile <file>
+    // Plain -assetopsAssets / -assetopsArgs work too when calling by hand. Base64 keeps quoting intact across shells.
     // The process exits with the run's ExitCode.
     public static class Cli
     {
@@ -20,10 +20,10 @@ namespace AssetWorkbench
             try
             {
                 string[] argv = Environment.GetCommandLineArgs();
-                string run = Value(argv, "-uawRun");
-                string assets = Decode(Value(argv, "-uawAssetsB64")) ?? Value(argv, "-uawAssets") ?? string.Empty;
-                string extra = Decode(Value(argv, "-uawArgsB64")) ?? Value(argv, "-uawArgs") ?? string.Empty;
-                resultPath = Value(argv, "-uawResult");
+                string run = Value(argv, "-assetopsRun");
+                string assets = Decode(Value(argv, "-assetopsAssetsB64")) ?? Value(argv, "-assetopsAssets") ?? string.Empty;
+                string extra = Decode(Value(argv, "-assetopsArgsB64")) ?? Value(argv, "-assetopsArgs") ?? string.Empty;
+                resultPath = Value(argv, "-assetopsResult");
 
                 Application.SetStackTraceLogType(LogType.Log, StackTraceLogType.None);
                 Application.SetStackTraceLogType(LogType.Warning, StackTraceLogType.None);

@@ -2,12 +2,12 @@ using System;
 using System.Collections.Generic;
 using UnityEditor;
 
-namespace AssetWorkbench
+namespace AssetOps
 {
     // Base of every run. The run name is the class name without the "Command" suffix, and the name decides
     // the group (see Groups.Resolve). Commands in your own editor assemblies are picked up the same way,
     // so a missing mechanism is one more class away.
-    public abstract class WorkbenchCommand
+    public abstract class AssetOpsCommand
     {
         public virtual string Name
         {
@@ -23,7 +23,7 @@ namespace AssetWorkbench
             get { return Groups.Resolve(Name); }
         }
 
-        // One line, shown by the wrapper's --list and the Asset Workbench window.
+        // One line, shown by the wrapper's --list and the AssetOps window.
         public abstract string Summary { get; }
 
         // Extra-argument keys this command reads. Anything else on the command line is refused, so a typo
@@ -38,9 +38,9 @@ namespace AssetWorkbench
 
     public static class CommandRegistry
     {
-        static Dictionary<string, WorkbenchCommand> commands;
+        static Dictionary<string, AssetOpsCommand> commands;
 
-        public static IReadOnlyDictionary<string, WorkbenchCommand> All
+        public static IReadOnlyDictionary<string, AssetOpsCommand> All
         {
             get
             {
@@ -52,25 +52,25 @@ namespace AssetWorkbench
             }
         }
 
-        public static WorkbenchCommand Find(string runName)
+        public static AssetOpsCommand Find(string runName)
         {
-            WorkbenchCommand cmd;
+            AssetOpsCommand cmd;
             return runName != null && All.TryGetValue(runName, out cmd) ? cmd : null;
         }
 
         static void Build()
         {
-            commands = new Dictionary<string, WorkbenchCommand>(StringComparer.OrdinalIgnoreCase);
-            foreach (Type type in TypeCache.GetTypesDerivedFrom<WorkbenchCommand>())
+            commands = new Dictionary<string, AssetOpsCommand>(StringComparer.OrdinalIgnoreCase);
+            foreach (Type type in TypeCache.GetTypesDerivedFrom<AssetOpsCommand>())
             {
                 if (type.IsAbstract || type.GetConstructor(Type.EmptyTypes) == null)
                 {
                     continue;
                 }
-                WorkbenchCommand cmd;
+                AssetOpsCommand cmd;
                 try
                 {
-                    cmd = (WorkbenchCommand)Activator.CreateInstance(type);
+                    cmd = (AssetOpsCommand)Activator.CreateInstance(type);
                 }
                 catch (Exception)
                 {
@@ -78,7 +78,7 @@ namespace AssetWorkbench
                 }
                 if (commands.ContainsKey(cmd.Name))
                 {
-                    UnityEngine.Debug.LogWarning("[AssetWorkbench] two commands are named " + cmd.Name + ", keeping " + commands[cmd.Name].GetType().FullName);
+                    UnityEngine.Debug.LogWarning("[AssetOps] two commands are named " + cmd.Name + ", keeping " + commands[cmd.Name].GetType().FullName);
                     continue;
                 }
                 commands.Add(cmd.Name, cmd);

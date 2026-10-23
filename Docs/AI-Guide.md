@@ -14,7 +14,7 @@ The call manual for agents. Arguments, spec shapes, exit codes and JSON fields a
 | Import settings of a texture, model or audio clip | `ImporterExport` | Export |
 | What an asset uses, and what uses it | `AssetReferenceExport` | Export |
 | Which property paths a component or ScriptableObject type has, their defaults and enum options | `TypeCatalogExport` with `-filter=` | Export |
-| Which runs exist, including project-specific ones | `CommandCatalogExport`, or `uaw.py --list` | Export |
+| Which runs exist, including project-specific ones | `CommandCatalogExport`, or `assetops.py --list` | Export |
 | Create folders, ScriptableObjects, materials, prefabs, variants, controllers, scenes | `CreateAsset` | Import |
 | Add, delete, rename, move GameObjects in a prefab; add or remove components; set fields and references | `EditPrefab` | Edit |
 | The same in a scene, including a scene open in the editor | `EditScene` | Edit |
@@ -42,43 +42,43 @@ Audit first, then fix with the spec the audit wrote: `AuditTexture` writes `<rep
 
 ## Call templates
 
-The wrapper is `uaw.py` (in the package's `Scripts~/`, or copied to the project root by the **Copy uaw.py** button in `Window > Asset Workbench`). Run it from anywhere inside the project, or give `--project`.
+The wrapper is `assetops.py` (in the package's `Scripts~/`, or copied to the project root by the **Copy assetops.py** button in `Window > AssetOps`). Run it from anywhere inside the project, or give `--project`.
 
 Export. Entry assets are a comma-separated `AssetList`; folders expand to the matching assets beneath them.
 
 ```bash
-python uaw.py PrefabExport "Assets/Prefabs/Player.prefab,Assets/Prefabs/Enemies"
-python uaw.py SceneExport Assets/Scenes/Main.unity --args "-subtree=Environment"
-python uaw.py TypeCatalogExport --args "-filter=Rigidbody"
+python assetops.py PrefabExport "Assets/Prefabs/Player.prefab,Assets/Prefabs/Enemies"
+python assetops.py SceneExport Assets/Scenes/Main.unity --args "-subtree=Environment"
+python assetops.py TypeCatalogExport --args "-filter=Rigidbody"
 ```
 
 Import and Edit. Targets are named in the spec, `AssetList` stays empty. Without `-apply`, Edit runs every op, reports, and drops the result.
 
 ```bash
-python uaw.py CreateAsset --args '-spec="C:/temp/create.json"'
-python uaw.py EditPrefab --args '-spec="C:/temp/player.json"'           # dry run
-python uaw.py EditPrefab --args '-spec="C:/temp/player.json" -apply'    # write
+python assetops.py CreateAsset --args '-spec="C:/temp/create.json"'
+python assetops.py EditPrefab --args '-spec="C:/temp/player.json"'           # dry run
+python assetops.py EditPrefab --args '-spec="C:/temp/player.json" -apply'    # write
 ```
 
 Migrate. Dry run by default as well.
 
 ```bash
-python uaw.py MoveAsset --args '-from=Assets/Old/Gun.prefab -to=Assets/Weapons/Gun.prefab -apply'
-python uaw.py ResaveAsset --args "-dependson=Assets/Scripts/Inventory.cs -apply"
+python assetops.py MoveAsset --args '-from=Assets/Old/Gun.prefab -to=Assets/Weapons/Gun.prefab -apply'
+python assetops.py ResaveAsset --args "-dependson=Assets/Scripts/Inventory.cs -apply"
 ```
 
 Audit. Entry assets or `-scandir` (default `Assets`).
 
 ```bash
-python uaw.py AuditTexture --args "-scandir=Assets/Art -maxsize=2048"
-python uaw.py EditImporter --args '-spec="Library/AssetWorkbench/Audit/AuditTexture_20261023-201500.fix.json" -apply'
+python assetops.py AuditTexture --args "-scandir=Assets/Art -maxsize=2048"
+python assetops.py EditImporter --args '-spec="Library/AssetOps/Audit/AuditTexture_20261023-201500.fix.json" -apply'
 ```
 
 Spec paths are absolute or relative to the project root. Quote values that contain spaces: `-spec="C:/My Specs/a.json"`. On Git Bash for Windows, `--args` values that start with `/` may need `MSYS_NO_PATHCONV=1`.
 
 ## Reading results
 
-Every run prints its log, then `[uaw] <summary>` and the path of its log file. Lines starting `error:` and `warning:` are the ones to read first.
+Every run prints its log, then `[assetops] <summary>` and the path of its log file. Lines starting `error:` and `warning:` are the ones to read first.
 
 | Exit code | Meaning |
 | --- | --- |
@@ -89,21 +89,21 @@ Every run prints its log, then `[uaw] <summary>` and the path of its log file. L
 
 Failure lines have one shape: `<RunName> failed for <target>. Reason: <first error while writing it>`.
 
-Exports land in `Library/AssetWorkbench/Export/<AssetPath>_<YYYYMMDD-HHMMSS>.json` and are printed as `output:` lines. They can be long: grep first, then read the line range.
+Exports land in `Library/AssetOps/Export/<AssetPath>_<YYYYMMDD-HHMMSS>.json` and are printed as `output:` lines. They can be long: grep first, then read the line range.
 
 ```bash
-grep -n '"Path": "Player/Model' Library/AssetWorkbench/Export/Assets/Prefabs/Player.prefab_*.json
+grep -n '"Path": "Player/Model' Library/AssetOps/Export/Assets/Prefabs/Player.prefab_*.json
 ```
 
-Audit reports land in `Library/AssetWorkbench/Audit/`, with `-report=` to choose the path. Run logs: `Library/AssetWorkbench/Logs/`, and `Window > Asset Workbench` lists them in the editor.
+Audit reports land in `Library/AssetOps/Audit/`, with `-report=` to choose the path. Run logs: `Library/AssetOps/Logs/`, and `Window > AssetOps` lists them in the editor.
 
 ## Pitfalls
 
 | Pitfall | Do this |
 | --- | --- |
-| Starting Unity with `-batchmode` by hand while the editor is open | Always go through `uaw.py`. Unity refuses a second instance on the same project, the wrapper routes to the open editor instead |
+| Starting Unity with `-batchmode` by hand while the editor is open | Always go through `assetops.py`. Unity refuses a second instance on the same project, the wrapper routes to the open editor instead |
 | Calling the wrapper right after opening the editor | The wrapper sees the locked project, prints `waiting up to 300s` and waits for the queue heartbeat. Let it wait |
-| The task waits forever while the editor is open | The queue only runs when the editor is `ready`: not compiling, importing, in play mode, or showing a modal dialog. `uaw.py --status` shows the state. On macOS an editor in the background can be throttled by App Nap; bring it forward or disable App Nap for Unity |
+| The task waits forever while the editor is open | The queue only runs when the editor is `ready`: not compiling, importing, in play mode, or showing a modal dialog. `assetops.py --status` shows the state. On macOS an editor in the background can be throttled by App Nap; bring it forward or disable App Nap for Unity |
 | Edit run returns 0 but nothing changed | It was a dry run. Add `-apply` |
 | `-aply` or another typo | Refused with exit 2 and the list of accepted arguments, the run does not fall back to a dry run silently |
 | Writing `mass` instead of `m_Mass` | A key without `m_` is retried with it, so `mass` finds `m_Mass`. The error lists the real names when neither exists |

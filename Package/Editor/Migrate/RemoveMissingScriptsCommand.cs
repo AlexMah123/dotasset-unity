@@ -3,15 +3,15 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
-namespace AssetWorkbench
+namespace AssetOps
 {
     // Removes "Missing Script" components from prefabs and scenes. Ones inside a prefab instance belong to the
     // source prefab and are reported, not touched. Run RemapScript first if the script still exists under a new GUID.
-    // Usage: uaw.py RemoveMissingScripts Assets/Prefabs[,Assets/Scenes/Main.unity] --args "-apply"
-    //        uaw.py RemoveMissingScripts --args "-scandir=Assets -apply"
-    //        uaw.py RemoveMissingScripts --args '-spec="<AuditMissingReference fix spec>" -apply'
+    // Usage: assetops.py RemoveMissingScripts Assets/Prefabs[,Assets/Scenes/Main.unity] --args "-apply"
+    //        assetops.py RemoveMissingScripts --args "-scandir=Assets -apply"
+    //        assetops.py RemoveMissingScripts --args '-spec="<AuditMissingReference fix spec>" -apply'
     // Docs/Migrate.md
-    public sealed class RemoveMissingScriptsCommand : WorkbenchCommand
+    public sealed class RemoveMissingScriptsCommand : AssetOpsCommand
     {
         public override string Summary
         {

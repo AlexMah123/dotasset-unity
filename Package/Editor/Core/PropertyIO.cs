@@ -7,7 +7,7 @@ using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
-namespace AssetWorkbench
+namespace AssetOps
 {
     // Reads a whole object into {"<property>": value}, and writes such a map back.
     // Keys are SerializedProperty paths: script field names ("speed", "loadout.primary"), or the m_ names
@@ -289,7 +289,7 @@ namespace AssetWorkbench
             if (typeof(Component).IsAssignableFrom(type) && !type.IsAbstract)
             {
                 // Inactive, so Awake and OnEnable of the added component do not run.
-                GameObject go = new GameObject("AssetWorkbench.Defaults");
+                GameObject go = new GameObject("AssetOps.Defaults");
                 go.hideFlags = HideFlags.HideAndDontSave;
                 go.SetActive(false);
                 try

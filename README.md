@@ -1,4 +1,4 @@
-# unity-asset-workbench
+# AssetOps
 
 ![Unity](https://img.shields.io/badge/Unity-2022.3%20%7C%206000.x-black?logo=unity)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
@@ -56,37 +56,37 @@ Every write goes through Unity's own API (`SerializedObject`, `PrefabUtility`, `
 Window > Package Manager > + > Add package from git URL:
 
 ```
-https://github.com/<you>/unity-asset-workbench.git?path=/Package
+https://github.com/<you>/assetops.git?path=/Package
 ```
 
-Or copy `Package/` into your project as `Packages/com.assetworkbench.editor/`. It pulls in `com.unity.nuget.newtonsoft-json`.
+Or copy `Package/` into your project as `Packages/com.assetops.editor/`. It pulls in `com.unity.nuget.newtonsoft-json`.
 
 **2. Get the wrapper**
 
-The **Copy uaw.py** button in `Window > Asset Workbench` puts it at the project root. It is one Python 3.8+ file with no dependencies, so it also works copied anywhere.
+The **Copy assetops.py** button in `Window > AssetOps` puts it at the project root. It is one Python 3.8+ file with no dependencies, so it also works copied anywhere.
 
 **3. Run**
 
 ```bash
 # Export: a prefab's hierarchy, components and overrides as JSON
-python uaw.py PrefabExport Assets/Prefabs/Player.prefab
+python assetops.py PrefabExport Assets/Prefabs/Player.prefab
 
 # Import: create assets from a spec
-python uaw.py CreateAsset --args '-spec="C:/temp/create.json"'
+python assetops.py CreateAsset --args '-spec="C:/temp/create.json"'
 
 # Edit: change a prefab, -apply writes it
-python uaw.py EditPrefab --args '-spec="C:/temp/player.edit.json" -apply'
+python assetops.py EditPrefab --args '-spec="C:/temp/player.edit.json" -apply'
 
 # Migrate: point every reference to an old material at a new one
-python uaw.py RemapReference --args '-from=Assets/Mat/Old.mat -to=Assets/Mat/New.mat -apply'
+python assetops.py RemapReference --args '-from=Assets/Mat/Old.mat -to=Assets/Mat/New.mat -apply'
 
 # Audit: check every texture's import settings
-python uaw.py AuditTexture --args '-scandir=Assets'
+python assetops.py AuditTexture --args '-scandir=Assets'
 ```
 
-The wrapper finds the project from the current directory (or `--project`) and the editor from `ProjectSettings/ProjectVersion.txt` through Unity Hub's install folder (or `--unity`, or `UAW_UNITY`). `python uaw.py --list` prints every run, `--status` shows what the editor's queue is doing.
+The wrapper finds the project from the current directory (or `--project`) and the editor from `ProjectSettings/ProjectVersion.txt` through Unity Hub's install folder (or `--unity`, or `ASSETOPS_UNITY`). `python assetops.py --list` prints every run, `--status` shows what the editor's queue is doing.
 
-Output: `Library/AssetWorkbench/Export/<AssetPath>_<timestamp>.json`. Logs: `Library/AssetWorkbench/Logs/`, and `Window > Asset Workbench` in the editor.
+Output: `Library/AssetOps/Export/<AssetPath>_<timestamp>.json`. Logs: `Library/AssetOps/Logs/`, and `Window > AssetOps` in the editor.
 
 ## For AI agents
 
@@ -102,14 +102,15 @@ Output: `Library/AssetWorkbench/Export/<AssetPath>_<timestamp>.json`. Logs: `Lib
 ## How it works
 
 ```
-                    ┌──────────── editor open ─────────────┐
-python uaw.py ──┬──▶│ Library/AssetWorkbench/Queue/pending │──▶ TaskQueue (main thread) ──┐
-                │   └──────────────────────────────────────┘                              │
-                │                                                                         ├─▶ RunDispatcher ─▶ command ─▶ RunResult JSON
-                │   ┌──────────── editor closed ───────────┐                              │
-                └──▶│ Unity -batchmode -executeMethod      │──▶ Cli.Run ──────────────────┘
-                    │   AssetWorkbench.Cli.Run             │
-                    └──────────────────────────────────────┘
+                         ┌───────── editor open ──────────┐
+python assetops.py ──┬──▶│ Library/AssetOps/Queue/pending │──▶ TaskQueue (main thread) ──┐
+                     │   └────────────────────────────────┘                              │
+                     │                                                                   ├─▶ RunDispatcher ─▶ command ─▶ RunResult JSON
+                     │   ┌──────── editor closed ─────────┐                              │
+                     └──▶│ Unity -batchmode               │──▶ Cli.Run ──────────────────┘
+                         │   -executeMethod               │
+                         │   AssetOps.Cli.Run             │
+                         └────────────────────────────────┘
 ```
 
 - The editor writes a heartbeat (`Queue/.alive`, its pid and state) every 2 seconds. The wrapper trusts the pid only when it belongs to a live Unity process, so a heartbeat left by a crash is ignored.
@@ -117,7 +118,7 @@ python uaw.py ──┬──▶│ Library/AssetWorkbench/Queue/pending │─�
 - Queue states: `ready`, `busy`, `compiling`, `importing`, `playmode`, `reloading`, `starting`, `paused`. Tasks wait until the editor is `ready`.
 - Both routes return the same `RunResult` (exit code, summary, every log line, outputs), and the wrapper prints it the same way.
 
-Commands are plain classes: derive from `WorkbenchCommand`, name the class `<RunName>Command`, and it is registered — including from your own editor assemblies. The name picks the group: `*Export`, `*Import` / `Create*`, `Edit*`, `Audit*`, everything else Migrate.
+Commands are plain classes: derive from `AssetOpsCommand`, name the class `<RunName>Command`, and it is registered — including from your own editor assemblies. The name picks the group: `*Export`, `*Import` / `Create*`, `Edit*`, `Audit*`, everything else Migrate.
 
 ## Status
 

@@ -5,7 +5,7 @@ using System.Linq;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
 
-namespace AssetWorkbench
+namespace AssetOps
 {
     // Finding assets, and the reverse dependency index Unity does not keep.
     public static class AssetScan
@@ -20,7 +20,7 @@ namespace AssetWorkbench
         // -scandir=Assets/A,Assets/B, default Assets
         public static List<string> Roots(RunArgs args)
         {
-            var roots = args.GetList("scandir").Select(r => WorkbenchPaths.Normalize(r).TrimEnd('/')).ToList();
+            var roots = args.GetList("scandir").Select(r => AssetOpsPaths.Normalize(r).TrimEnd('/')).ToList();
             if (roots.Count == 0)
             {
                 roots.Add("Assets");
@@ -62,7 +62,7 @@ namespace AssetWorkbench
             var result = new List<string>();
             foreach (string raw in assetsOrFolders)
             {
-                string path = WorkbenchPaths.Normalize(raw).TrimEnd('/');
+                string path = AssetOpsPaths.Normalize(raw).TrimEnd('/');
                 if (AssetDatabase.IsValidFolder(path))
                 {
                     result.AddRange(All(new[] { path }, filter));
@@ -133,7 +133,7 @@ namespace AssetWorkbench
                 return false;
             }
             string error;
-            if (!Json.TryReadFile(WorkbenchPaths.Absolute(path), out spec, out error))
+            if (!Json.TryReadFile(AssetOpsPaths.Absolute(path), out spec, out error))
             {
                 ctx.Log.Error(error);
                 return false;

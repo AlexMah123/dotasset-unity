@@ -5,13 +5,13 @@ using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
-namespace AssetWorkbench
+namespace AssetOps
 {
     // Writes serialized properties of an asset object: a ScriptableObject, or the main object or a named
     // sub-asset of any other asset file. Same Properties and ArrayOps format as AssetExport produces.
-    // Usage: uaw.py EditAsset --args '-spec="C:/temp/items.json" -apply'
+    // Usage: assetops.py EditAsset --args '-spec="C:/temp/items.json" -apply'
     // Docs/Edit.md
-    public sealed class EditAssetCommand : WorkbenchCommand
+    public sealed class EditAssetCommand : AssetOpsCommand
     {
         public override string Summary
         {

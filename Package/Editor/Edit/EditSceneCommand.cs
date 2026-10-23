@@ -1,14 +1,14 @@
 using System.Collections.Generic;
 using Newtonsoft.Json.Linq;
 
-namespace AssetWorkbench
+namespace AssetOps
 {
     // Edits scenes with the same ops as EditPrefab. A scene open in the editor is edited in place on one undo
     // group: a failed or dry run reverts it, an applied run is one Ctrl+Z. A closed scene opens additively and
     // closes again. The scene is saved only when every op of the target succeeded.
-    // Usage: uaw.py EditScene --args '-spec="C:/temp/scene.json" -apply'
+    // Usage: assetops.py EditScene --args '-spec="C:/temp/scene.json" -apply'
     // Docs/Edit.md
-    public sealed class EditSceneCommand : WorkbenchCommand
+    public sealed class EditSceneCommand : AssetOpsCommand
     {
         public override string Summary
         {

@@ -5,7 +5,7 @@ Builds new assets from a spec. Changing existing assets is [Edit](Edit.md), movi
 ## CreateAsset
 
 ```bash
-python uaw.py CreateAsset --args '-spec="C:/temp/create.json"'
+python assetops.py CreateAsset --args '-spec="C:/temp/create.json"'
 ```
 
 Import writes without `-apply`: creating is not destructive, and an existing path is never overwritten. It is skipped with a warning and counted under `already existed`.

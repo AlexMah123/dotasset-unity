@@ -2,12 +2,12 @@ using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
 
-namespace AssetWorkbench
+namespace AssetOps
 {
     // Copies an asset or folder to a new path with new GUIDs, e.g. a reference copy before a risky edit.
-    // Usage: uaw.py DuplicateAsset --args '-from=Assets/Prefabs/Gun.prefab -to=Assets/Prefabs/Gun_Backup.prefab -apply'
+    // Usage: assetops.py DuplicateAsset --args '-from=Assets/Prefabs/Gun.prefab -to=Assets/Prefabs/Gun_Backup.prefab -apply'
     // Docs/Migrate.md
-    public sealed class DuplicateAssetCommand : WorkbenchCommand
+    public sealed class DuplicateAssetCommand : AssetOpsCommand
     {
         public override string Summary
         {

@@ -29,8 +29,8 @@ Asset-level moves and project-wide reference changes, the repairs after a rename
 ## MoveAsset
 
 ```bash
-python uaw.py MoveAsset --args '-from=Assets/Old/Gun.prefab -to=Assets/Weapons/Gun.prefab -apply'
-python uaw.py MoveAsset --args '-spec="C:/temp/moves.json" -apply'
+python assetops.py MoveAsset --args '-from=Assets/Old/Gun.prefab -to=Assets/Weapons/Gun.prefab -apply'
+python assetops.py MoveAsset --args '-spec="C:/temp/moves.json" -apply'
 ```
 
 ```json
@@ -46,7 +46,7 @@ Missing parent folders are created. `To` must not exist. Each move goes through 
 ## DeleteAsset
 
 ```bash
-python uaw.py DeleteAsset "Assets/Old/Unused.mat,Assets/Old/Props" --args "-apply"
+python assetops.py DeleteAsset "Assets/Old/Unused.mat,Assets/Old/Props" --args "-apply"
 ```
 
 | Argument | Effect |
@@ -60,8 +60,8 @@ A folder counts as referenced when something outside it uses something inside it
 ## ResaveAsset
 
 ```bash
-python uaw.py ResaveAsset --args "-dependson=Assets/Scripts/Inventory.cs -apply"
-python uaw.py ResaveAsset "Assets/Prefabs" --args "-type=GameObject -apply"
+python assetops.py ResaveAsset --args "-dependson=Assets/Scripts/Inventory.cs -apply"
+python assetops.py ResaveAsset "Assets/Prefabs" --args "-type=GameObject -apply"
 ```
 
 | Argument | Effect |
@@ -77,8 +77,8 @@ Uses `AssetDatabase.ForceReserializeAssets`. Scripts and folders are skipped.
 ## RemapReference
 
 ```bash
-python uaw.py RemapReference --args '-from=Assets/Materials/Old.mat -to=Assets/Materials/New.mat'
-python uaw.py RemapReference --args '-spec="C:/temp/remap.json" -apply'
+python assetops.py RemapReference --args '-from=Assets/Materials/Old.mat -to=Assets/Materials/New.mat'
+python assetops.py RemapReference --args '-spec="C:/temp/remap.json" -apply'
 ```
 
 ```json
@@ -101,7 +101,7 @@ python uaw.py RemapReference --args '-spec="C:/temp/remap.json" -apply'
 ## RemapScript
 
 ```bash
-python uaw.py RemapScript --args '-from=4f2c9a1e0b8d4c7e9f3a2b1c0d9e8f7a -to=Assets/Scripts/Inventory.cs -apply'
+python assetops.py RemapScript --args '-from=4f2c9a1e0b8d4c7e9f3a2b1c0d9e8f7a -to=Assets/Scripts/Inventory.cs -apply'
 ```
 
 | Argument | Effect |
@@ -116,8 +116,8 @@ Rewrites `m_Script: {fileID: ..., guid: <old>, type: 3}` in every YAML asset (`.
 ## RemoveMissingScripts
 
 ```bash
-python uaw.py RemoveMissingScripts "Assets/Prefabs" --args "-apply"
-python uaw.py RemoveMissingScripts --args '-spec="Library/AssetWorkbench/Audit/AuditMissingReference_20261023-201500.fix.json" -apply'
+python assetops.py RemoveMissingScripts "Assets/Prefabs" --args "-apply"
+python assetops.py RemoveMissingScripts --args '-spec="Library/AssetOps/Audit/AuditMissingReference_20261023-201500.fix.json" -apply'
 ```
 
 AssetList, `-scandir`, or `-spec` with `{"Files": [...]}` (the fix spec `AuditMissingReference` writes). Missing scripts on objects inside a prefab instance belong to the source prefab: they are reported with the source path and left alone.

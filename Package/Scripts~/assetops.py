@@ -1,18 +1,18 @@
 #!/usr/bin/env python3
-"""Asset Workbench wrapper. One command line, editor open or closed.
+"""AssetOps wrapper. One command line, editor open or closed.
 
 Routing:
-  1. <Project>/Library/AssetWorkbench/Queue/.alive names a live Unity process: the editor has the project open
+  1. <Project>/Library/AssetOps/Queue/.alive names a live Unity process: the editor has the project open
      and its task queue is running. The task goes to pending/, the result comes back from done/.
   2. Unity holds the project (Temp/UnityLockfile is locked) but no heartbeat is up yet: the editor is still
      starting, or the package has not compiled. Wait up to --startup-wait seconds for the heartbeat.
-  3. Otherwise launch Unity headless: -batchmode -nographics -executeMethod AssetWorkbench.Cli.Run.
+  3. Otherwise launch Unity headless: -batchmode -nographics -executeMethod AssetOps.Cli.Run.
 Both routes produce the same result JSON and the same printed output.
 
 Usage:
-  python uaw.py <RunName> [AssetList] [--args "<extra args>"] [--project DIR] [--unity PATH] [--timeout SEC]
-  python uaw.py --list          every run the project knows, with its summary
-  python uaw.py --status        what the editor's queue is doing
+  python assetops.py <RunName> [AssetList] [--args "<extra args>"] [--project DIR] [--unity PATH] [--timeout SEC]
+  python assetops.py --list          every run the project knows, with its summary
+  python assetops.py --status        what the editor's queue is doing
 
   AssetList   comma-separated asset paths or folders, e.g. "Assets/Prefabs/A.prefab,Assets/Prefabs/B.prefab".
               Spec-driven runs (Edit*, Create*, most Migrate runs) name targets in the spec, leave it out.
@@ -38,7 +38,7 @@ import time
 import uuid
 
 # Same constants as TaskQueueProtocol in Editor/Core/TaskQueue.cs. Change both together.
-QUEUE_RELATIVE = os.path.join("Library", "AssetWorkbench", "Queue")
+QUEUE_RELATIVE = os.path.join("Library", "AssetOps", "Queue")
 PENDING = "pending"
 PROCESSING = "processing"
 DONE = "done"
@@ -54,7 +54,7 @@ BUSY_STATES = {"busy", "compiling", "importing", "playmode", "reloading", "start
 
 
 def log(msg):
-    print("[uaw] " + msg, flush=True)
+    print("[assetops] " + msg, flush=True)
 
 
 def resolve_group(run_name):
@@ -133,7 +133,7 @@ def editor_candidates(version):
 def find_unity(explicit, project):
     if explicit:
         return explicit if os.path.isfile(explicit) else None
-    env = os.environ.get("UAW_UNITY")
+    env = os.environ.get("ASSETOPS_UNITY")
     if env:
         return env if os.path.isfile(env) else None
     version = project_unity_version(project)
@@ -378,7 +378,7 @@ def run_queue(args, queue_root, run, assets, extra, alive):
                 log("the editor's heartbeat is %.0fs old: a modal dialog, a long import, or Unity throttled in the background" % age)
             if state == "paused" and os.path.exists(os.path.join(queue_root, PENDING, task_id + ".json")):
                 withdraw(queue_root, task_id)
-                log("error: the editor's queue is paused (Window > Asset Workbench > Accept tasks). Task withdrawn")
+                log("error: the editor's queue is paused (Window > AssetOps > Accept tasks). Task withdrawn")
                 return EXIT_REFUSED
             if not is_unity_process(pid):
                 if withdraw(queue_root, task_id):
@@ -396,7 +396,7 @@ LOG_HINTS = [
     (r"Scripts have compiler errors|error CS\d+", "the project does not compile, fix the errors above (the Unity log has them) and rerun"),
     (r"another Unity instance is running|Multiple Unity instances cannot open the same project", "another Unity instance has the project open"),
     (r"No valid Unity Editor license|Couldn't find a valid license|License is not active", "Unity has no active license for batch mode, open the Hub once and sign in"),
-    (r"executeMethod class '?AssetWorkbench.Cli'? could not be found|Could not find method AssetWorkbench", "the Asset Workbench package is not in this project, or did not compile"),
+    (r"executeMethod class '?AssetOps.Cli'? could not be found|Could not find method AssetOps", "the AssetOps package is not in this project, or did not compile"),
     (r"Aborting batchmode due to failure", "Unity aborted batch mode, see the Unity log"),
 ]
 
@@ -437,7 +437,7 @@ def run_batch(args, project, queue_root, run, assets, extra):
     unity = find_unity(args.unity, project)
     if not unity:
         version = project_unity_version(project) or "?"
-        log("error: no Unity %s found. Pass --unity <path to the editor executable> or set UAW_UNITY" % version)
+        log("error: no Unity %s found. Pass --unity <path to the editor executable> or set ASSETOPS_UNITY" % version)
         return EXIT_FAILED
     task_id = uuid.uuid4().hex
     batch_dir = os.path.join(queue_root, "batch")
@@ -447,12 +447,12 @@ def run_batch(args, project, queue_root, run, assets, extra):
     cmd = [unity, "-batchmode"]
     if not args.graphics:
         cmd.append("-nographics")
-    cmd += ["-projectPath", project, "-executeMethod", "AssetWorkbench.Cli.Run",
-            "-uawRun", run, "-uawResult", result_path, "-logFile", unity_log]
+    cmd += ["-projectPath", project, "-executeMethod", "AssetOps.Cli.Run",
+            "-assetopsRun", run, "-assetopsResult", result_path, "-logFile", unity_log]
     if assets:
-        cmd += ["-uawAssetsB64", b64(",".join(assets))]
+        cmd += ["-assetopsAssetsB64", b64(",".join(assets))]
     if extra:
-        cmd += ["-uawArgsB64", b64(extra)]
+        cmd += ["-assetopsArgsB64", b64(extra)]
     log("route: batchmode (%s)" % unity)
     started = time.time()
     try:
@@ -503,11 +503,11 @@ def route(args, project, run, assets, extra):
                 if alive or not project_locked(project):
                     break
             if alive is None and project_locked(project):
-                log("error: the editor holds the project and its task queue never came up. Is the Asset Workbench package installed and compiling? Check the Console")
+                log("error: the editor holds the project and its task queue never came up. Is the AssetOps package installed and compiling? Check the Console")
                 return EXIT_REFUSED
         if alive is not None:
             if alive.get("State") == "paused":
-                log("error: the editor's queue is paused (Window > Asset Workbench > Accept tasks)")
+                log("error: the editor's queue is paused (Window > AssetOps > Accept tasks)")
                 return EXIT_REFUSED
             code = run_queue(args, queue_root, run, assets, extra, alive)
             if code is not None:
@@ -523,8 +523,8 @@ def status(project):
     alive = read_alive(queue_root)
     if alive and is_unity_process(int(alive.get("Pid", 0))):
         pending = len([f for f in os.listdir(os.path.join(queue_root, PENDING)) if f.endswith(".json")]) if os.path.isdir(os.path.join(queue_root, PENDING)) else 0
-        log("editor pid %s, state %s, heartbeat %.0fs ago, Unity %s, Asset Workbench %s, %d pending" % (
-            alive.get("Pid"), alive.get("State"), alive.get("_age", 0), alive.get("UnityVersion"), alive.get("WorkbenchVersion"), pending))
+        log("editor pid %s, state %s, heartbeat %.0fs ago, Unity %s, AssetOps %s, %d pending" % (
+            alive.get("Pid"), alive.get("State"), alive.get("_age", 0), alive.get("UnityVersion"), alive.get("AssetOpsVersion"), pending))
         return EXIT_SUCCESS
     if project_locked(project):
         log("Unity has the project open, no task queue heartbeat")
@@ -534,11 +534,11 @@ def status(project):
 
 
 def main(argv=None):
-    p = argparse.ArgumentParser(prog="uaw.py", description="Asset Workbench: run export, import, edit, migrate and audit tasks on a Unity project.")
+    p = argparse.ArgumentParser(prog="assetops.py", description="AssetOps: run export, import, edit, migrate and audit tasks on a Unity project.")
     p.add_argument("run", nargs="?", help="run name, e.g. PrefabExport")
     p.add_argument("assets", nargs="?", default="", help="comma-separated asset paths or folders")
     p.add_argument("--args", dest="extra", default="", help="extra arguments for the run, e.g. '-spec=\"C:/t/x.json\" -apply'")
-    p.add_argument("--project", default=os.environ.get("UAW_PROJECT"), help="Unity project folder (default: the one containing the current directory)")
+    p.add_argument("--project", default=os.environ.get("ASSETOPS_PROJECT"), help="Unity project folder (default: the one containing the current directory)")
     p.add_argument("--unity", default=None, help="Unity editor executable for the headless route")
     p.add_argument("--timeout", type=int, default=600, help="seconds before giving up (default 600)")
     p.add_argument("--startup-wait", type=int, default=300, help="seconds to wait for a starting editor's queue (default 300)")

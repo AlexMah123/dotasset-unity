@@ -3,14 +3,14 @@ using System.Globalization;
 using System.IO;
 using UnityEngine;
 
-namespace AssetWorkbench
+namespace AssetOps
 {
-    // Everything the workbench writes lives under <Project>/Library/AssetWorkbench, which version control ignores.
+    // Everything the workbench writes lives under <Project>/Library/AssetOps, which version control ignores.
     //   Export/   export JSON, one file per asset per run
     //   Audit/    audit reports and their fix specs
     //   Logs/     one log per run
     //   Queue/    task queue between the wrapper and the open editor, see TaskQueueProtocol
-    public static class WorkbenchPaths
+    public static class AssetOpsPaths
     {
         public static string ProjectRoot
         {
@@ -19,7 +19,7 @@ namespace AssetWorkbench
 
         public static string Root
         {
-            get { return Combine(ProjectRoot, "Library/AssetWorkbench"); }
+            get { return Combine(ProjectRoot, "Library/AssetOps"); }
         }
 
         public static string ExportRoot

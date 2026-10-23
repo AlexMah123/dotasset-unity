@@ -5,7 +5,7 @@ using System.Text;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 
-namespace AssetWorkbench
+namespace AssetOps
 {
     public static class Json
     {
@@ -32,7 +32,7 @@ namespace AssetWorkbench
 
         public static void WriteFile(string path, JToken token)
         {
-            WorkbenchPaths.EnsureParent(path);
+            AssetOpsPaths.EnsureParent(path);
             string tmp = path + ".tmp";
             File.WriteAllText(tmp, Format(token), Utf8NoBom);
             if (File.Exists(path))

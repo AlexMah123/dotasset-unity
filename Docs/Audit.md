@@ -11,11 +11,11 @@ Read-only checks that write a report JSON, and a fix spec where a fix is mechani
 | `AuditMaterial` | missing, broken or unsupported shaders, stale properties, stray keywords (M1-M5) |
 
 ```bash
-python uaw.py AuditTexture --args "-scandir=Assets"
-python uaw.py AuditMaterial "Assets/Materials/Characters"
+python assetops.py AuditTexture --args "-scandir=Assets"
+python assetops.py AuditMaterial "Assets/Materials/Characters"
 ```
 
-Entry assets in AssetList (folders expand), or `-scandir` (default `Assets`). `-report=<path>` picks the report path, default `Library/AssetWorkbench/Audit/<RunName>_<timestamp>.json`.
+Entry assets in AssetList (folders expand), or `-scandir` (default `Assets`). `-report=<path>` picks the report path, default `Library/AssetOps/Audit/<RunName>_<timestamp>.json`.
 
 ## Exit codes
 
@@ -38,7 +38,7 @@ Entry assets in AssetList (folders expand), or `-scandir` (default `Assets`). `-
   "IssueCount": 9,
   "Counts": { "T1": 2, "T3": 7 },
   "Issues": [ { "Rule": "T1", "Severity": "Warning", "Asset": "Assets/Art/Rock_n.png", "Message": "named like a normal map, imported as Default" } ],
-  "FixSpec": "Library/AssetWorkbench/Audit/AuditTexture_20261023-201500.fix.json",
+  "FixSpec": "Library/AssetOps/Audit/AuditTexture_20261023-201500.fix.json",
   "FixRun": "EditImporter"
 }
 ```
@@ -56,8 +56,8 @@ When issues have a mechanical fix the audit writes `<report>.fix.json` next to t
 Read it, delete what should stay, run `FixRun` without `-apply`, then with it:
 
 ```bash
-python uaw.py EditImporter --args '-spec="Library/AssetWorkbench/Audit/AuditTexture_20261023-201500.fix.json"'
-python uaw.py EditImporter --args '-spec="Library/AssetWorkbench/Audit/AuditTexture_20261023-201500.fix.json" -apply'
+python assetops.py EditImporter --args '-spec="Library/AssetOps/Audit/AuditTexture_20261023-201500.fix.json"'
+python assetops.py EditImporter --args '-spec="Library/AssetOps/Audit/AuditTexture_20261023-201500.fix.json" -apply'
 ```
 
 T4 (Read/Write) is in the fix spec too, though a script may need the pixels; remove those entries when it does.

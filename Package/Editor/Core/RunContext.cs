@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using UnityEditor;
 
-namespace AssetWorkbench
+namespace AssetOps
 {
     // Everything a command sees of the run that invoked it.
     public sealed class RunContext
@@ -59,8 +59,8 @@ namespace AssetWorkbench
 
         public void AddOutput(string absolutePath)
         {
-            Outputs.Add(WorkbenchPaths.Normalize(absolutePath));
-            Log.Info("output: " + WorkbenchPaths.ToProjectRelative(absolutePath));
+            Outputs.Add(AssetOpsPaths.Normalize(absolutePath));
+            Log.Info("output: " + AssetOpsPaths.ToProjectRelative(absolutePath));
         }
 
         // Progress for long runs. A progress bar in the editor, a log line every 10 percent headless.
@@ -72,7 +72,7 @@ namespace AssetWorkbench
             }
             if (InEditor)
             {
-                EditorUtility.DisplayProgressBar("Asset Workbench: " + RunName, label, done / (float)total);
+                EditorUtility.DisplayProgressBar("AssetOps: " + RunName, label, done / (float)total);
                 progressShown = true;
                 return;
             }

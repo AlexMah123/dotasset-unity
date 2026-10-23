@@ -1,8 +1,8 @@
-"""Tests for Scripts~/uaw.py and for the naming rules the C# side relies on.
+"""Tests for Scripts~/assetops.py and for the naming rules the C# side relies on.
 
 Unity itself is replaced by two fakes:
   - a fake editor: a thread that serves the file queue the way TaskQueue.cs does
-  - a fake Unity executable: a script that answers -executeMethod AssetWorkbench.Cli.Run the way Cli.cs does
+  - a fake Unity executable: a script that answers -executeMethod AssetOps.Cli.Run the way Cli.cs does
 Run: python -m unittest discover -s tests -v
 """
 
@@ -24,9 +24,9 @@ from io import StringIO
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PACKAGE = os.path.join(ROOT, "Package")
-SPEC = importlib.util.spec_from_file_location("uaw", os.path.join(PACKAGE, "Scripts~", "uaw.py"))
-uaw = importlib.util.module_from_spec(SPEC)
-SPEC.loader.exec_module(uaw)
+SPEC = importlib.util.spec_from_file_location("assetops", os.path.join(PACKAGE, "Scripts~", "assetops.py"))
+ops = importlib.util.module_from_spec(SPEC)
+SPEC.loader.exec_module(ops)
 
 
 def make_project(root, version="6000.0.40f1"):
@@ -49,30 +49,30 @@ class FakeEditor(threading.Thread):
 
     def __init__(self, project, respond, state="ready", claim=True):
         super().__init__(daemon=True)
-        self.queue = os.path.join(project, uaw.QUEUE_RELATIVE)
+        self.queue = os.path.join(project, ops.QUEUE_RELATIVE)
         self.respond = respond
         self.state = state
         self.claim = claim
         self.stop = threading.Event()
         self.tasks = []
-        for d in (uaw.PENDING, uaw.PROCESSING, uaw.DONE):
+        for d in (ops.PENDING, ops.PROCESSING, ops.DONE):
             os.makedirs(os.path.join(self.queue, d), exist_ok=True)
         self.beat()
 
     def beat(self):
-        with open(os.path.join(self.queue, uaw.ALIVE), "w") as f:
-            json.dump({"Pid": os.getpid(), "State": self.state, "UnityVersion": "6000.0.40f1", "WorkbenchVersion": "test"}, f)
+        with open(os.path.join(self.queue, ops.ALIVE), "w") as f:
+            json.dump({"Pid": os.getpid(), "State": self.state, "UnityVersion": "6000.0.40f1", "AssetOpsVersion": "test"}, f)
 
     def run(self):
         while not self.stop.is_set():
             self.beat()
             if self.claim and self.state == "ready":
-                pending = os.path.join(self.queue, uaw.PENDING)
+                pending = os.path.join(self.queue, ops.PENDING)
                 for name in sorted(os.listdir(pending)):
                     if not name.endswith(".json"):
                         continue
                     src = os.path.join(pending, name)
-                    dst = os.path.join(self.queue, uaw.PROCESSING, name)
+                    dst = os.path.join(self.queue, ops.PROCESSING, name)
                     try:
                         os.replace(src, dst)
                     except OSError:
@@ -80,7 +80,7 @@ class FakeEditor(threading.Thread):
                     with open(dst) as f:
                         task = json.load(f)
                     self.tasks.append(task)
-                    with open(os.path.join(self.queue, uaw.DONE, name), "w") as f:
+                    with open(os.path.join(self.queue, ops.DONE, name), "w") as f:
                         json.dump(self.respond(task), f)
                     os.remove(dst)
             time.sleep(0.05)
@@ -104,13 +104,13 @@ if mode == "compile_error":
 if mode == "hang":
     import time
     time.sleep(30)
-run = val("-uawRun")
-assets = base64.b64decode(val("-uawAssetsB64")).decode() if val("-uawAssetsB64") else ""
-extra = base64.b64decode(val("-uawArgsB64")).decode() if val("-uawArgsB64") else ""
+run = val("-assetopsRun")
+assets = base64.b64decode(val("-assetopsAssetsB64")).decode() if val("-assetopsAssetsB64") else ""
+extra = base64.b64decode(val("-assetopsArgsB64")).decode() if val("-assetopsArgsB64") else ""
 code = int(os.environ.get("FAKE_UNITY_EXIT", "0"))
 with open(log, "w") as f:
     f.write("fake unity log\n")
-with open(val("-uawResult"), "w") as f:
+with open(val("-assetopsResult"), "w") as f:
     json.dump({"RunName": run, "ExitCode": code, "Summary": run + " fake", "Lines": ["I assets=" + assets, "I extra=" + extra, "W careful"], "Outputs": []}, f)
 sys.exit(code)
 '''
@@ -120,23 +120,23 @@ class Base(unittest.TestCase):
     def setUp(self):
         self.tmp = tempfile.mkdtemp()
         self.project = make_project(os.path.join(self.tmp, "Proj"))
-        self._orig_is_unity = uaw.is_unity_process
-        uaw.is_unity_process = lambda pid: pid == os.getpid() and getattr(self, "editor_alive", True)
+        self._orig_is_unity = ops.is_unity_process
+        ops.is_unity_process = lambda pid: pid == os.getpid() and getattr(self, "editor_alive", True)
         self.fake_unity = os.path.join(self.tmp, "Unity")
         with open(self.fake_unity, "w") as f:
             f.write(FAKE_UNITY)
         os.chmod(self.fake_unity, os.stat(self.fake_unity).st_mode | stat.S_IEXEC)
-        for k in ("FAKE_UNITY_MODE", "FAKE_UNITY_EXIT", "FAKE_UNITY_RECORD", "UAW_UNITY", "UAW_PROJECT"):
+        for k in ("FAKE_UNITY_MODE", "FAKE_UNITY_EXIT", "FAKE_UNITY_RECORD", "ASSETOPS_UNITY", "ASSETOPS_PROJECT"):
             os.environ.pop(k, None)
 
     def tearDown(self):
-        uaw.is_unity_process = self._orig_is_unity
+        ops.is_unity_process = self._orig_is_unity
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def call(self, *argv):
         out = StringIO()
         with redirect_stdout(out):
-            code = uaw.main(["--project", self.project] + list(argv))
+            code = ops.main(["--project", self.project] + list(argv))
         return code, out.getvalue()
 
 
@@ -150,7 +150,7 @@ class GroupRule(unittest.TestCase):
                 if not name.endswith("Command.cs"):
                     continue
                 run = name[:-len("Command.cs")]
-                self.assertEqual(uaw.resolve_group(run), group, run)
+                self.assertEqual(ops.resolve_group(run), group, run)
                 seen += 1
         self.assertGreaterEqual(seen, 25)
 
@@ -162,16 +162,16 @@ class GroupRule(unittest.TestCase):
     def test_every_command_class_is_sealed_and_named(self):
         for dirpath, _, files in os.walk(os.path.join(PACKAGE, "Editor")):
             for name in files:
-                if name.endswith("Command.cs") and name != "WorkbenchCommand.cs":
+                if name.endswith("Command.cs") and name != "AssetOpsCommand.cs":
                     text = open(os.path.join(dirpath, name)).read()
                     cls = name[:-3]
-                    self.assertRegex(text, r"public sealed class %s : WorkbenchCommand" % cls, name)
+                    self.assertRegex(text, r"public sealed class %s : AssetOpsCommand" % cls, name)
                     self.assertIn("Docs/", text, name + " header must point at its doc")
 
     def test_queue_constants_match(self):
         src = open(os.path.join(PACKAGE, "Editor", "Core", "TaskQueue.cs")).read()
-        self.assertIn('QueueRelative = "Library/AssetWorkbench/Queue"', src)
-        self.assertEqual(uaw.QUEUE_RELATIVE.replace(os.sep, "/"), "Library/AssetWorkbench/Queue")
+        self.assertIn('QueueRelative = "Library/AssetOps/Queue"', src)
+        self.assertEqual(ops.QUEUE_RELATIVE.replace(os.sep, "/"), "Library/AssetOps/Queue")
         for const in ("pending", "processing", "done", ".alive"):
             self.assertIn('"%s"' % const, src)
 
@@ -190,7 +190,7 @@ class QueueRoute(Base):
         self.assertIn("warning: heads up", out)
         self.assertIn("error: broken", out)
         self.assertEqual(editor.tasks[0]["Assets"], ["Assets/A.prefab", "Assets/B.prefab"])
-        done = os.path.join(self.project, uaw.QUEUE_RELATIVE, uaw.DONE)
+        done = os.path.join(self.project, ops.QUEUE_RELATIVE, ops.DONE)
         self.assertEqual(os.listdir(done), [], "the wrapper deletes the done file it read")
 
     def test_exit_code_passes_through(self):
@@ -221,7 +221,7 @@ class QueueRoute(Base):
             editor.stop.set()
         self.assertEqual(code, 1)
         self.assertIn("withdrawn", out)
-        pending = os.path.join(self.project, uaw.QUEUE_RELATIVE, uaw.PENDING)
+        pending = os.path.join(self.project, ops.QUEUE_RELATIVE, ops.PENDING)
         self.assertEqual([f for f in os.listdir(pending) if f.endswith(".json")], [])
 
     def test_paused_queue_refuses(self):
@@ -251,9 +251,9 @@ class QueueRoute(Base):
         self.assertIn("route: batchmode", out)
 
     def test_stale_heartbeat_pid_is_ignored(self):
-        queue = os.path.join(self.project, uaw.QUEUE_RELATIVE)
+        queue = os.path.join(self.project, ops.QUEUE_RELATIVE)
         os.makedirs(queue, exist_ok=True)
-        with open(os.path.join(queue, uaw.ALIVE), "w") as f:
+        with open(os.path.join(queue, ops.ALIVE), "w") as f:
             json.dump({"Pid": 999999, "State": "ready"}, f)
         code, out = self.call("PrefabExport", "Assets/A.prefab", "--unity", self.fake_unity)
         self.assertEqual(code, 0)
@@ -271,10 +271,10 @@ class BatchRoute(Base):
         argv = json.load(open(record))
         self.assertIn("-batchmode", argv)
         self.assertIn("-nographics", argv)
-        self.assertEqual(argv[argv.index("-executeMethod") + 1], "AssetWorkbench.Cli.Run")
+        self.assertEqual(argv[argv.index("-executeMethod") + 1], "AssetOps.Cli.Run")
         self.assertEqual(argv[argv.index("-projectPath") + 1], self.project)
-        self.assertEqual(base64.b64decode(argv[argv.index("-uawArgsB64") + 1]).decode(), extra)
-        self.assertNotIn("-uawAssetsB64", argv, "no AssetList, no flag")
+        self.assertEqual(base64.b64decode(argv[argv.index("-assetopsArgsB64") + 1]).decode(), extra)
+        self.assertNotIn("-assetopsAssetsB64", argv, "no AssetList, no flag")
 
     def test_assets_are_normalized(self):
         code, out = self.call("PrefabExport", r"Assets\Prefabs\A.prefab, Assets/B.prefab", "--unity", self.fake_unity)
@@ -316,7 +316,7 @@ class BatchRoute(Base):
         old = os.environ.get("HOME")
         os.environ["HOME"] = home
         try:
-            self.assertEqual(uaw.find_unity(None, self.project), exe)
+            self.assertEqual(ops.find_unity(None, self.project), exe)
         finally:
             os.environ["HOME"] = old
 
@@ -340,7 +340,7 @@ class StartupWait(Base):
                                    "import fcntl,sys,time;f=open(sys.argv[1],'w');fcntl.flock(f,fcntl.LOCK_EX);time.sleep(30)", lock])
         try:
             time.sleep(0.5)
-            self.assertTrue(uaw.project_locked(self.project))
+            self.assertTrue(ops.project_locked(self.project))
             started = {}
 
             def late_editor():
@@ -356,7 +356,7 @@ class StartupWait(Base):
         finally:
             holder.kill()
             holder.wait()
-        self.assertFalse(uaw.project_locked(self.project))
+        self.assertFalse(ops.project_locked(self.project))
 
     @unittest.skipIf(sys.platform == "win32", "fcntl lock")
     def test_locked_project_without_queue_refuses(self):
@@ -378,23 +378,23 @@ class StartupWait(Base):
         lock = os.path.join(self.project, "Temp", "UnityLockfile")
         os.makedirs(os.path.dirname(lock))
         open(lock, "w").close()
-        self.assertFalse(uaw.project_locked(self.project))
+        self.assertFalse(ops.project_locked(self.project))
 
 
 class Discovery(Base):
     def test_find_project_walks_up(self):
         deep = os.path.join(self.project, "Assets", "Art", "Textures")
         os.makedirs(deep)
-        self.assertEqual(uaw.find_project(deep), self.project)
+        self.assertEqual(ops.find_project(deep), self.project)
 
     def test_version(self):
-        self.assertEqual(uaw.project_unity_version(self.project), "6000.0.40f1")
+        self.assertEqual(ops.project_unity_version(self.project), "6000.0.40f1")
 
     def test_real_process_check(self):
         # The test runner is alive but is not Unity.
-        self.assertTrue(uaw.pid_alive(os.getpid()))
+        self.assertTrue(ops.pid_alive(os.getpid()))
         self.assertFalse(self._orig_is_unity(os.getpid()))
-        self.assertFalse(uaw.pid_alive(999999))
+        self.assertFalse(ops.pid_alive(999999))
 
 
 if __name__ == "__main__":
@@ -409,7 +409,7 @@ class PackageFiles(unittest.TestCase):
 
     def test_versions_agree(self):
         pkg = json.load(open(os.path.join(PACKAGE, "package.json")))
-        cs = open(os.path.join(PACKAGE, "Editor", "Core", "WorkbenchVersion.cs")).read()
+        cs = open(os.path.join(PACKAGE, "Editor", "Core", "AssetOpsVersion.cs")).read()
         self.assertIn('Version = "%s"' % pkg["version"], cs)
         self.assertIn("### " + pkg["version"], open(os.path.join(ROOT, "Version.md")).read())
 
@@ -426,7 +426,7 @@ class PackageFiles(unittest.TestCase):
         guide = open(os.path.join(ROOT, "Docs", "AI-Guide.md")).read()
         for dirpath, _, files in os.walk(os.path.join(PACKAGE, "Editor")):
             for name in files:
-                if name.endswith("Command.cs") and name != "WorkbenchCommand.cs":
+                if name.endswith("Command.cs") and name != "AssetOpsCommand.cs":
                     run = name[:-len("Command.cs")]
                     self.assertIn("`%s`" % run, docs, run)
                     self.assertIn(run, guide, run + " missing from the AI-Guide decision table")

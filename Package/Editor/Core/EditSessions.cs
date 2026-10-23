@@ -5,7 +5,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
-namespace AssetWorkbench
+namespace AssetOps
 {
     // All-or-nothing writes. Each session holds one target. Save() writes it, disposing without Save() drops every change.
 
@@ -126,7 +126,7 @@ namespace AssetWorkbench
             }
             session.Scene = scene;
             Undo.IncrementCurrentGroup();
-            Undo.SetCurrentGroupName("Asset Workbench: " + label);
+            Undo.SetCurrentGroupName("AssetOps: " + label);
             session.undoGroup = Undo.GetCurrentGroup();
             return session;
         }

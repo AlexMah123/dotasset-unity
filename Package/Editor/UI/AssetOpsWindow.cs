@@ -5,16 +5,16 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
-namespace AssetWorkbench
+namespace AssetOps
 {
-    // Window > Asset Workbench: queue state, the runs of this session and earlier ones from their log files,
+    // Window > AssetOps: queue state, the runs of this session and earlier ones from their log files,
     // each run's full log. The Message Log of uasset-workbench, for Unity.
-    public sealed class WorkbenchWindow : EditorWindow
+    public sealed class AssetOpsWindow : EditorWindow
     {
-        [MenuItem("Window/Asset Workbench")]
+        [MenuItem("Window/AssetOps")]
         static void Open()
         {
-            GetWindow<WorkbenchWindow>("Asset Workbench");
+            GetWindow<AssetOpsWindow>("AssetOps");
         }
 
         static readonly List<RunResult> session = new List<RunResult>();
@@ -33,7 +33,7 @@ namespace AssetWorkbench
             {
                 session.RemoveAt(session.Count - 1);
             }
-            foreach (var w in Resources.FindObjectsOfTypeAll<WorkbenchWindow>())
+            foreach (var w in Resources.FindObjectsOfTypeAll<AssetOpsWindow>())
             {
                 w.Repaint();
             }
@@ -65,8 +65,8 @@ namespace AssetWorkbench
         {
             try
             {
-                logFiles = Directory.Exists(WorkbenchPaths.LogRoot)
-                    ? Directory.GetFiles(WorkbenchPaths.LogRoot, "*.log").OrderByDescending(f => Path.GetFileName(f)).Take(100).ToArray()
+                logFiles = Directory.Exists(AssetOpsPaths.LogRoot)
+                    ? Directory.GetFiles(AssetOpsPaths.LogRoot, "*.log").OrderByDescending(f => Path.GetFileName(f)).Take(100).ToArray()
                     : new string[0];
             }
             catch (Exception)
@@ -79,7 +79,7 @@ namespace AssetWorkbench
         {
             using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
             {
-                GUILayout.Label("Queue: " + TaskQueue.State + "   pending: " + TaskQueue.PendingCount + "   v" + WorkbenchVersion.Version, EditorStyles.miniLabel);
+                GUILayout.Label("Queue: " + TaskQueue.State + "   pending: " + TaskQueue.PendingCount + "   v" + AssetOpsVersion.Version, EditorStyles.miniLabel);
                 GUILayout.FlexibleSpace();
                 bool enabled = TaskQueue.Enabled;
                 bool toggled = GUILayout.Toggle(enabled, "Accept tasks", EditorStyles.toolbarButton);
@@ -92,14 +92,14 @@ namespace AssetWorkbench
                 {
                     RefreshLogs();
                 }
-                if (GUILayout.Button(new GUIContent("Copy uaw.py", "Copy the wrapper to the project root, next to Assets/"), EditorStyles.toolbarButton))
+                if (GUILayout.Button(new GUIContent("Copy assetops.py", "Copy the wrapper to the project root, next to Assets/"), EditorStyles.toolbarButton))
                 {
                     CopyWrapper();
                 }
                 if (GUILayout.Button("Open folder", EditorStyles.toolbarButton))
                 {
-                    Directory.CreateDirectory(WorkbenchPaths.Root);
-                    EditorUtility.RevealInFinder(WorkbenchPaths.Root);
+                    Directory.CreateDirectory(AssetOpsPaths.Root);
+                    EditorUtility.RevealInFinder(AssetOpsPaths.Root);
                 }
             }
 
@@ -139,7 +139,7 @@ namespace AssetWorkbench
                     }
                     if (logFiles.Length == 0 && session.Count == 0)
                     {
-                        EditorGUILayout.HelpBox("No runs yet. Runs arrive from Scripts~/uaw.py while this editor is open.", MessageType.Info);
+                        EditorGUILayout.HelpBox("No runs yet. Runs arrive from Scripts~/assetops.py while this editor is open.", MessageType.Info);
                     }
                 }
 
@@ -148,7 +148,7 @@ namespace AssetWorkbench
                     logScroll = scroll.scrollPosition;
                     if (selectedText != null)
                     {
-                        GUILayout.Label(selectedLog != null ? WorkbenchPaths.ToProjectRelative(selectedLog) : "", EditorStyles.miniLabel);
+                        GUILayout.Label(selectedLog != null ? AssetOpsPaths.ToProjectRelative(selectedLog) : "", EditorStyles.miniLabel);
                         string shown = warningsOnly
                             ? string.Join("\n", selectedText.Split('\n').Where(l => l.StartsWith("W ") || l.StartsWith("E ")))
                             : selectedText;
@@ -161,22 +161,22 @@ namespace AssetWorkbench
         // The package may live in Library/PackageCache under a hashed folder, a copy at the root is easier to call.
         static void CopyWrapper()
         {
-            var info = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(WorkbenchWindow).Assembly);
+            var info = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(AssetOpsWindow).Assembly);
             if (info == null)
             {
-                EditorUtility.DisplayDialog("Asset Workbench", "Could not locate the package folder.", "OK");
+                EditorUtility.DisplayDialog("AssetOps", "Could not locate the package folder.", "OK");
                 return;
             }
-            string source = Path.Combine(info.resolvedPath, "Scripts~", "uaw.py");
-            string target = Path.Combine(WorkbenchPaths.ProjectRoot, "uaw.py");
+            string source = Path.Combine(info.resolvedPath, "Scripts~", "assetops.py");
+            string target = Path.Combine(AssetOpsPaths.ProjectRoot, "assetops.py");
             try
             {
                 File.Copy(source, target, true);
-                Debug.Log("[AssetWorkbench] copied the wrapper to " + target);
+                Debug.Log("[AssetOps] copied the wrapper to " + target);
             }
             catch (Exception e)
             {
-                EditorUtility.DisplayDialog("Asset Workbench", "Could not copy " + source + ": " + e.Message, "OK");
+                EditorUtility.DisplayDialog("AssetOps", "Could not copy " + source + ": " + e.Message, "OK");
             }
         }
 

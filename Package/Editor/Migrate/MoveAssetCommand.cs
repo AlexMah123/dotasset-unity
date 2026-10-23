@@ -1,0 +1,194 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using Newtonsoft.Json.Linq;
+using UnityEditor;
+
+namespace AssetWorkbench
+{
+    // Moves or renames assets and folders through the AssetDatabase, so GUIDs and every reference survive.
+    // Also flags what a GUID cannot carry: Resources.Load paths and other path strings in code.
+    // Usage: uaw.py MoveAsset --args '-from=Assets/Old/Gun.prefab -to=Assets/Weapons/Gun.prefab -apply'
+    //        uaw.py MoveAsset --args '-spec="C:/temp/moves.json" -apply'    {"Moves": [{"From": ..., "To": ...}]}
+    // Docs/Migrate.md
+    public sealed class MoveAssetCommand : WorkbenchCommand
+    {
+        public override string Summary
+        {
+            get { return "Moves or renames assets and folders, keeping GUIDs, and flags path strings in code"; }
+        }
+
+        public override IEnumerable<string> Arguments
+        {
+            get { return new[] { "from", "to", "spec" }; }
+        }
+
+        public override ExitCode Execute(RunContext ctx)
+        {
+            List<KeyValuePair<string, string>> moves;
+            if (!Pairs(ctx, "Moves", out moves))
+            {
+                return ExitCode.Refused;
+            }
+            string[] scripts = null;
+            int moved = 0;
+            foreach (var move in moves)
+            {
+                string from = move.Key;
+                string to = move.Value;
+                string label = from + " -> " + to;
+                bool isFolder = AssetDatabase.IsValidFolder(from);
+                if (!isFolder && AssetDatabase.GetMainAssetTypeAtPath(from) == null)
+                {
+                    ctx.FailTarget(label, "nothing at " + from);
+                    continue;
+                }
+                if (AssetDatabase.IsValidFolder(to) || AssetDatabase.GetMainAssetTypeAtPath(to) != null)
+                {
+                    ctx.FailTarget(label, to + " already exists");
+                    continue;
+                }
+                string parent = Path.GetDirectoryName(to).Replace('\\', '/');
+                if (!AssetDatabase.IsValidFolder(parent))
+                {
+                    ctx.Log.Info((ctx.DryRun ? "would create folder " : "creating folder ") + parent);
+                }
+                else
+                {
+                    string problem = AssetDatabase.ValidateMoveAsset(from, to);
+                    if (!string.IsNullOrEmpty(problem))
+                    {
+                        ctx.FailTarget(label, problem);
+                        continue;
+                    }
+                }
+
+                scripts = scripts ?? AssetScan.All(new[] { "Assets" }, p => p.EndsWith(".cs", StringComparison.OrdinalIgnoreCase)).ToArray();
+                WarnPathStrings(ctx, from, to, isFolder, scripts);
+
+                if (ctx.DryRun)
+                {
+                    ctx.Log.Info("would move " + label);
+                    continue;
+                }
+                string error;
+                if (!CreateAssetCommand.EnsureFolder(parent, out error))
+                {
+                    ctx.FailTarget(label, error);
+                    continue;
+                }
+                string result = AssetDatabase.MoveAsset(from, to);
+                if (!string.IsNullOrEmpty(result))
+                {
+                    ctx.FailTarget(label, result);
+                    continue;
+                }
+                moved++;
+                ctx.Log.Info("moved " + label);
+            }
+            if (!ctx.DryRun)
+            {
+                ctx.Log.Info("moved " + moved + " of " + moves.Count);
+            }
+            return ctx.FailedTargets.Count > 0 ? ExitCode.Failed : ExitCode.Success;
+        }
+
+        // GUIDs keep serialized references intact. Strings do not: a Resources.Load("Weapons/Gun") call,
+        // or an asset path in code, breaks silently when the file moves.
+        static void WarnPathStrings(RunContext ctx, string from, string to, bool isFolder, string[] scripts)
+        {
+            var needles = new List<string> { from };
+            string resourcesPath = ResourcesRelative(from, isFolder);
+            if (resourcesPath != null && resourcesPath != ResourcesRelative(to, isFolder))
+            {
+                needles.Add("\"" + resourcesPath + "\"");
+                needles.Add("\"" + resourcesPath + "/");
+            }
+            foreach (string script in scripts)
+            {
+                string text;
+                try
+                {
+                    text = File.ReadAllText(WorkbenchPaths.Absolute(script));
+                }
+                catch (Exception)
+                {
+                    continue;
+                }
+                foreach (string needle in needles)
+                {
+                    if (text.IndexOf(needle, StringComparison.Ordinal) >= 0)
+                    {
+                        ctx.Log.Warn(script + " mentions " + needle + " as a string, it will not follow the move");
+                        break;
+                    }
+                }
+            }
+        }
+
+        // "Assets/Art/Resources/Weapons/Gun.prefab" -> "Weapons/Gun"
+        static string ResourcesRelative(string path, bool isFolder)
+        {
+            int index = path.LastIndexOf("/Resources/", StringComparison.Ordinal);
+            if (index < 0)
+            {
+                return null;
+            }
+            string rest = path.Substring(index + "/Resources/".Length);
+            if (!isFolder)
+            {
+                string ext = Path.GetExtension(rest);
+                rest = rest.Substring(0, rest.Length - ext.Length);
+            }
+            return rest;
+        }
+
+        // -from/-to, or a spec array of {"From", "To"}.
+        public static bool Pairs(RunContext ctx, string specKey, out List<KeyValuePair<string, string>> pairs)
+        {
+            pairs = new List<KeyValuePair<string, string>>();
+            string from = ctx.Args.Get("from");
+            string to = ctx.Args.Get("to");
+            if (from != null || to != null)
+            {
+                if (from == null || to == null)
+                {
+                    ctx.Log.Error("give both -from and -to");
+                    return false;
+                }
+                pairs.Add(new KeyValuePair<string, string>(WorkbenchPaths.Normalize(from).TrimEnd('/'), WorkbenchPaths.Normalize(to).TrimEnd('/')));
+            }
+            if (ctx.Args.Has("spec"))
+            {
+                JObject spec;
+                if (!Spec.Load(ctx, out spec))
+                {
+                    return false;
+                }
+                JArray list = Spec.Targets(ctx, spec, specKey);
+                if (list == null)
+                {
+                    return false;
+                }
+                foreach (JToken entry in list)
+                {
+                    string f = Json.Str(entry, "From");
+                    string t = Json.Str(entry, "To");
+                    if (f == null || t == null)
+                    {
+                        ctx.Log.Error("every " + specKey + " entry needs \"From\" and \"To\"");
+                        return false;
+                    }
+                    pairs.Add(new KeyValuePair<string, string>(WorkbenchPaths.Normalize(f).TrimEnd('/'), WorkbenchPaths.Normalize(t).TrimEnd('/')));
+                }
+            }
+            if (pairs.Count == 0)
+            {
+                ctx.Log.Error(ctx.RunName + " needs -from and -to, or -spec with a \"" + specKey + "\" array");
+                return false;
+            }
+            return true;
+        }
+    }
+}

@@ -1,0 +1,120 @@
+# Audit
+
+Read-only checks that write a report JSON, and a fix spec where a fix is mechanical. Nothing is modified.
+
+## Runs
+
+| RunName | Checks |
+| --- | --- |
+| `AuditMissingReference` | references to deleted assets, Missing Scripts, missing sub-objects, missing prefab sources (R1-R4) |
+| `AuditTexture` | texture import settings against how the texture is used (T1-T8) |
+| `AuditMaterial` | missing, broken or unsupported shaders, stale properties, stray keywords (M1-M5) |
+
+```bash
+python uaw.py AuditTexture --args "-scandir=Assets"
+python uaw.py AuditMaterial "Assets/Materials/Characters"
+```
+
+Entry assets in AssetList (folders expand), or `-scandir` (default `Assets`). `-report=<path>` picks the report path, default `Library/AssetWorkbench/Audit/<RunName>_<timestamp>.json`.
+
+## Exit codes
+
+| Code | Meaning |
+| --- | --- |
+| 0 | nothing found |
+| 3 | the report lists issues |
+| 1 | the run failed |
+| 2 | bad arguments |
+
+3 is not a failure: the audit worked. CI can gate on it.
+
+## Report
+
+```json
+{
+  "ReportType": "AuditTexture",
+  "Rules": { "T1": "named like a normal map but not imported as one", "T3": "..." },
+  "Checked": 412,
+  "IssueCount": 9,
+  "Counts": { "T1": 2, "T3": 7 },
+  "Issues": [ { "Rule": "T1", "Severity": "Warning", "Asset": "Assets/Art/Rock_n.png", "Message": "named like a normal map, imported as Default" } ],
+  "FixSpec": "Library/AssetWorkbench/Audit/AuditTexture_20261023-201500.fix.json",
+  "FixRun": "EditImporter"
+}
+```
+
+## Fix specs
+
+When issues have a mechanical fix the audit writes `<report>.fix.json` next to the report, in the spec format of `FixRun`:
+
+| Audit | FixRun | Covers |
+| --- | --- | --- |
+| `AuditTexture` | `EditImporter` | T1 T2 T3 T4 T5 T6 T8 |
+| `AuditMaterial` | `EditMaterial` | M4 M5 |
+| `AuditMissingReference` | `RemoveMissingScripts` | R2 (and the report's `MissingScripts` lists each GUID for `RemapScript`) |
+
+Read it, delete what should stay, run `FixRun` without `-apply`, then with it:
+
+```bash
+python uaw.py EditImporter --args '-spec="Library/AssetWorkbench/Audit/AuditTexture_20261023-201500.fix.json"'
+python uaw.py EditImporter --args '-spec="Library/AssetWorkbench/Audit/AuditTexture_20261023-201500.fix.json" -apply'
+```
+
+T4 (Read/Write) is in the fix spec too, though a script may need the pixels; remove those entries when it does.
+
+## AuditMissingReference
+
+| Rule | Severity | Finds |
+| --- | --- | --- |
+| R1 | Error | a reference to a GUID no asset has: the asset was deleted, or its `.meta` was lost |
+| R2 | Error | Missing Script: a component or ScriptableObject whose script GUID no script has |
+| R3 | Error | `-deep`: a reference that loads as nothing. Catches deleted sub-objects inside assets that still exist, which the text pass cannot see. Repeats R1 hits |
+| R4 | Error | `-deep`: a prefab instance whose source prefab is missing |
+
+| Argument | Effect |
+| --- | --- |
+| `-scandir=<dirs>` | default `Assets` |
+| `-deep` | also load every asset and check each reference (slower) |
+
+The default pass reads the YAML of every `.prefab`, `.unity`, `.asset`, `.mat`, `.controller`, `.anim` and similar file without loading it, and checks every `{fileID, guid, type}` against the AssetDatabase. It needs Force Text serialization; without it the run warns and does the deep pass instead. Built-in resources are not reported. The deep pass skips scenes; for a scene, `SceneExport` and a grep for `"Missing": true` does the same.
+
+Issues carry `Guid`, `FileID`, `Field` (the YAML key) and `LocalId` (the object inside the file). The report's `MissingScripts` groups R2 by GUID with the files that use it and a ready `RemapScript` argument line.
+
+## AuditTexture
+
+| Rule | Severity | Finds | Fix |
+| --- | --- | --- | --- |
+| T1 | Warning | named like a normal map (`_n`, `_normal`, `_nrm`, `_nm`, `_norm`, `_normalmap`) but not imported as one | `TextureType: NormalMap` |
+| T2 | Warning | named like a data map (`_mask`, `_orm`, `_mra`, `_arm`, `_ao`, `_rough`, `_roughness`, `_metal`, `_metallic`, `_height`, `_disp`, `_ms`, `_mt`, `_smoothness`, `_spec`) with sRGB on | `sRGB: false` |
+| T3 | Warning | uncompressed at 256 px or larger | `Compression: Compressed` |
+| T4 | Info | Read/Write enabled, the texture stays in CPU memory too | `ReadWrite: false` |
+| T5 | Warning | mipmaps on a Sprite or GUI texture | `Mipmaps: false` |
+| T6 | Warning | mipmaps off on a Default or NormalMap texture of 256 px or larger | `Mipmaps: true` |
+| T7 | Warning | not a power of two, NPOT scale None, a side not a multiple of 4: block compression cannot apply | resize the source |
+| T8 | Warning | imported larger than the budget | `MaxSize: <budget>` |
+
+| Argument | Effect |
+| --- | --- |
+| `-maxsize=N` | the T8 budget, default 2048 |
+| `-rules=T1,T3` | only these rules |
+| `-normalsuffix=_n,_nrm` | replaces the T1 name list |
+| `-datasuffix=_mask,_orm` | replaces the T2 name list |
+
+Names are matched at the end of the file name, case-insensitive.
+
+## AuditMaterial
+
+| Rule | Severity | Finds | Fix |
+| --- | --- | --- | --- |
+| M1 | Error | no shader, or the error shader (the shader is missing) | pick a shader, `EditMaterial` `Shader` |
+| M2 | Error | the shader has compile errors | fix the shader |
+| M3 | Error | the shader is not supported here: a Built-in Render Pipeline shader (`Standard`, `Legacy Shaders/...`, `Mobile/...`) under URP or HDRP, or `isSupported` is false | pick a pipeline shader |
+| M4 | Info | saved values for properties the shader no longer declares | `RemoveStaleProperties: true` |
+| M5 | Warning | enabled keywords the shader does not declare | `DisableKeywords: [...]` |
+
+| Argument | Effect |
+| --- | --- |
+| `-scandir=<dirs>` | default `Assets` |
+| `-rules=M1,M3` | only these rules |
+
+The report's `RenderPipeline` names the active pipeline the M3 check used. Headless runs have no graphics device (`-nographics`), so there M3 only catches Built-in shaders under a render pipeline; run with the editor open, or pass `--graphics` to the wrapper, for the GPU support check. Converting Built-in materials to URP or HDRP is the render pipeline's converter's job; the report lists which materials need it.

@@ -122,4 +122,5 @@ Audit reports land in `Library/AssetOps/Audit/`, with `-report=` to choose the p
 | `DeleteAsset` refuses | Something under `-scandir` still references it, the warnings list what. Fix those first, or add `-force` |
 | Treating exit code 3 as failure | 3 means the audit worked and found something |
 | Exports and reports in version control | `Library/` is ignored by Unity's default `.gitignore`. Copy what you need to keep |
+| A headless run times out on a large project | The first headless start imports or refreshes the project and can take minutes. Raise `--timeout` (default 600 seconds), or keep the editor open so runs go to its queue |
 | The project does not compile | Headless runs cannot start; the wrapper prints the `error CS` lines from the Unity log. The editor route waits in `compiling` |

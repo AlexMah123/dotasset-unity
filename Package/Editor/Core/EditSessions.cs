@@ -91,6 +91,7 @@ namespace AssetOps
 
         int undoGroup;
         bool saved;
+        Scene previousActive;
 
         SceneSession()
         {
@@ -125,6 +126,13 @@ namespace AssetOps
                 session.OpenedByUs = true;
             }
             session.Scene = scene;
+            // New GameObjects land in the active scene. Make it this one, so creating objects never touches
+            // another open scene, then hand the active scene back when the session ends.
+            session.previousActive = SceneManager.GetActiveScene();
+            if (session.previousActive != scene)
+            {
+                SceneManager.SetActiveScene(scene);
+            }
             Undo.IncrementCurrentGroup();
             Undo.SetCurrentGroupName("AssetOps: " + label);
             session.undoGroup = Undo.GetCurrentGroup();
@@ -187,6 +195,10 @@ namespace AssetOps
 
         public void Dispose()
         {
+            if (previousActive.IsValid() && previousActive.isLoaded && previousActive != Scene)
+            {
+                SceneManager.SetActiveScene(previousActive);
+            }
             if (OpenedByUs)
             {
                 CloseAfterRun(Scene);

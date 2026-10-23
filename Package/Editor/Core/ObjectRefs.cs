@@ -148,6 +148,12 @@ namespace AssetOps
                 {
                     return null;
                 }
+                if (!path.StartsWith("Assets/", StringComparison.Ordinal) && !path.StartsWith("Packages/", StringComparison.Ordinal)
+                    && !path.StartsWith("Library/", StringComparison.Ordinal) && !path.StartsWith("Resources/", StringComparison.Ordinal))
+                {
+                    error = "\"" + path + "\" is not an asset path. For an object in this prefab or scene write {\"Object\": \"" + path + "\"}";
+                    return null;
+                }
                 result = ResolveAsset(path, null, null, expected, out error);
                 return Fit(result, expected, token, ref error);
             }

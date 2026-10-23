@@ -17,4 +17,8 @@ First release, the Unity counterpart of uasset-workbench 2.6.
 - Migrate: `MoveAsset`, `DuplicateAsset`, `DeleteAsset`, `ResaveAsset`, `RemapReference` (prefab instances swapped through Replace Prefab Asset), `RemapScript`, `RemoveMissingScripts`
 - Audit: `AuditMissingReference` (R1-R4), `AuditTexture` (T1-T8), `AuditMaterial` (M1-M5), with fix specs for the matching Edit or Migrate run
 - `Window > AssetOps`: queue state, pause, run history and logs, copy the wrapper to the project
+- Writes never touch scenes the user has open: scene edits, new scenes and new prefabs make their own scene active while they build, and hand it back after
+- `EditAsset` refuses imported assets (textures, models, audio), whose objects the importer rebuilds
+- A string reference that is not an asset path fails with a hint to use `{"Object": ...}`
+- `Static: true` sets every defined flag, the `RemoveMissingScripts` op skips objects owned by a source prefab
 - Not yet compiled inside Unity: written and checked against Unity's C# reference source for 2022.3 and 6000.3

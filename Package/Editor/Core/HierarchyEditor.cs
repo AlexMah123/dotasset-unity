@@ -467,7 +467,13 @@ namespace AssetOps
             error = null;
             if (value.Type == JTokenType.Boolean)
             {
-                flags = (bool)value ? (StaticEditorFlags)~0 : 0;
+                if ((bool)value)
+                {
+                    foreach (StaticEditorFlags f in Enum.GetValues(typeof(StaticEditorFlags)))
+                    {
+                        flags |= f;
+                    }
+                }
                 return true;
             }
             var names = value as JArray;
@@ -707,6 +713,11 @@ namespace AssetOps
                 {
                     if (GameObjectUtility.GetMonoBehavioursWithMissingScriptCount(go) == 0)
                     {
+                        continue;
+                    }
+                    if (PrefabUtility.IsPartOfPrefabInstance(go) && !PrefabUtility.IsAddedGameObjectOverride(go))
+                    {
+                        log.Warn(HierarchyPath.Of(go) + ": its missing scripts come from the source prefab, clean that prefab");
                         continue;
                     }
                     if (useUndo)

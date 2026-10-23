@@ -443,6 +443,7 @@ namespace AssetOps
                 return false;
             }
             NewSceneMode mode = Application.isBatchMode ? NewSceneMode.Single : NewSceneMode.Additive;
+            Scene previousActive = SceneManager.GetActiveScene();
             Scene scene;
             try
             {
@@ -455,6 +456,8 @@ namespace AssetOps
             }
             try
             {
+                // New GameObjects land in the active scene, keep them out of the user's.
+                SceneManager.SetActiveScene(scene);
                 var ops = Json.Get(entry, "Ops") as JArray;
                 if (ops != null)
                 {
@@ -483,6 +486,10 @@ namespace AssetOps
             }
             finally
             {
+                if (previousActive.IsValid() && previousActive.isLoaded && previousActive != scene)
+                {
+                    SceneManager.SetActiveScene(previousActive);
+                }
                 SceneSession.CloseAfterRun(scene);
             }
         }

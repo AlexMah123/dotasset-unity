@@ -6,6 +6,7 @@ Creates everything under Assets/AssetOpsSmoke and deletes it at the end. Run it 
 
   python tests/smoke/run_smoke.py --project /path/to/UnityProject [--unity /path/to/Unity] [--keep]
 
+With the editor open, save or close any Untitled scene first: Unity cannot open a scene next to one.
 Prints one line per step and exits 1 if any step returned an unexpected exit code.
 """
 import argparse

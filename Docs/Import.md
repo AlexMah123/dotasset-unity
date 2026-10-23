@@ -57,7 +57,7 @@ Entries run in order, so a later entry can use what an earlier one created. Each
 | `Folder` | `Path` |
 | `ScriptableObject` | `Type` (class name, full name, or the `.cs` path), `Properties`, `ArrayOps` ([value format](Export.md#value-format)) |
 | `Material` | `Shader` (name or shader asset path; default: the render pipeline's default material shader, `Standard` without one), and every [EditMaterial](Edit.md#editmaterial) key: `Parent`, `Properties`, `EnableKeywords`, `DisableKeywords`, `RenderQueue`, ... |
-| `Prefab` | `Root` (root name, default the file name), `RectTransform: true` for UI, `Components` (type names, or `{Type, Properties}`), `Ops` ([hierarchy ops](Edit.md#hierarchy-ops)) |
+| `Prefab` | `Root` (the root's name while the ops run, default the file name; Unity names a saved prefab's root after its file, so keep them equal), `RectTransform: true` for UI, `Components` (type names, or `{Type, Properties}`), `Ops` ([hierarchy ops](Edit.md#hierarchy-ops)) |
 | `PrefabVariant` | `Base` (prefab or model), `Ops`. The variant's root is named after the file |
 | `AnimatorController` | `Ops` ([controller ops](Edit.md#editanimatorcontroller)) |
 | `Scene` | `Setup`: `Empty` (default) or `Default` (camera and light), `Ops` (hierarchy ops, `Parent` omitted means a scene root), `AddToBuild` |

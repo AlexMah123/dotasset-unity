@@ -115,7 +115,7 @@ Applied after `Properties`, in order.
 
 | Key | Meaning |
 | --- | --- |
-| `AssetPath` | the asset file. Prefabs and scenes are refused, use `EditPrefab` / `EditScene` |
+| `AssetPath` | the asset file. Prefabs and scenes are refused, use `EditPrefab` / `EditScene`. So are imported assets (textures, models, audio): their objects are rebuilt from the source file on every import, change them with `EditImporter` |
 | `Sub`, `SubType` | a named sub-asset instead of the main object; `SubType` when names repeat |
 | `Properties`, `ArrayOps` | as above |
 

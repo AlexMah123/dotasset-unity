@@ -55,6 +55,12 @@ namespace AssetOps
                     ctx.FailTarget(label, error);
                     continue;
                 }
+                if (AssetDatabase.IsForeignAsset(obj))
+                {
+                    // A texture, model or audio clip comes out of its importer, a write would be lost on the next import.
+                    ctx.FailTarget(label, path + " is imported from a source file, change its import settings with EditImporter");
+                    continue;
+                }
                 var properties = Json.Get(target, "Properties") as JObject;
                 var arrayOps = Json.Get(target, "ArrayOps") as JArray;
                 if (properties == null && arrayOps == null)

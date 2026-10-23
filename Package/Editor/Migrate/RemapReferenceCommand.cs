@@ -102,7 +102,7 @@ namespace AssetOps
                 bool ok = Remap(ctx, path, all, unmapped, swaps, out count, out error);
                 if (!ok || ctx.TargetFailed())
                 {
-                    ctx.FailTarget(path, error ?? ctx.Log.FirstError);
+                    ctx.FailTarget(path, error ?? ctx.TargetError);
                     continue;
                 }
                 if (count > 0)

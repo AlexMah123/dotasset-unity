@@ -208,9 +208,14 @@ namespace AssetOps
             {
                 go.transform.SetParent(parent, false);
             }
-            else if (prefabRoot == null && go.scene != scene)
+            else
             {
-                SceneManager.MoveGameObjectToScene(go, scene);
+                // The editor may hand new objects a default parent, a scene root has none.
+                go.transform.SetParent(null, false);
+                if (prefabRoot == null && go.scene != scene)
+                {
+                    SceneManager.MoveGameObjectToScene(go, scene);
+                }
             }
             if (Json.Has(op, "SiblingIndex"))
             {
@@ -231,7 +236,10 @@ namespace AssetOps
             {
                 return;
             }
-            var go = new GameObject(goName);
+            // Created straight in the target scene (the prefab's preview scene, or the edited scene), so no other
+            // open scene is touched even for a moment.
+            Scene target = prefabRoot != null ? prefabRoot.scene : scene;
+            GameObject go = target.IsValid() ? ObjectFactory.CreateGameObject(target, HideFlags.None, goName) : new GameObject(goName);
             if (Json.Bool(op, "RectTransform", false) || (parent != null && parent is RectTransform))
             {
                 go.AddComponent<RectTransform>();
@@ -722,7 +730,8 @@ namespace AssetOps
                     }
                     if (useUndo)
                     {
-                        Undo.RegisterCompleteObjectUndo(go, "Remove missing scripts");
+                        // The full hierarchy record also captures the component list, a plain object record does not.
+                        Undo.RegisterFullObjectHierarchyUndo(go, "Remove missing scripts");
                     }
                     removed += GameObjectUtility.RemoveMonoBehavioursWithMissingScript(go);
                 }

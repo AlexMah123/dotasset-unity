@@ -13,6 +13,7 @@ namespace AssetOps
         public int Warnings { get; private set; }
         public int Errors { get; private set; }
         public string FirstError { get; private set; }
+        public readonly List<string> ErrorMessages = new List<string>();
 
         readonly string prefix;
         readonly bool echoInfo;
@@ -46,6 +47,7 @@ namespace AssetOps
             {
                 FirstError = message;
             }
+            ErrorMessages.Add(message);
             Lines.Add("E " + message);
             Debug.LogFormat(LogType.Error, LogOption.NoStacktrace, null, "{0}{1}", prefix, message);
         }
@@ -58,6 +60,7 @@ namespace AssetOps
             {
                 FirstError = message;
             }
+            ErrorMessages.Add("[Unity] " + message);
             Lines.Add("E [Unity] " + message);
         }
 

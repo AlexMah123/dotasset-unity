@@ -76,7 +76,7 @@ namespace AssetOps
                     bool ok = PropertyIO.Write(obj, properties, arrayOps, wc);
                     if (!ok || ctx.TargetFailed())
                     {
-                        ctx.FailTarget(label, wc.Errors.Count > 0 ? wc.Errors[0] : ctx.Log.FirstError);
+                        ctx.FailTarget(label, wc.Errors.Count > 0 ? wc.Errors[0] : ctx.TargetError);
                         continue;
                     }
                     if (properties != null)

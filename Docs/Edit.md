@@ -99,7 +99,7 @@ Single-entry changes without rewriting the array:
 ]
 ```
 
-Applied after `Properties`, in order.
+Applied after `Properties`, in order. A new entry starts as a copy of its neighbour, as in the Inspector, so give every field that should differ, or the whole entry.
 
 ## EditAsset
 

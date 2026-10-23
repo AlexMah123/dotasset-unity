@@ -89,7 +89,7 @@ namespace AssetOps
                     var editor = new ControllerEditor(controller, ctx.Log);
                     if (!editor.Apply(ops) || ctx.TargetFailed())
                     {
-                        ctx.FailTarget(path, editor.Errors.Count > 0 ? editor.Errors[0] : ctx.Log.FirstError);
+                        ctx.FailTarget(path, editor.Errors.Count > 0 ? editor.Errors[0] : ctx.TargetError);
                         continue;
                     }
                     if (ctx.DryRun)
@@ -1013,8 +1013,18 @@ namespace AssetOps
                     all = source.transitions;
                     remove = t => source.RemoveTransition((AnimatorStateTransition)t);
                 }
-                string leaf = to.Substring(to.LastIndexOf('/') + 1);
-                return all.Where(t => to == "Exit" ? t.isExit : t.destinationState != null && t.destinationState.name == leaf).ToList();
+                // Match the destination by its full path, two sub-state machines may hold states of the same name.
+                var paths = new Dictionary<AnimatorState, string>();
+                AnimatorControllerExportCommand.IndexPaths(root, string.Empty, paths, new Dictionary<AnimatorStateMachine, string>());
+                return all.Where(t =>
+                {
+                    if (to == "Exit")
+                    {
+                        return t.isExit;
+                    }
+                    string path;
+                    return t.destinationState != null && paths.TryGetValue(t.destinationState, out path) && path == to;
+                }).ToList();
             }
 
             AnimatorTransitionBase PickOne(JToken op, List<AnimatorTransitionBase> candidates)

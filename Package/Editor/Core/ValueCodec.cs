@@ -315,6 +315,12 @@ namespace AssetOps
                         wc.Fail(prop, "expects an integer, got " + Show(value));
                         return;
                     }
+                    string range = OutOfRange(prop.numericType, value, d);
+                    if (range != null)
+                    {
+                        wc.Fail(prop, range);
+                        return;
+                    }
                     if (prop.numericType == SerializedPropertyNumericType.UInt64)
                     {
                         prop.ulongValue = value.Type == JTokenType.Integer ? (ulong)value : (ulong)d;
@@ -571,7 +577,7 @@ namespace AssetOps
                     return;
                 }
                 case SerializedPropertyType.Hash128:
-                    if (value.Type != JTokenType.String)
+                    if (value.Type != JTokenType.String || !System.Text.RegularExpressions.Regex.IsMatch((string)value, "^[0-9a-fA-F]{32}$"))
                     {
                         wc.Fail(prop, "expects a 32-digit hex string, got " + Show(value));
                         return;
@@ -815,7 +821,7 @@ namespace AssetOps
                     wc.Fail(prop, error);
                     return;
                 }
-                if (typeof(Object).IsAssignableFrom(t) || t.IsAbstract)
+                if (typeof(Object).IsAssignableFrom(t) || t.IsAbstract || t.IsValueType || t.IsGenericTypeDefinition)
                 {
                     wc.Fail(prop, t.FullName + " cannot be stored in a [SerializeReference] field");
                     return;
@@ -883,6 +889,50 @@ namespace AssetOps
         }
 
         // ------------------------------------------------------------------ helpers
+
+        // An int field must not silently wrap: 3000000000 into an int, or -1 into a uint, is refused.
+        static string OutOfRange(SerializedPropertyNumericType type, JToken value, double d)
+        {
+            double min, max;
+            switch (type)
+            {
+                case SerializedPropertyNumericType.Int8:
+                    min = sbyte.MinValue;
+                    max = sbyte.MaxValue;
+                    break;
+                case SerializedPropertyNumericType.UInt8:
+                    min = byte.MinValue;
+                    max = byte.MaxValue;
+                    break;
+                case SerializedPropertyNumericType.Int16:
+                    min = short.MinValue;
+                    max = short.MaxValue;
+                    break;
+                case SerializedPropertyNumericType.UInt16:
+                    min = ushort.MinValue;
+                    max = ushort.MaxValue;
+                    break;
+                case SerializedPropertyNumericType.Int32:
+                    min = int.MinValue;
+                    max = int.MaxValue;
+                    break;
+                case SerializedPropertyNumericType.UInt32:
+                    min = uint.MinValue;
+                    max = uint.MaxValue;
+                    break;
+                case SerializedPropertyNumericType.UInt64:
+                    min = 0;
+                    max = ulong.MaxValue;
+                    break;
+                default:
+                    return null;
+            }
+            if (d < min || d > max)
+            {
+                return Show(value) + " is outside the " + type + " range " + min.ToString(CultureInfo.InvariantCulture) + " to " + max.ToString(CultureInfo.InvariantCulture);
+            }
+            return null;
+        }
 
         public static string Show(JToken value)
         {

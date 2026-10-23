@@ -107,7 +107,7 @@ namespace AssetOps
                 }
                 if (!ok || ctx.TargetFailed())
                 {
-                    ctx.FailTarget(path, error ?? ctx.Log.FirstError);
+                    ctx.FailTarget(path, error ?? ctx.TargetError);
                     continue;
                 }
                 created++;
@@ -418,7 +418,7 @@ namespace AssetOps
                 if (code != ExitCode.Success)
                 {
                     AssetDatabase.DeleteAsset(path);
-                    error = ctx.Log.FirstError ?? "the controller ops failed";
+                    error = ctx.TargetError ?? "the controller ops failed";
                     return false;
                 }
                 return true;

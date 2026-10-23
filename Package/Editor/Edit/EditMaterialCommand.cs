@@ -58,7 +58,7 @@ namespace AssetOps
                     bool ok = MaterialWriter.Apply(mat, target, errors, ctx.Log);
                     if (!ok || ctx.TargetFailed())
                     {
-                        ctx.FailTarget(path, errors.Count > 0 ? errors[0] : ctx.Log.FirstError);
+                        ctx.FailTarget(path, errors.Count > 0 ? errors[0] : ctx.TargetError);
                         continue;
                     }
                     if (ctx.DryRun)

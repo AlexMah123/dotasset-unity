@@ -124,7 +124,7 @@ namespace AssetOps
                 }
                 if (errors.Count > 0 || ctx.TargetFailed())
                 {
-                    ctx.FailTarget(path, errors.Count > 0 ? errors[0] : ctx.Log.FirstError);
+                    ctx.FailTarget(path, errors.Count > 0 ? errors[0] : ctx.TargetError);
                     return false;
                 }
                 if (ctx.DryRun)

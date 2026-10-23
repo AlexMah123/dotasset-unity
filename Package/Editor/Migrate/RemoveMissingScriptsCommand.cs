@@ -57,7 +57,7 @@ namespace AssetOps
                 bool ok = path.EndsWith(".unity") ? Scene(ctx, path, out removed, out error) : Prefab(ctx, path, out removed, out error);
                 if (!ok || ctx.TargetFailed())
                 {
-                    ctx.FailTarget(path, error ?? ctx.Log.FirstError);
+                    ctx.FailTarget(path, error ?? ctx.TargetError);
                     continue;
                 }
                 total += removed;
@@ -87,7 +87,8 @@ namespace AssetOps
                 {
                     if (useUndo)
                     {
-                        Undo.RegisterCompleteObjectUndo(go, "Remove missing scripts");
+                        // The full hierarchy record also captures the component list, a plain object record does not.
+                        Undo.RegisterFullObjectHierarchyUndo(go, "Remove missing scripts");
                     }
                     GameObjectUtility.RemoveMonoBehavioursWithMissingScript(go);
                 }

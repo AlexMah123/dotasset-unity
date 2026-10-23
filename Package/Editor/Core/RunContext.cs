@@ -48,6 +48,15 @@ namespace AssetOps
             return Log.Errors > targetErrorMark;
         }
 
+        // The first error logged since BeginTarget, the reason a failed target gives.
+        public string TargetError
+        {
+            get
+            {
+                return targetErrorMark < Log.ErrorMessages.Count ? Log.ErrorMessages[targetErrorMark] : Log.FirstError;
+            }
+        }
+
         // The one failure line every write command uses:
         //   <RunName> failed for <target>. Reason: <first error logged while writing it>
         // Nothing of the target is saved when this is called.

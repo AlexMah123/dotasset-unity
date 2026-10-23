@@ -33,6 +33,7 @@ def main():
     p.add_argument("--project", required=True)
     p.add_argument("--unity")
     p.add_argument("--keep", action="store_true", help="leave Assets/AssetOpsSmoke in place")
+    p.add_argument("--timeout", type=int, default=1200, help="per step, headless starts of a big project are slow (default 1200)")
     args = p.parse_args()
     tmp = tempfile.mkdtemp(prefix="assetops_smoke_")
 
@@ -100,7 +101,7 @@ def main():
     if not args.keep:
         steps.append(("cleanup", ["DeleteAsset", ROOT, "--args", "-force -permanent -apply"], 0))
 
-    base = [sys.executable, WRAPPER, "--project", args.project, "--quiet"]
+    base = [sys.executable, WRAPPER, "--project", args.project, "--quiet", "--timeout", str(args.timeout)]
     if args.unity:
         base += ["--unity", args.unity]
     failed = 0

@@ -64,7 +64,7 @@ namespace AssetOps
                     var editor = new HierarchyEditor(session.Root, path, ctx.Log);
                     if (!editor.Apply(ops) || ctx.TargetFailed())
                     {
-                        ctx.FailTarget(path, editor.Errors.Count > 0 ? editor.Errors[0] : ctx.Log.FirstError);
+                        ctx.FailTarget(path, editor.Errors.Count > 0 ? editor.Errors[0] : ctx.TargetError);
                         continue;
                     }
                     if (ctx.DryRun)
@@ -74,7 +74,7 @@ namespace AssetOps
                     }
                     if (!session.Save(out error) || ctx.TargetFailed())
                     {
-                        ctx.FailTarget(path, error ?? ctx.Log.FirstError);
+                        ctx.FailTarget(path, error ?? ctx.TargetError);
                         continue;
                     }
                     written++;

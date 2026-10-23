@@ -21,4 +21,9 @@ First release, the Unity counterpart of uasset-workbench 2.6.
 - `EditAsset` refuses imported assets (textures, models, audio), whose objects the importer rebuilds
 - A string reference that is not an asset path fails with a hint to use `{"Object": ...}`
 - `Static: true` sets every defined flag, the `RemoveMissingScripts` op skips objects owned by a source prefab
+- Integer writes are range-checked against the field's size, a Hash128 must be 32 hex digits
+- A failed property write leaves the object untouched, appends grow the array instead of inserting past the end
+- New GameObjects are created directly in the target scene, never parked in another open scene
+- A failed target reports its own first error, not the run's
+- Transition targets are matched by full state path, `ImporterExport` folders skip native-format files
 - Not yet compiled inside Unity: written and checked against Unity's C# reference source for 2022.3 and 6000.3

@@ -161,8 +161,13 @@ namespace AssetOps
             {
                 ApplyArrayOps(so, arrayOps, wc);
             }
+            if (wc.Errors.Count != before)
+            {
+                // Nothing of a failed write reaches the object.
+                return false;
+            }
             Commit(so, wc.UseUndo);
-            return wc.Errors.Count == before;
+            return true;
         }
 
         // [{"Property": "items", "Insert": 2, "Value": {...}}, {"Property": "items", "Append": {...}}, {"Property": "items", "Remove": 3}]
@@ -225,7 +230,16 @@ namespace AssetOps
                     wc.Fail(array, "an ArrayOps entry needs Insert + Value, Append, or Remove");
                     return;
                 }
-                array.InsertArrayElementAtIndex(at);
+                // Unity fills a new entry with a copy of its neighbour. Growing the array is the safe way to add at
+                // the end, inserting is for positions inside it.
+                if (at == array.arraySize)
+                {
+                    array.arraySize = at + 1;
+                }
+                else
+                {
+                    array.InsertArrayElementAtIndex(at);
+                }
                 if (value != null && !ValueCodec.Write(array.GetArrayElementAtIndex(at), value, wc))
                 {
                     return;

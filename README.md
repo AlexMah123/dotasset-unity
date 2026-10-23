@@ -56,7 +56,7 @@ Every write goes through Unity's own API (`SerializedObject`, `PrefabUtility`, `
 Window > Package Manager > + > Add package from git URL:
 
 ```
-https://github.com/<you>/assetops.git?path=/Package
+https://github.com/<you>/AssetOps.git?path=/Package
 ```
 
 Or copy `Package/` into your project as `Packages/com.assetops.editor/`. It pulls in `com.unity.nuget.newtonsoft-json`.

@@ -3,7 +3,7 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
-namespace Assetops
+namespace AssetOps
 {
     // Removes "Missing Script" components from prefabs and scenes. Ones inside a prefab instance belong to the
     // source prefab and are reported, not touched. Run RemapScript first if the script still exists under a new GUID.
@@ -11,7 +11,7 @@ namespace Assetops
     //        assetops.py RemoveMissingScripts --args "-scandir=Assets -apply"
     //        assetops.py RemoveMissingScripts --args '-spec="<AuditMissingReference fix spec>" -apply'
     // Docs/Migrate.md
-    public sealed class RemoveMissingScriptsCommand : AssetopsCommand
+    public sealed class RemoveMissingScriptsCommand : AssetOpsCommand
     {
         public override string Summary
         {

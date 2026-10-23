@@ -1,4 +1,4 @@
-# Unity Assetops
+# Unity AssetOps
 
 Editor-only Unity package that lets scripts and AI agents do non-interactive asset operations, in five groups: Export / Import / Edit / Migrate / Audit. The Unity counterpart of uasset-workbench.
 
@@ -8,10 +8,10 @@ Editor-only Unity package that lets scripts and AI agents do non-interactive ass
 Package/                         the UPM package (com.assetops.editor), installed by git URL ?path=/Package
 ├── package.json
 ├── Editor/
-│   ├── Assetops.Editor.asmdef
+│   ├── AssetOps.Editor.asmdef
 │   ├── Core/                    shared layer: dispatcher, queue, batch entry, value codec, sessions, paths
 │   ├── Export/ Import/ Edit/ Migrate/ Audit/   one <RunName>Command.cs per run
-│   └── UI/                      Window > Assetops
+│   └── UI/                      Window > AssetOps
 └── Scripts~/assetops.py              the wrapper (the ~ keeps Unity from importing it)
 Docs/                            agent-facing docs, one per group plus AI-Guide.md
 tests/                           wrapper tests and naming-rule checks: python -m unittest discover -s tests
@@ -21,7 +21,7 @@ Version.md                       release notes
 
 ## Versioning
 
-Version lives in `Package/Editor/Core/AssetopsVersion.cs` and `Package/package.json` "version". Change both, and add a `### <version>` section at the top of `Version.md`.
+Version lives in `Package/Editor/Core/AssetOpsVersion.cs` and `Package/package.json` "version". Change both, and add a `### <version>` section at the top of `Version.md`.
 
 ## Code rules
 
@@ -40,10 +40,10 @@ Run name suffix `Export` is Export, suffix `Import` or prefix `Create` is Import
 
 ## Adding a run
 
-1. Pick the group by the rule above. Create `Package/Editor/<Group>/<RunName>Command.cs`, `public sealed class <RunName>Command : AssetopsCommand`
+1. Pick the group by the rule above. Create `Package/Editor/<Group>/<RunName>Command.cs`, `public sealed class <RunName>Command : AssetOpsCommand`
 2. Header comment: one line of purpose, one `// Usage:` line, a `// Docs/<Group>.md` line
 3. Override `Summary`, `Arguments` (every `-key` it reads; the group's common arguments are added automatically), `Execute`
-4. Export: write through `ExportHelper.Header` and `ExportHelper.Save` (path under `Library/Assetops/Export`, `ExporterVersion` and `ExportType` included). Audit: use `AuditReport`
+4. Export: write through `ExportHelper.Header` and `ExportHelper.Save` (path under `Library/AssetOps/Export`, `ExporterVersion` and `ExportType` included). Audit: use `AuditReport`
 5. Run `python tools/gen_meta.py` so the new file has a `.meta` (git-installed packages ignore files without one)
 6. Update `Docs/<Group>.md`, the decision table in `Docs/AI-Guide.md`, the README matrix when a new asset type is covered, and `Version.md`
 7. `python -m unittest discover -s tests`

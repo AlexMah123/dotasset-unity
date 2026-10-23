@@ -3,7 +3,7 @@ using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
 
-namespace Assetops
+namespace AssetOps
 {
     static class ExportHelper
     {
@@ -12,7 +12,7 @@ namespace Assetops
         {
             var json = new JObject
             {
-                ["ExporterVersion"] = AssetopsVersion.Version,
+                ["ExporterVersion"] = AssetOpsVersion.Version,
                 ["ExportType"] = ctx.RunName,
                 ["UnityVersion"] = Application.unityVersion,
                 ["ExportedUtc"] = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ", System.Globalization.CultureInfo.InvariantCulture),
@@ -39,8 +39,8 @@ namespace Assetops
         public static string Save(RunContext ctx, string assetPath, JObject json)
         {
             string file = assetPath != null
-                ? AssetopsPaths.ExportFileFor(assetPath, ctx.Args.Get("outdir"))
-                : AssetopsPaths.ExportFileNamed(ctx.RunName, ctx.Args.Get("outdir"));
+                ? AssetOpsPaths.ExportFileFor(assetPath, ctx.Args.Get("outdir"))
+                : AssetOpsPaths.ExportFileNamed(ctx.RunName, ctx.Args.Get("outdir"));
             Json.WriteFile(file, json);
             ctx.AddOutput(file);
             return file;

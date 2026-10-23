@@ -5,7 +5,7 @@ using System.Linq;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
 
-namespace Assetops
+namespace AssetOps
 {
     // Report shared by every audit:
     //   {"ReportType", "Rules": {"T1": "..."}, "Checked", "IssueCount", "Counts": {"T1": 3},
@@ -50,10 +50,10 @@ namespace Assetops
 
         public ExitCode Finish()
         {
-            string reportPath = AssetopsPaths.AuditReportFile(ctx.RunName, ctx.Args.Get("report"));
+            string reportPath = AssetOpsPaths.AuditReportFile(ctx.RunName, ctx.Args.Get("report"));
             var json = new JObject
             {
-                ["ExporterVersion"] = AssetopsVersion.Version,
+                ["ExporterVersion"] = AssetOpsVersion.Version,
                 ["ReportType"] = ctx.RunName,
                 ["UnityVersion"] = Application.unityVersion,
                 ["CreatedUtc"] = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ", System.Globalization.CultureInfo.InvariantCulture),
@@ -72,9 +72,9 @@ namespace Assetops
             {
                 string fixPath = Path.ChangeExtension(reportPath, null) + ".fix.json";
                 Json.WriteFile(fixPath, FixSpec);
-                json["FixSpec"] = AssetopsPaths.ToProjectRelative(fixPath);
+                json["FixSpec"] = AssetOpsPaths.ToProjectRelative(fixPath);
                 json["FixRun"] = FixRun;
-                ctx.Log.Info("fix spec for " + FixRun + ": " + AssetopsPaths.ToProjectRelative(fixPath));
+                ctx.Log.Info("fix spec for " + FixRun + ": " + AssetOpsPaths.ToProjectRelative(fixPath));
             }
             Json.WriteFile(reportPath, json);
             ctx.AddOutput(reportPath);

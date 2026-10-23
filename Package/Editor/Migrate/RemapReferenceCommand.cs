@@ -5,7 +5,7 @@ using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
-namespace Assetops
+namespace AssetOps
 {
     // Points every reference to one asset at another, across prefabs, scenes, materials, ScriptableObjects and
     // controllers under -scandir. Sub-asset references map by name and type (Hero.fbx's mesh "Body" to the new
@@ -14,7 +14,7 @@ namespace Assetops
     // Usage: assetops.py RemapReference --args '-from=Assets/Mat/Old.mat -to=Assets/Mat/New.mat -apply'
     //        assetops.py RemapReference --args '-spec="C:/temp/remap.json" -apply'    {"Pairs": [{"From", "To"}]}
     // Docs/Migrate.md
-    public sealed class RemapReferenceCommand : AssetopsCommand
+    public sealed class RemapReferenceCommand : AssetOpsCommand
     {
         public override string Summary
         {

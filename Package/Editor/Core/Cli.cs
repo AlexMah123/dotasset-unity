@@ -4,10 +4,10 @@ using System.Text;
 using UnityEditor;
 using UnityEngine;
 
-namespace Assetops
+namespace AssetOps
 {
     // Headless entry point. The wrapper launches:
-    //   Unity -batchmode -nographics -projectPath <dir> -executeMethod Assetops.Cli.Run
+    //   Unity -batchmode -nographics -projectPath <dir> -executeMethod AssetOps.Cli.Run
     //         -assetopsRun <RunName> [-assetopsAssetsB64 <base64 csv>] [-assetopsArgsB64 <base64 args>] [-assetopsResult <file>] -logFile <file>
     // Plain -assetopsAssets / -assetopsArgs work too when calling by hand. Base64 keeps quoting intact across shells.
     // The process exits with the run's ExitCode.

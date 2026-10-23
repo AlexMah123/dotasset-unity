@@ -10,7 +10,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
-namespace Assetops
+namespace AssetOps
 {
     // Creates assets from a spec, in order, so later entries can reference earlier ones:
     //   {"Kind": "Folder", "Path": "Assets/Data/Items"}
@@ -23,7 +23,7 @@ namespace Assetops
     // An existing path is skipped with a warning, never overwritten. Each entry is all or nothing.
     // Usage: assetops.py CreateAsset --args '-spec="C:/temp/create.json"'
     // Docs/Import.md
-    public sealed class CreateAssetCommand : AssetopsCommand
+    public sealed class CreateAssetCommand : AssetOpsCommand
     {
         public override string Summary
         {
@@ -61,7 +61,7 @@ namespace Assetops
             {
                 JToken entry = entries[i];
                 string kind = Json.Str(entry, "Kind");
-                string path = AssetopsPaths.Normalize(Json.Str(entry, "Path"));
+                string path = AssetOpsPaths.Normalize(Json.Str(entry, "Path"));
                 ctx.Progress(i, entries.Count, path);
                 if (string.IsNullOrEmpty(path) || !(path.StartsWith("Assets/") || path == "Assets"))
                 {
@@ -427,7 +427,7 @@ namespace Assetops
                 return true;
             }
             // Fill it through EditAnimatorController so the op set and its checks are the same.
-            string specPath = AssetopsPaths.Combine(AssetopsPaths.Root, "Temp/create_" + System.Guid.NewGuid().ToString("N") + ".json");
+            string specPath = AssetOpsPaths.Combine(AssetOpsPaths.Root, "Temp/create_" + System.Guid.NewGuid().ToString("N") + ".json");
             Json.WriteFile(specPath, new JObject { ["Targets"] = new JArray(new JObject { ["AssetPath"] = path, ["Ops"] = ops }) });
             try
             {

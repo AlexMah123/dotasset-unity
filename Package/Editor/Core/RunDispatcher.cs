@@ -7,7 +7,7 @@ using System.Text;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
 
-namespace Assetops
+namespace AssetOps
 {
     // Outcome of one run, the same shape on both paths: the queue writes it to done/<id>.json,
     // the headless entry writes it to the -assetopsResult file. The wrapper prints it.
@@ -30,7 +30,7 @@ namespace Assetops
         {
             return new JObject
             {
-                ["AssetopsVersion"] = AssetopsVersion.Version,
+                ["AssetOpsVersion"] = AssetOpsVersion.Version,
                 ["RunName"] = RunName,
                 ["ExitCode"] = ExitCode,
                 ["DryRun"] = DryRun,
@@ -87,14 +87,14 @@ namespace Assetops
             var ctx = new RunContext
             {
                 RunName = runName,
-                Assets = (assets ?? new List<string>()).Where(a => !string.IsNullOrWhiteSpace(a)).Select(a => AssetopsPaths.Normalize(a.Trim())).ToList(),
+                Assets = (assets ?? new List<string>()).Where(a => !string.IsNullOrWhiteSpace(a)).Select(a => AssetOpsPaths.Normalize(a.Trim())).ToList(),
                 Args = RunArgs.Parse(extraArgs),
                 Log = log,
                 InEditor = inEditor,
                 Group = Groups.Resolve(runName),
             };
 
-            log.Info("Assetops " + AssetopsVersion.Version + ", Unity " + Application.unityVersion + ", " + (inEditor ? "editor" : "batchmode"));
+            log.Info("AssetOps " + AssetOpsVersion.Version + ", Unity " + Application.unityVersion + ", " + (inEditor ? "editor" : "batchmode"));
             ExitCode code;
             if (IsRunning)
             {
@@ -126,7 +126,7 @@ namespace Assetops
 
             if (inEditor)
             {
-                string line = "[Assetops] " + result.Summary + "  (log: " + AssetopsPaths.ToProjectRelative(result.LogFile ?? "") + ")";
+                string line = "[AssetOps] " + result.Summary + "  (log: " + AssetOpsPaths.ToProjectRelative(result.LogFile ?? "") + ")";
                 if (code == ExitCode.Failed || code == ExitCode.Refused)
                 {
                     UnityEngine.Debug.LogFormat(LogType.Error, LogOption.NoStacktrace, null, "{0}", line);
@@ -163,7 +163,7 @@ namespace Assetops
                 return ExitCode.Refused;
             }
 
-            AssetopsCommand cmd = CommandRegistry.Find(ctx.RunName);
+            AssetOpsCommand cmd = CommandRegistry.Find(ctx.RunName);
             if (cmd == null)
             {
                 ctx.Log.Error("unknown run '" + ctx.RunName + "'. Known runs: " + string.Join(", ", CommandRegistry.All.Keys.OrderBy(k => k)));
@@ -195,7 +195,7 @@ namespace Assetops
 
             Application.LogCallback hook = (message, stack, type) =>
             {
-                if (engineLogMuted > 0 || (message != null && message.StartsWith("[Assetops]", StringComparison.Ordinal)))
+                if (engineLogMuted > 0 || (message != null && message.StartsWith("[AssetOps]", StringComparison.Ordinal)))
                 {
                     return;
                 }
@@ -295,10 +295,10 @@ namespace Assetops
         {
             try
             {
-                Directory.CreateDirectory(AssetopsPaths.LogRoot);
-                string path = AssetopsPaths.Combine(AssetopsPaths.LogRoot, AssetopsPaths.Timestamp() + "_" + Sanitize(runName ?? "none") + "_" + Guid.NewGuid().ToString("N").Substring(0, 6) + ".log");
+                Directory.CreateDirectory(AssetOpsPaths.LogRoot);
+                string path = AssetOpsPaths.Combine(AssetOpsPaths.LogRoot, AssetOpsPaths.Timestamp() + "_" + Sanitize(runName ?? "none") + "_" + Guid.NewGuid().ToString("N").Substring(0, 6) + ".log");
                 File.WriteAllText(path, string.Join("\n", result.Lines) + "\n", new UTF8Encoding(false));
-                var old = new DirectoryInfo(AssetopsPaths.LogRoot).GetFiles("*.log").OrderByDescending(f => f.Name).Skip(KeepLogs);
+                var old = new DirectoryInfo(AssetOpsPaths.LogRoot).GetFiles("*.log").OrderByDescending(f => f.Name).Skip(KeepLogs);
                 foreach (var f in old)
                 {
                     f.Delete();

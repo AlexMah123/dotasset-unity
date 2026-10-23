@@ -2,7 +2,7 @@
 
 Unity itself is replaced by two fakes:
   - a fake editor: a thread that serves the file queue the way TaskQueue.cs does
-  - a fake Unity executable: a script that answers -executeMethod Assetops.Cli.Run the way Cli.cs does
+  - a fake Unity executable: a script that answers -executeMethod AssetOps.Cli.Run the way Cli.cs does
 Run: python -m unittest discover -s tests -v
 """
 
@@ -61,7 +61,7 @@ class FakeEditor(threading.Thread):
 
     def beat(self):
         with open(os.path.join(self.queue, ops.ALIVE), "w") as f:
-            json.dump({"Pid": os.getpid(), "State": self.state, "UnityVersion": "6000.0.40f1", "AssetopsVersion": "test"}, f)
+            json.dump({"Pid": os.getpid(), "State": self.state, "UnityVersion": "6000.0.40f1", "AssetOpsVersion": "test"}, f)
 
     def run(self):
         while not self.stop.is_set():
@@ -162,16 +162,16 @@ class GroupRule(unittest.TestCase):
     def test_every_command_class_is_sealed_and_named(self):
         for dirpath, _, files in os.walk(os.path.join(PACKAGE, "Editor")):
             for name in files:
-                if name.endswith("Command.cs") and name != "AssetopsCommand.cs":
+                if name.endswith("Command.cs") and name != "AssetOpsCommand.cs":
                     text = open(os.path.join(dirpath, name)).read()
                     cls = name[:-3]
-                    self.assertRegex(text, r"public sealed class %s : AssetopsCommand" % cls, name)
+                    self.assertRegex(text, r"public sealed class %s : AssetOpsCommand" % cls, name)
                     self.assertIn("Docs/", text, name + " header must point at its doc")
 
     def test_queue_constants_match(self):
         src = open(os.path.join(PACKAGE, "Editor", "Core", "TaskQueue.cs")).read()
-        self.assertIn('QueueRelative = "Library/Assetops/Queue"', src)
-        self.assertEqual(ops.QUEUE_RELATIVE.replace(os.sep, "/"), "Library/Assetops/Queue")
+        self.assertIn('QueueRelative = "Library/AssetOps/Queue"', src)
+        self.assertEqual(ops.QUEUE_RELATIVE.replace(os.sep, "/"), "Library/AssetOps/Queue")
         for const in ("pending", "processing", "done", ".alive"):
             self.assertIn('"%s"' % const, src)
 
@@ -305,7 +305,7 @@ class BatchRoute(Base):
         argv = json.load(open(record))
         self.assertIn("-batchmode", argv)
         self.assertIn("-nographics", argv)
-        self.assertEqual(argv[argv.index("-executeMethod") + 1], "Assetops.Cli.Run")
+        self.assertEqual(argv[argv.index("-executeMethod") + 1], "AssetOps.Cli.Run")
         self.assertEqual(argv[argv.index("-projectPath") + 1], self.project)
         self.assertEqual(base64.b64decode(argv[argv.index("-assetopsArgsB64") + 1]).decode(), extra)
         self.assertNotIn("-assetopsAssetsB64", argv, "no AssetList, no flag")
@@ -443,7 +443,7 @@ class PackageFiles(unittest.TestCase):
 
     def test_versions_agree(self):
         pkg = json.load(open(os.path.join(PACKAGE, "package.json")))
-        cs = open(os.path.join(PACKAGE, "Editor", "Core", "AssetopsVersion.cs")).read()
+        cs = open(os.path.join(PACKAGE, "Editor", "Core", "AssetOpsVersion.cs")).read()
         self.assertIn('Version = "%s"' % pkg["version"], cs)
         self.assertIn("### " + pkg["version"], open(os.path.join(ROOT, "Version.md")).read())
 
@@ -460,7 +460,7 @@ class PackageFiles(unittest.TestCase):
         guide = open(os.path.join(ROOT, "Docs", "AI-Guide.md")).read()
         for dirpath, _, files in os.walk(os.path.join(PACKAGE, "Editor")):
             for name in files:
-                if name.endswith("Command.cs") and name != "AssetopsCommand.cs":
+                if name.endswith("Command.cs") and name != "AssetOpsCommand.cs":
                     run = name[:-len("Command.cs")]
                     self.assertIn("`%s`" % run, docs, run)
                     self.assertIn(run, guide, run + " missing from the AI-Guide decision table")

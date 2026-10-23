@@ -7,7 +7,7 @@ using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
-namespace Assetops
+namespace AssetOps
 {
     // Reads a whole object into {"<property>": value}, and writes such a map back.
     // Keys are SerializedProperty paths: script field names ("speed", "loadout.primary"), or the m_ names
@@ -310,7 +310,7 @@ namespace Assetops
             if (typeof(Component).IsAssignableFrom(type) && !type.IsAbstract)
             {
                 // Inactive, so Awake and OnEnable of the added component do not run.
-                GameObject go = EditorUtility.CreateGameObjectWithHideFlags("Assetops.Defaults", HideFlags.HideAndDontSave);
+                GameObject go = EditorUtility.CreateGameObjectWithHideFlags("AssetOps.Defaults", HideFlags.HideAndDontSave);
                 go.SetActive(false);
                 try
                 {

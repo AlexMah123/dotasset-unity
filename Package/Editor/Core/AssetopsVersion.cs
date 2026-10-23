@@ -1,8 +1,8 @@
-namespace Assetops
+namespace AssetOps
 {
     // Bump together with package.json "version", and add a section at the top of Version.md.
     // Every export JSON and every run log carries this string.
-    public static class AssetopsVersion
+    public static class AssetOpsVersion
     {
         public const string Version = "0.1.0";
     }

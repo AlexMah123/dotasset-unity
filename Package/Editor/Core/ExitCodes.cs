@@ -1,6 +1,6 @@
 using System;
 
-namespace Assetops
+namespace AssetOps
 {
     // Process exit code of a run. The wrapper passes it straight through.
     public enum ExitCode

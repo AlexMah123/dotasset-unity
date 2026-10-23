@@ -6,7 +6,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace Assetops
+namespace AssetOps
 {
     // Checks materials for what renders pink or carries dead weight.
     //   M1  no shader, or the error shader
@@ -18,7 +18,7 @@ namespace Assetops
     // M1 to M3 need a shader choice, give one per material with EditMaterial's "Shader".
     // Usage: assetops.py AuditMaterial [Assets/Materials] --args "-scandir=Assets"
     // Docs/Audit.md
-    public sealed class AuditMaterialCommand : AssetopsCommand
+    public sealed class AuditMaterialCommand : AssetOpsCommand
     {
         static readonly string[] BuiltinOnly = { "Standard", "Standard (Specular setup)", "Legacy Shaders/", "Mobile/", "Nature/", "Particles/Standard", "Autodesk Interactive" };
 

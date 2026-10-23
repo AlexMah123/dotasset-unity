@@ -5,16 +5,16 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
-namespace Assetops
+namespace AssetOps
 {
-    // Window > Assetops: queue state, the runs of this session and earlier ones from their log files,
+    // Window > AssetOps: queue state, the runs of this session and earlier ones from their log files,
     // each run's full log. The Message Log of uasset-workbench, for Unity.
-    public sealed class AssetopsWindow : EditorWindow
+    public sealed class AssetOpsWindow : EditorWindow
     {
-        [MenuItem("Window/Assetops")]
+        [MenuItem("Window/AssetOps")]
         static void Open()
         {
-            GetWindow<AssetopsWindow>("Assetops");
+            GetWindow<AssetOpsWindow>("AssetOps");
         }
 
         static readonly List<RunResult> session = new List<RunResult>();
@@ -33,7 +33,7 @@ namespace Assetops
             {
                 session.RemoveAt(session.Count - 1);
             }
-            foreach (var w in Resources.FindObjectsOfTypeAll<AssetopsWindow>())
+            foreach (var w in Resources.FindObjectsOfTypeAll<AssetOpsWindow>())
             {
                 w.Repaint();
             }
@@ -65,8 +65,8 @@ namespace Assetops
         {
             try
             {
-                logFiles = Directory.Exists(AssetopsPaths.LogRoot)
-                    ? Directory.GetFiles(AssetopsPaths.LogRoot, "*.log").OrderByDescending(f => Path.GetFileName(f)).Take(100).ToArray()
+                logFiles = Directory.Exists(AssetOpsPaths.LogRoot)
+                    ? Directory.GetFiles(AssetOpsPaths.LogRoot, "*.log").OrderByDescending(f => Path.GetFileName(f)).Take(100).ToArray()
                     : new string[0];
             }
             catch (Exception)
@@ -79,7 +79,7 @@ namespace Assetops
         {
             using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
             {
-                GUILayout.Label("Queue: " + TaskQueue.State + "   pending: " + TaskQueue.PendingCount + "   v" + AssetopsVersion.Version, EditorStyles.miniLabel);
+                GUILayout.Label("Queue: " + TaskQueue.State + "   pending: " + TaskQueue.PendingCount + "   v" + AssetOpsVersion.Version, EditorStyles.miniLabel);
                 GUILayout.FlexibleSpace();
                 bool enabled = TaskQueue.Enabled;
                 bool toggled = GUILayout.Toggle(enabled, "Accept tasks", EditorStyles.toolbarButton);
@@ -98,8 +98,8 @@ namespace Assetops
                 }
                 if (GUILayout.Button("Open folder", EditorStyles.toolbarButton))
                 {
-                    Directory.CreateDirectory(AssetopsPaths.Root);
-                    EditorUtility.RevealInFinder(AssetopsPaths.Root);
+                    Directory.CreateDirectory(AssetOpsPaths.Root);
+                    EditorUtility.RevealInFinder(AssetOpsPaths.Root);
                 }
             }
 
@@ -148,7 +148,7 @@ namespace Assetops
                     logScroll = scroll.scrollPosition;
                     if (selectedText != null)
                     {
-                        GUILayout.Label(selectedLog != null ? AssetopsPaths.ToProjectRelative(selectedLog) : "", EditorStyles.miniLabel);
+                        GUILayout.Label(selectedLog != null ? AssetOpsPaths.ToProjectRelative(selectedLog) : "", EditorStyles.miniLabel);
                         string shown = warningsOnly
                             ? string.Join("\n", selectedText.Split('\n').Where(l => l.StartsWith("W ") || l.StartsWith("E ")))
                             : selectedText;
@@ -161,22 +161,22 @@ namespace Assetops
         // The package may live in Library/PackageCache under a hashed folder, a copy at the root is easier to call.
         static void CopyWrapper()
         {
-            var info = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(AssetopsWindow).Assembly);
+            var info = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(AssetOpsWindow).Assembly);
             if (info == null)
             {
-                EditorUtility.DisplayDialog("Assetops", "Could not locate the package folder.", "OK");
+                EditorUtility.DisplayDialog("AssetOps", "Could not locate the package folder.", "OK");
                 return;
             }
             string source = Path.Combine(info.resolvedPath, "Scripts~", "assetops.py");
-            string target = Path.Combine(AssetopsPaths.ProjectRoot, "assetops.py");
+            string target = Path.Combine(AssetOpsPaths.ProjectRoot, "assetops.py");
             try
             {
                 File.Copy(source, target, true);
-                Debug.Log("[Assetops] copied the wrapper to " + target);
+                Debug.Log("[AssetOps] copied the wrapper to " + target);
             }
             catch (Exception e)
             {
-                EditorUtility.DisplayDialog("Assetops", "Could not copy " + source + ": " + e.Message, "OK");
+                EditorUtility.DisplayDialog("AssetOps", "Could not copy " + source + ": " + e.Message, "OK");
             }
         }
 

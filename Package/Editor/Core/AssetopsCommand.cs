@@ -2,12 +2,12 @@ using System;
 using System.Collections.Generic;
 using UnityEditor;
 
-namespace Assetops
+namespace AssetOps
 {
     // Base of every run. The run name is the class name without the "Command" suffix, and the name decides
     // the group (see Groups.Resolve). Commands in your own editor assemblies are picked up the same way,
     // so a missing mechanism is one more class away.
-    public abstract class AssetopsCommand
+    public abstract class AssetOpsCommand
     {
         public virtual string Name
         {
@@ -23,7 +23,7 @@ namespace Assetops
             get { return Groups.Resolve(Name); }
         }
 
-        // One line, shown by the wrapper's --list and the Assetops window.
+        // One line, shown by the wrapper's --list and the AssetOps window.
         public abstract string Summary { get; }
 
         // Extra-argument keys this command reads. Anything else on the command line is refused, so a typo
@@ -38,9 +38,9 @@ namespace Assetops
 
     public static class CommandRegistry
     {
-        static Dictionary<string, AssetopsCommand> commands;
+        static Dictionary<string, AssetOpsCommand> commands;
 
-        public static IReadOnlyDictionary<string, AssetopsCommand> All
+        public static IReadOnlyDictionary<string, AssetOpsCommand> All
         {
             get
             {
@@ -52,25 +52,25 @@ namespace Assetops
             }
         }
 
-        public static AssetopsCommand Find(string runName)
+        public static AssetOpsCommand Find(string runName)
         {
-            AssetopsCommand cmd;
+            AssetOpsCommand cmd;
             return runName != null && All.TryGetValue(runName, out cmd) ? cmd : null;
         }
 
         static void Build()
         {
-            commands = new Dictionary<string, AssetopsCommand>(StringComparer.OrdinalIgnoreCase);
-            foreach (Type type in TypeCache.GetTypesDerivedFrom<AssetopsCommand>())
+            commands = new Dictionary<string, AssetOpsCommand>(StringComparer.OrdinalIgnoreCase);
+            foreach (Type type in TypeCache.GetTypesDerivedFrom<AssetOpsCommand>())
             {
                 if (type.IsAbstract || type.GetConstructor(Type.EmptyTypes) == null)
                 {
                     continue;
                 }
-                AssetopsCommand cmd;
+                AssetOpsCommand cmd;
                 try
                 {
-                    cmd = (AssetopsCommand)Activator.CreateInstance(type);
+                    cmd = (AssetOpsCommand)Activator.CreateInstance(type);
                 }
                 catch (Exception)
                 {
@@ -78,7 +78,7 @@ namespace Assetops
                 }
                 if (commands.ContainsKey(cmd.Name))
                 {
-                    UnityEngine.Debug.LogWarning("[Assetops] two commands are named " + cmd.Name + ", keeping " + commands[cmd.Name].GetType().FullName);
+                    UnityEngine.Debug.LogWarning("[AssetOps] two commands are named " + cmd.Name + ", keeping " + commands[cmd.Name].GetType().FullName);
                     continue;
                 }
                 commands.Add(cmd.Name, cmd);

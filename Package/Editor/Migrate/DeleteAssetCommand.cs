@@ -2,13 +2,13 @@ using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
 
-namespace Assetops
+namespace AssetOps
 {
     // Deletes assets only when nothing under -scandir still references them (-force overrides).
     // Goes to the OS trash by default, -permanent deletes outright.
     // Usage: assetops.py DeleteAsset Assets/Old/Unused.mat[,Assets/Old/Folder] --args "-apply"
     // Docs/Migrate.md
-    public sealed class DeleteAssetCommand : AssetopsCommand
+    public sealed class DeleteAssetCommand : AssetOpsCommand
     {
         public override string Summary
         {
@@ -30,7 +30,7 @@ namespace Assetops
             var targets = new List<string>();
             foreach (string raw in ctx.Assets)
             {
-                string path = AssetopsPaths.Normalize(raw).TrimEnd('/');
+                string path = AssetOpsPaths.Normalize(raw).TrimEnd('/');
                 if (!AssetDatabase.IsValidFolder(path) && AssetDatabase.GetMainAssetTypeAtPath(path) == null)
                 {
                     ctx.FailTarget(path, "nothing at that path");

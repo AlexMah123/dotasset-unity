@@ -31,7 +31,7 @@ Every export takes:
 | `-full` | No delta: every property, every GameObject field, every material property, hidden sub-objects |
 | `-maxarray=N` | Arrays longer than N (default 100) export their first N entries and `{"$truncated": <total>}` |
 | `-maxstring=N` | Strings longer than N characters (default 4000) are cut and marked |
-| `-outdir=<dir>` | Write under this folder instead of `Library/Assetops/Export` |
+| `-outdir=<dir>` | Write under this folder instead of `Library/AssetOps/Export` |
 
 Per run:
 
@@ -48,7 +48,7 @@ Per run:
 
 ## Output
 
-`Library/Assetops/Export/<AssetPath>_<YYYYMMDD-HHMMSS>.json`, for example `Library/Assetops/Export/Assets/Prefabs/Player.prefab_20261023-201500.json`. Exports not tied to one asset: `Export/<RunName>_<timestamp>.json`. Repeated exports never overwrite each other; read the newest.
+`Library/AssetOps/Export/<AssetPath>_<YYYYMMDD-HHMMSS>.json`, for example `Library/AssetOps/Export/Assets/Prefabs/Player.prefab_20261023-201500.json`. Exports not tied to one asset: `Export/<RunName>_<timestamp>.json`. Repeated exports never overwrite each other; read the newest.
 
 The files are indented one property per line. Grep for what you need, then read that line range.
 
@@ -56,7 +56,7 @@ Every export starts with:
 
 | Field | Meaning |
 | --- | --- |
-| `ExporterVersion` | Assetops version |
+| `ExporterVersion` | AssetOps version |
 | `ExportType` | The run name |
 | `UnityVersion`, `ExportedUtc` | |
 | `AssetPath`, `Guid` | |

@@ -1,12 +1,12 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-namespace Assetops
+namespace AssetOps
 {
     // The log of one run. Every line is kept for the result JSON and the run log file.
     // Headless: every line also goes to the Unity log, without stack traces.
     // In the editor: only warnings, errors and the summary reach the Console, the rest stays in the run log
-    // and the Assetops window.
+    // and the AssetOps window.
     public sealed class RunLog
     {
         public readonly List<string> Lines = new List<string>();
@@ -23,7 +23,7 @@ namespace Assetops
 
         public RunLog(string runName, bool inEditor)
         {
-            prefix = "[Assetops] " + runName + ": ";
+            prefix = "[AssetOps] " + runName + ": ";
             echoInfo = !inEditor;
         }
 

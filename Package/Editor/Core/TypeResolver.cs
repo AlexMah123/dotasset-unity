@@ -4,7 +4,7 @@ using System.Linq;
 using UnityEditor;
 using Object = UnityEngine.Object;
 
-namespace Assetops
+namespace AssetOps
 {
     // Finds a type from what an agent writes: "Rigidbody", "UnityEngine.Rigidbody", "MyGame.Inventory",
     // "PPtr<$Material>", "Assets/Scripts/Inventory.cs" (the class a MonoScript defines),

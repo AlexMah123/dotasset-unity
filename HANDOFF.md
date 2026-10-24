@@ -8,6 +8,28 @@ Status of DotAsset 0.1.0 for whoever picks it up next (a person or Claude Code).
 - Seven review passes have been made, written and checked without a compiler against Unity's C# reference source (6000.3 and 2022.3). Their history is in `git log`.
 - The end-to-end smoke test passes on 6000.6.7f1 on Windows, both headless and with the editor open (all 31 steps each), last run on commit 0e5681a on 2026-10-24. The editor-open run used `--launch` and `--quit` over remote control.
 
+## Tested Unity versions
+
+| Version | Tested | State on 2026-10-24 |
+| :-- | :-- | :-- |
+| 6.6 (6000.6.7f1) | yes, smoke test headless and editor open | done |
+| 6.3 LTS (6000.3.27f1) | no | installing through Unity Hub |
+| 6.0 LTS (6000.0.85f1) | no | installing through Unity Hub |
+| 2022.3 (2022.3.18f1) | no | installed, not tested |
+
+Only 6.6 counts as supported until the others pass. Update this table as each one does.
+
+## Queued for the next session
+
+The owner asked for these, in this order:
+
+1. Test 6.3 LTS, 2022.3 and 6.0 LTS, see the next section.
+2. Another review pass over the whole package (Core, every command, the wrapper, the docs), the same kind as the
+   cleanup pass of 2026-10-24 (commit b7e4c40): dead code, duplication, stale comments and docs, CLAUDE.md rule
+   breaks. No behaviour changes without asking. Commit and push it on its own after the unit tests and the smoke
+   test pass.
+3. Ask whether to add "Developed with the help of Claude Code (Anthropic)" to the README's Credits.
+
 ## Next step: compile and smoke test on Unity 6.3 LTS, 6.0 LTS and 2022.3
 
 Agreed on 2026-10-24. 6.6 (6000.6.7f1) is done. In order:

@@ -257,7 +257,9 @@ Patches within a tested version are expected to work, Unity keeps the API stable
 - `python -m unittest discover -s tests` covers the wrapper: both routes, startup wait, fallback, quoting, timeouts, exit codes.
 - `python tests/smoke/run_smoke.py --project <your project>` runs every group end to end in a real project, under `Assets/DotAssetSmoke`, and cleans up (`--clean` removes leftovers of an interrupted run first). Run it once with the editor closed and once with it open.
 
-Behaviour that lives in Unity's native code, and that the smoke test does not reach, is still to be confirmed: `ArrayOps` `Append` (`InsertArrayElementAtIndex` at the end), undo coverage of `RemoveMissingScripts` in an open scene, and the undo revert of an `EditAnimatorController` dry run in batch mode (a failed or dry target is never saved either way). Please open issues with the Console output.
+The smoke test reads every change back through an export instead of trusting exit codes, checks that dry runs and failed targets leave files untouched and that exports change nothing on disk, and seeds a missing reference, a stray keyword and a misnamed normal map for the audits to find and fix. It is safe to run in a real project: it fails if anything in `Assets/` outside its own folder changed, stops at the first failure (`--keep-going` runs the rest), and removes its folder however the run ends.
+
+Still to be confirmed, because the smoke test cannot set it up: undo coverage of `RemoveMissingScripts` in a scene open in the editor (it needs a Missing Script, which needs a script deleted and a recompile). Please open issues with the Console output.
 
 ## Contributors
 

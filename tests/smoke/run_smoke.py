@@ -7,14 +7,17 @@ Creates everything under Assets/DotAssetSmoke and deletes it at the end. Run it 
   python tests/smoke/run_smoke.py --project /path/to/UnityProject [--unity /path/to/Unity] [--keep]
 
 With the editor open, save or close any Untitled scene first: Unity cannot open a scene next to one.
-Prints one line per step and exits 1 if any step returned an unexpected exit code.
+Prints one line per step and exits 1 if any step returned an unexpected exit code. The importer steps need a
+texture file imported, which only a Unity start does, so with the editor open they print "skip".
 """
 import argparse
 import json
 import os
+import struct
 import subprocess
 import sys
 import tempfile
+import zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WRAPPER = os.path.join(HERE, "..", "..", "Package", "Scripts~", "dotasset.py")
@@ -83,6 +86,77 @@ def check_round_trip(base, tmp):
     return None
 
 
+def project_of(base):
+    return base[base.index("--project") + 1]
+
+
+def editor_open(base):
+    r = subprocess.run(base + ["--status"], capture_output=True, text=True)
+    return "editor pid" in r.stdout
+
+
+def write_png(path, size=4):
+    """A size x size grey RGBA PNG, enough for Unity to import a texture."""
+    def chunk(kind, data):
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data) & 0xFFFFFFFF)
+    rows = b"".join(b"\x00" + b"\x80\x80\x80\xff" * size for _ in range(size))
+    png = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", size, size, 8, 6, 0, 0, 0))
+    png += chunk(b"IDAT", zlib.compress(rows)) + chunk(b"IEND", b"")
+    os.makedirs(os.path.dirname(path), exist_ok=True)
+    with open(path, "wb") as f:
+        f.write(png)
+
+
+def run_failed(label, r):
+    return "%s exit %s\n%s" % (label, r.returncode, (r.stdout + r.stderr)[-2000:])
+
+
+def check_edit_asset(base, tmp):
+    # EditAsset on a native asset: the material's render queue, read back through MaterialExport.
+    path = spec("edit_asset", {"Targets": [{"AssetPath": ROOT + "/Red.mat", "Properties": {"m_CustomRenderQueue": 2460}}]}, tmp)
+    r = subprocess.run(base + ["EditAsset", "--args", '-spec="%s"' % path], capture_output=True, text=True)
+    if r.returncode != 0:
+        return run_failed("EditAsset dry run", r)
+    if export_of("MaterialExport", base, ROOT + "/Red.mat").get("RenderQueue") == 2460:
+        return "the EditAsset dry run saved the render queue"
+    r = subprocess.run(base + ["EditAsset", "--args", '-spec="%s" -apply' % path], capture_output=True, text=True)
+    if r.returncode != 0:
+        return run_failed("EditAsset -apply", r)
+    queue = export_of("MaterialExport", base, ROOT + "/Red.mat").get("RenderQueue")
+    if queue != 2460:
+        return "after EditAsset -apply the render queue is %s, expected 2460" % queue
+    return None
+
+
+def texture_type(base, texture):
+    return export_of("ImporterExport", base, texture).get("Summary", {}).get("TextureType")
+
+
+def check_importer(base, tmp):
+    # ImporterExport and EditImporter on a texture the test writes itself. A new file is only imported when Unity
+    # starts, or when an editor with focus refreshes, so this needs the headless route.
+    if editor_open(base):
+        return "skip: needs the editor closed, a new texture file is only imported when Unity starts"
+    texture = ROOT + "/Rock_n.png"
+    write_png(os.path.join(project_of(base), *texture.split("/")))
+    kind = texture_type(base, texture)
+    if kind != "Default":
+        return "a fresh texture exports TextureType %s, expected Default" % kind
+    path = spec("edit_importer", {"Targets": [{"AssetPath": texture, "Texture": {"TextureType": "NormalMap"}}]}, tmp)
+    r = subprocess.run(base + ["EditImporter", "--args", '-spec="%s"' % path], capture_output=True, text=True)
+    if r.returncode != 0:
+        return run_failed("EditImporter dry run", r)
+    if texture_type(base, texture) != "Default":
+        return "the EditImporter dry run changed the import settings"
+    r = subprocess.run(base + ["EditImporter", "--args", '-spec="%s" -apply' % path], capture_output=True, text=True)
+    if r.returncode != 0:
+        return run_failed("EditImporter -apply", r)
+    kind = texture_type(base, texture)
+    if kind != "NormalMap":
+        return "after EditImporter -apply the texture is %s, expected NormalMap" % kind
+    return None
+
+
 def main():
     p = argparse.ArgumentParser()
     p.add_argument("--project", required=True)
@@ -143,6 +217,7 @@ def main():
         ("export round trip", check_round_trip, None),
         ("edit scene apply", ["EditScene", "--args", '-spec="%s" -apply' % edit_scene], 0),
         ("edit material apply", ["EditMaterial", "--args", '-spec="%s" -apply' % edit_mat], 0),
+        ("edit asset dry and apply", check_edit_asset, None),
         ("edit controller apply", ["EditAnimatorController", "--args", '-spec="%s" -apply' % edit_anim], 0),
         ("duplicate", ["DuplicateAsset", "--args", "-from=%s/Red.mat -to=%s/Blue.mat -apply" % (ROOT, ROOT)], 0),
         ("remap dry", ["RemapReference", "--args", "-from=%s/Red.mat -to=%s/Blue.mat -scandir=%s" % (ROOT, ROOT, ROOT)], 0),
@@ -155,6 +230,7 @@ def main():
         ("audit missing refs", ["AuditMissingReference", ROOT], 0),
         ("audit textures", ["AuditTexture", ROOT], 0),
         ("remove missing scripts", ["RemoveMissingScripts", ROOT, "--args", "-apply"], 0),
+        ("importer export and edit", check_importer, None),
     ]
     if not args.keep:
         steps.append(("cleanup", ["DeleteAsset", ROOT, "--args", "-force -permanent -apply"], 0))
@@ -180,6 +256,9 @@ def main():
                 problem = argv(base, tmp)
             except Exception as e:  # a failed export inside the check
                 problem = str(e)
+            if problem and problem.startswith("skip:"):
+                print("%-4s %-28s %s" % ("skip", name, problem[len("skip:"):].strip()), flush=True)
+                continue
             failed += 1 if problem else 0
             print("%-4s %-28s%s" % ("FAIL" if problem else "ok", name, ""), flush=True)
             if problem:

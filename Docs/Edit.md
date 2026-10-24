@@ -24,6 +24,8 @@ A dry run executes everything a real run does and checks it just as hard; it onl
 
 Failure: `<RunName> failed for <target>. Reason: <first error>`. Nothing of that target is saved, the other targets still run. Errors Unity itself logs while a target is written (a component that refuses to be removed, a script exception in `OnValidate`) also fail the target.
 
+Targets in a package installed from the registry, git or a tarball are refused, Unity restores those packages. Embedded and local packages can be edited. Unity's bookkeeping fields (`m_GameObject`, `m_Children`, `m_Father`, `m_Component`, `m_PrefabInstance`, `m_Script` and the like) are refused as `Properties` keys, the hierarchy ops change structure.
+
 ## EditPrefab
 
 ```json
@@ -123,6 +125,8 @@ A copy of the object is taken first and copied back when the target fails or the
 
 ## EditMaterial
 
+A material inside a model (`.fbx`) is refused, it is rebuilt on every import. Extract it, or remap it in the model's importer with `EditImporter`.
+
 ```json
 {
   "Targets": [
@@ -165,7 +169,7 @@ A copy of the object is taken first and copied back when the target fails or the
 }
 ```
 
-`AssetPath` names one asset, `AssetPaths` many; folders expand to the textures beneath them when there is a `Texture` block, to every asset with an importer otherwise. Each asset is reimported once after all its changes.
+`AssetPath` names one asset, `AssetPaths` many; folders expand to the textures beneath them when there is a `Texture` block, to every asset with an importer otherwise. Each asset is reimported once after all its changes. Models, audio and other importers have no typed block (and no `Summary` in `ImporterExport`), use `Properties`.
 
 `Texture` keys (the same keys `ImporterExport` prints in `Summary`, so a summary edits and feeds back as is):
 
@@ -219,7 +223,7 @@ Every op takes `Layer` (name or index, default 0). States are paths inside the l
 | `SetParameter` | `Name`, `Default` |
 | `RenameParameter` | `Name`, `NewName`. Also renames it in every condition, blend tree and state parameter field |
 | `RemoveParameter` | `Name` |
-| `AddLayer` | `Name`, `Weight`, `Blending` (`Override`, `Additive`), `IKPass`, `AvatarMask` |
+| `AddLayer` | `Name`, `Weight`, `Blending` (`Override`, `Additive`), `IKPass`, `AvatarMask`. The new layer goes last, there is no `Layer` key |
 | `SetLayer` | `Layer`, `NewName`, `Weight`, `Blending`, `IKPass`, `AvatarMask` (`null` clears) |
 | `RemoveLayer` | `Layer` |
 | `AddStateMachine` | `Path`, `Position` |
@@ -227,7 +231,7 @@ Every op takes `Layer` (name or index, default 0). States are paths inside the l
 | `SetState` | `State`, `NewName`, `Motion`, `Speed`, `Tag`, `WriteDefaultValues`, `SpeedParameter`, `TimeParameter`, `Mirror`, `MirrorParameter`, `CycleOffset`, `CycleOffsetParameter`, `IKOnFeet`, `Default`, `Properties` (raw serialized fields) |
 | `RemoveState` | `State` |
 | `SetDefaultState` | `State` |
-| `AddTransition` | `From` (state path, `AnyState`, `Entry`), `To` (state path, `Exit`), `StateMachine` (whose AnyState or Entry, default the layer's top machine), and any `SetTransition` field |
+| `AddTransition` | `From` (state path, `AnyState`, `Entry`), `To` (state path, `Exit`), `StateMachine` (whose AnyState or Entry, default the layer's top machine), and any `SetTransition` field except `Index` |
 | `SetTransition` | `From`, `To`, `Index` (when several match), `Name`, `Solo`, `Mute`, `HasExitTime`, `ExitTime`, `Duration`, `FixedDuration`, `Offset`, `Interruption` (`None`, `Source`, `Destination`, `SourceThenDestination`, `DestinationThenSource`), `OrderedInterruption`, `CanTransitionToSelf`, `Conditions` (replaces all) |
 | `RemoveTransition` | `From`, `To`, `Index` |
 

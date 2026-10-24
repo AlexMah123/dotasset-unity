@@ -187,7 +187,7 @@ ScriptableObject properties are the delta from a fresh instance. Other objects e
 }
 ```
 
-`Properties` leaves out values at the shader default (all with `-full`) and is exactly what `EditMaterial` takes. A texture with tiling reads `{"Texture": ..., "Scale": [x, y], "Offset": [x, y]}`. `OverridesParent: true` in `PropertyInfo` marks a variant's own values. `StaleProperties` are saved values the shader no longer declares, `UndeclaredKeywords` are enabled keywords it does not declare; `AuditMaterial` flags both.
+`Properties` leaves out values at the shader default (all with `-full`) and is exactly what `EditMaterial` takes. A texture with tiling reads `{"Texture": ..., "Scale": [x, y], "Offset": [x, y]}`. Properties marked `[HideInInspector]` in the shader are left out unless `-full`. For a material variant, `Properties` holds only the variant's own overrides and `Inherited` the values it takes from its parent; `OverridesParent: true` in `PropertyInfo` marks the overrides. `StaleProperties` are saved values the shader no longer declares, `UndeclaredKeywords` are enabled keywords it does not declare; `AuditMaterial` flags both.
 
 ## AnimatorControllerExport
 
@@ -214,7 +214,7 @@ ScriptableObject properties are the delta from a fresh instance. Other objects e
 }
 ```
 
-State `Path`s, transition `To`s and blend tree blocks are exactly what `EditAnimatorController` takes. A synced layer reports `SyncedLayer` instead of a state machine.
+State `Path`s, transition `To`s and blend tree blocks are exactly what `EditAnimatorController` takes. Two things are export only: a transition's `ToStateMachine` (a transition into a sub-state machine), and a sub-state machine's `ExitTransitions`. `AddTransition` targets states and `Exit` only. A synced layer reports `SyncedLayer` instead of a state machine.
 
 ## ImporterExport
 

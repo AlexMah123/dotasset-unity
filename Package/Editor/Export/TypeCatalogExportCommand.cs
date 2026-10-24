@@ -21,6 +21,11 @@ namespace AssetOps
             get { return "Serialized property paths, kinds, defaults and enum options of component and ScriptableObject types"; }
         }
 
+        public override bool TakesAssetList
+        {
+            get { return false; }
+        }
+
         public override IEnumerable<string> Arguments
         {
             get { return new[] { "filter", "kind" }; }
@@ -35,6 +40,11 @@ namespace AssetOps
                 return ExitCode.Refused;
             }
             string kind = ctx.Args.Get("kind", "all").ToLowerInvariant();
+            if (kind != "all" && kind != "component" && kind != "scriptableobject")
+            {
+                ctx.Log.Error("-kind is component, scriptableobject or all");
+                return ExitCode.Refused;
+            }
             var types = new List<Type>();
             if (kind == "all" || kind == "component")
             {

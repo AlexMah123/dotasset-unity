@@ -39,13 +39,28 @@ namespace AssetOps
                 error = path + " is not an editable prefab";
                 return null;
             }
+            string readOnly = ReadOnly.Reason(path);
+            if (readOnly != null)
+            {
+                error = readOnly;
+                return null;
+            }
             PrefabStage stage = PrefabStageUtility.GetCurrentPrefabStage();
             if (stage != null && stage.assetPath == path && stage.scene.isDirty)
             {
                 error = path + " is open in Prefab Mode with unsaved changes. Save or discard them first";
                 return null;
             }
-            GameObject root = PrefabUtility.LoadPrefabContents(path);
+            GameObject root;
+            try
+            {
+                root = PrefabUtility.LoadPrefabContents(path);
+            }
+            catch (Exception e)
+            {
+                error = "Unity could not load the contents of " + path + ": " + e.Message;
+                return null;
+            }
             if (root == null)
             {
                 error = "Unity could not load the contents of " + path;
@@ -58,7 +73,16 @@ namespace AssetOps
         {
             error = null;
             bool success;
-            PrefabUtility.SaveAsPrefabAsset(Root, Path, out success);
+            try
+            {
+                // Throws on cyclic nesting and on immutable folders, which a dry run never reaches.
+                PrefabUtility.SaveAsPrefabAsset(Root, Path, out success);
+            }
+            catch (Exception e)
+            {
+                error = "Unity refused to save " + Path + ": " + e.Message;
+                return false;
+            }
             if (!success)
             {
                 error = "Unity refused to save " + Path;
@@ -104,6 +128,12 @@ namespace AssetOps
             if (AssetDatabase.GetMainAssetTypeAtPath(path) != typeof(SceneAsset))
             {
                 error = "no scene at " + path;
+                return null;
+            }
+            string readOnly = ReadOnly.Reason(path);
+            if (readOnly != null)
+            {
+                error = readOnly;
                 return null;
             }
             var session = new SceneSession();
@@ -211,7 +241,49 @@ namespace AssetOps
             if (!saved)
             {
                 Undo.RevertAllDownToGroup(undoGroup);
+                // The scene was clean when the session took it (dirty scenes are refused). Undo leaves it marked dirty,
+                // which would refuse the -apply run that follows a dry run.
+                ClearDirtiness(Scene);
             }
+        }
+
+        static void ClearDirtiness(Scene scene)
+        {
+            try
+            {
+                var method = typeof(EditorSceneManager).GetMethod("ClearSceneDirtiness",
+                    System.Reflection.BindingFlags.Static | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Public);
+                if (method != null && scene.IsValid() && scene.isLoaded)
+                {
+                    method.Invoke(null, new object[] { scene });
+                }
+            }
+            catch (Exception)
+            {
+                // Internal API, absent in some version: the scene just stays marked dirty.
+            }
+        }
+    }
+
+    // Assets in a package from the registry, git or a tarball are immutable, a write cannot reach disk.
+    public static class ReadOnly
+    {
+        public static string Reason(string path)
+        {
+            if (path == null || !path.StartsWith("Packages/", StringComparison.Ordinal))
+            {
+                return null;
+            }
+            var info = UnityEditor.PackageManager.PackageInfo.FindForAssetPath(path);
+            if (info == null)
+            {
+                return null;
+            }
+            if (info.source == UnityEditor.PackageManager.PackageSource.Embedded || info.source == UnityEditor.PackageManager.PackageSource.Local)
+            {
+                return null;
+            }
+            return path + " belongs to the " + info.source + " package " + info.name + ", which is read-only. Embed the package to change it";
         }
     }
 
@@ -237,7 +309,15 @@ namespace AssetOps
             {
                 // Should Unity refuse to move a hidden object, show it first and move it then.
                 go.hideFlags = HideFlags.None;
-                SceneManager.MoveGameObjectToScene(go, target);
+                try
+                {
+                    SceneManager.MoveGameObjectToScene(go, target);
+                }
+                catch (Exception)
+                {
+                    Object.DestroyImmediate(go);
+                    throw;
+                }
             }
             return go;
         }
@@ -316,6 +396,7 @@ namespace AssetOps
         readonly string json;
         readonly string name;
         readonly HideFlags hideFlags;
+        readonly bool wasDirty;
         bool committed;
 
         public AssetSnapshot(Object target)
@@ -323,6 +404,7 @@ namespace AssetOps
             this.target = target;
             name = target.name;
             hideFlags = target.hideFlags;
+            wasDirty = EditorUtility.IsDirty(target);
             if (target is AssetImporter)
             {
                 json = EditorJsonUtility.ToJson(target);
@@ -354,7 +436,11 @@ namespace AssetOps
                     target.name = name;
                     target.hideFlags = hideFlags;
                 }
-                EditorUtility.ClearDirty(target);
+                if (!wasDirty)
+                {
+                    // Only clear what this run dirtied. Unsaved edits the user already had stay unsaved-but-dirty.
+                    EditorUtility.ClearDirty(target);
+                }
             }
             if (clone != null)
             {

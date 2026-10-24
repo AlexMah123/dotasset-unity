@@ -53,6 +53,13 @@ namespace AssetOps
                 return ExitCode.Refused;
             }
             var rules = new HashSet<string>(ctx.Args.GetList("rules"), StringComparer.OrdinalIgnoreCase);
+            var knownRules = new[] { "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8" };
+            var badRules = rules.Where(r => !knownRules.Contains(r, StringComparer.OrdinalIgnoreCase)).ToList();
+            if (badRules.Count > 0)
+            {
+                ctx.Log.Error("-rules: unknown " + string.Join(", ", badRules) + ". Rules: " + string.Join(", ", knownRules));
+                return ExitCode.Refused;
+            }
             string[] normal = ctx.Args.Has("normalsuffix") ? ctx.Args.GetList("normalsuffix").ToArray() : DefaultNormal;
             string[] data = ctx.Args.Has("datasuffix") ? ctx.Args.GetList("datasuffix").ToArray() : DefaultData;
             Func<string, bool> on = id => rules.Count == 0 || rules.Contains(id);

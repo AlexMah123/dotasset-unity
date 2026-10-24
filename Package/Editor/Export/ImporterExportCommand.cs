@@ -22,7 +22,7 @@ namespace AssetOps
             List<string> entries;
             if (!ExportHelper.Entries(ctx, AssetScan.HasSourceImporter, out entries))
             {
-                return ExitCode.Refused;
+                return ExportHelper.NoEntries(ctx);
             }
             bool failed = false;
             for (int i = 0; i < entries.Count; i++)

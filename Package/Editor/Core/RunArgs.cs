@@ -9,6 +9,9 @@ namespace AssetOps
     //   -apply                     flag
     //   -spec=C:/temp/edit.json    value
     //   -scandir="Assets/My Art"   quoted value, quotes are stripped
+    //   -name="say \"hi\""        \" is a literal quote inside a value, except right before a space or the end,
+    //                              where the quote closes it, so -scandir="Assets\Art\" works
+    //   -apply=false               switches also take =true/1/yes and =false/0/no
     // Keys are case-insensitive. A key given twice keeps the last value.
     public sealed class RunArgs
     {
@@ -22,10 +25,49 @@ namespace AssetOps
         // Tokens that do not start with -, refused by the dispatcher: a bare "apply" must not act as -apply.
         public readonly List<string> Stray = new List<string>();
 
+        // A quote that never closed. It would swallow every argument after it (an -apply among them), so it is refused.
+        public bool UnclosedQuote { get; private set; }
+
+        // Arguments that are switches. "-apply=false" must not switch anything on.
+        public static readonly string[] Switches = { "apply", "full", "expand", "nosub", "recursive", "deep", "force", "permanent", "keepinstances", "metaonly" };
+
+        // Normalizes switch values: "-x=true" or "-x=1" is "-x", "-x=false" or "-x=0" drops it. Returns the switches
+        // whose value is neither.
+        public List<string> NormalizeSwitches()
+        {
+            var bad = new List<string>();
+            foreach (string key in Switches)
+            {
+                string value;
+                if (!values.TryGetValue(key, out value) || value == null)
+                {
+                    continue;
+                }
+                string v = value.Trim().ToLowerInvariant();
+                if (v == "true" || v == "1" || v == "yes")
+                {
+                    values[key] = null;
+                }
+                else if (v == "false" || v == "0" || v == "no")
+                {
+                    values.Remove(key);
+                    order.RemoveAll(k => string.Equals(k, key, StringComparison.OrdinalIgnoreCase));
+                }
+                else
+                {
+                    bad.Add(key);
+                }
+            }
+            return bad;
+        }
+
         public static RunArgs Parse(string raw)
         {
             var args = new RunArgs { Raw = raw ?? string.Empty };
-            foreach (string token in Tokenize(args.Raw))
+            bool unclosed;
+            List<string> tokens = Tokenize(args.Raw, out unclosed);
+            args.UnclosedQuote = unclosed;
+            foreach (string token in tokens)
             {
                 if (!token.StartsWith("-", StringComparison.Ordinal))
                 {
@@ -49,8 +91,15 @@ namespace AssetOps
             return args;
         }
 
-        // Splits on whitespace outside double quotes. Quotes are removed, a backslash before a quote keeps it.
+        // Splits on whitespace outside double quotes. Quotes are removed. A backslash before a quote keeps the quote,
+        // except where that quote ends a value ("Assets\Art\" followed by a space or the end): Windows folders end in \.
         public static List<string> Tokenize(string raw)
+        {
+            bool unclosed;
+            return Tokenize(raw, out unclosed);
+        }
+
+        public static List<string> Tokenize(string raw, out bool unclosed)
         {
             var tokens = new List<string>();
             var current = new StringBuilder();
@@ -59,7 +108,8 @@ namespace AssetOps
             for (int i = 0; i < raw.Length; i++)
             {
                 char c = raw[i];
-                if (c == '\\' && i + 1 < raw.Length && raw[i + 1] == '"')
+                bool quoteEndsValue = i + 2 >= raw.Length || char.IsWhiteSpace(raw[i + 2]);
+                if (c == '\\' && i + 1 < raw.Length && raw[i + 1] == '"' && !(inQuotes && quoteEndsValue))
                 {
                     current.Append('"');
                     any = true;
@@ -89,6 +139,7 @@ namespace AssetOps
             {
                 tokens.Add(current.ToString());
             }
+            unclosed = inQuotes;
             return tokens;
         }
 

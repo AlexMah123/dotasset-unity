@@ -44,6 +44,20 @@ Audit first, then fix with the spec the audit wrote: `AuditTexture` writes `<rep
 
 The wrapper is `assetops.py` (in the package's `Scripts~/`, or copied to the project root by the **Copy assetops.py** button in `Window > AssetOps`). Run it from anywhere inside the project, or give `--project`.
 
+| Wrapper flag | Effect |
+| --- | --- |
+| `--project DIR` | the Unity project, default the one containing the current directory, or `ASSETOPS_PROJECT` |
+| `--unity PATH` | editor executable for the headless route, default from `ProjectVersion.txt` through Unity Hub, or `ASSETOPS_UNITY` |
+| `--route auto\|editor\|batch` | `editor` refuses when no editor has the project open, `batch` never uses the queue. Default `auto` |
+| `--timeout SEC` | give up after this long, default 600. A task the editor has not taken yet is withdrawn |
+| `--startup-wait SEC` | how long to wait for a starting editor's queue, default 300 |
+| `--graphics` | headless route without `-nographics` (GPU checks in `AuditMaterial` need it) |
+| `--quiet` | print only warnings, errors and the summary |
+| `--json` | also print the full result JSON |
+| `--list`, `--status` | every run with its summary; what the editor's queue is doing |
+
+Ctrl+C withdraws a task the editor has not taken, and stops a headless Unity.
+
 Export. Entry assets are a comma-separated `AssetList`; folders expand to the matching assets beneath them.
 
 ```bash
@@ -83,7 +97,7 @@ Every run prints its log, then `[assetops] <summary>` and the path of its log fi
 | Exit code | Meaning |
 | --- | --- |
 | 0 | success (Edit and Migrate without `-apply`: the dry run passed) |
-| 1 | a target failed and nothing of it was saved, or the run logged an error (an AssetList entry that does not exist), or Unity failed before the run (compile errors, license) |
+| 1 | a target failed and nothing of it was saved, or the run logged an error (an AssetList entry that does not exist, an export whose assets hold nothing of its kind), or Unity failed before the run (compile errors, license), or the wrapper timed out or was interrupted |
 | 2 | refused: unknown run, unknown argument, unreadable spec, unknown spec key, editor queue paused |
 | 3 | audit only: the run worked and the report lists issues. Not a failure |
 
@@ -105,6 +119,12 @@ Audit reports land in `Library/AssetOps/Audit/`, with `-report=` to choose the p
 | Calling the wrapper right after opening the editor | The wrapper sees the locked project, prints `waiting up to 300s` and waits for the queue heartbeat. Let it wait |
 | The task waits forever while the editor is open | The queue only runs when the editor is `ready`: not compiling, importing, in play mode, or showing a modal dialog. `assetops.py --status` shows the state. On macOS an editor in the background can be throttled by App Nap; bring it forward or disable App Nap for Unity |
 | Edit run returns 0 but nothing changed | It was a dry run. Add `-apply` |
+| `-apply=false` or `-apply=no` | A switch takes `=true/1/yes` (on) or `=false/0/no` (off). Anything else is refused |
+| A quote left open in `--args` | Refused with exit 2, the run never guesses where the value ends |
+| A quote inside a quoted value | Write `\"`. Right before a space or the end of `--args` it closes the value instead, so `-scandir="Assets\Art\"` works while `-x="a \" b"` ends at `a \` and is refused as an unclosed quote. Keep a literal quote away from a following space |
+| Editing an asset in a package from the registry or git | Refused, those packages are read-only (Unity restores them). Embed the package (move it into `Packages/`) first |
+| Editing a material inside a model | Refused, it comes from the importer. Extract it, or remap it with `EditImporter` |
+| Writing `m_GameObject`, `m_Children`, `m_PrefabInstance` and similar | Refused, Unity maintains them. Use the hierarchy ops |
 | `apply` without the dash in `--args` |  Refused with exit 2 as a stray argument, it does not act as `-apply` |
 | `-aply` or another typo | Refused with exit 2 and the list of accepted arguments, the run does not fall back to a dry run silently |
 | Writing `mass` instead of `m_Mass` | A key without `m_` is retried with it, so `mass` finds `m_Mass`. The error lists the real names when neither exists |

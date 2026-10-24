@@ -172,6 +172,24 @@ namespace AssetOps
             ctx.RunName = cmd.Name;
             ctx.Group = cmd.Group;
 
+            if (!cmd.TakesAssetList && ctx.Assets.Count > 0)
+            {
+                ctx.Log.Error(cmd.Name + " takes no AssetList, its targets come from " + (cmd.Arguments.Contains("spec") ? "the spec" : "its arguments") + ". Got: " + string.Join(", ", ctx.Assets));
+                return ExitCode.Refused;
+            }
+
+            if (ctx.Args.UnclosedQuote)
+            {
+                ctx.Log.Error("an argument has an unclosed quote, everything after it would be swallowed into its value: " + ctx.Args.Raw);
+                return ExitCode.Refused;
+            }
+            List<string> badSwitches = ctx.Args.NormalizeSwitches();
+            if (badSwitches.Count > 0)
+            {
+                ctx.Log.Error(string.Join(", ", badSwitches.Select(b => "-" + b)) + " is a switch: give it alone, or =true / =false");
+                return ExitCode.Refused;
+            }
+
             if (ctx.Args.Stray.Count > 0)
             {
                 ctx.Log.Error("stray argument" + (ctx.Args.Stray.Count > 1 ? "s " : " ") + string.Join(", ", ctx.Args.Stray.Select(t => "'" + t + "'"))

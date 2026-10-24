@@ -157,6 +157,12 @@ namespace AssetOps
 
         public static JArray Targets(RunContext ctx, JObject spec, string key = "Targets")
         {
+            string strays = Json.UnknownKeys(spec, key);
+            if (strays != null)
+            {
+                ctx.Log.Error("spec: " + strays);
+                return null;
+            }
             var targets = Json.Get(spec, key) as JArray;
             if (targets == null || targets.Count == 0)
             {

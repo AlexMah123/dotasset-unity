@@ -21,6 +21,11 @@ namespace AssetOps
             get { return "Repoints every reference from one asset to another across the project"; }
         }
 
+        public override bool TakesAssetList
+        {
+            get { return false; }
+        }
+
         public override IEnumerable<string> Arguments
         {
             get { return new[] { "from", "to", "spec", "scandir", "keepinstances" }; }
@@ -32,6 +37,8 @@ namespace AssetOps
             public string To;
             public readonly Dictionary<Object, Object> Objects = new Dictionary<Object, Object>();
             public readonly HashSet<Object> Unmapped = new HashSet<Object>();
+            public readonly HashSet<string> Referencers = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            public readonly HashSet<string> Protected = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         }
 
         public override ExitCode Execute(RunContext ctx)
@@ -58,26 +65,29 @@ namespace AssetOps
             ctx.Log.Info("indexing references under " + string.Join(", ", roots));
             var index = AssetScan.Referencers(roots, ctx);
             var candidates = mappings.SelectMany(m => AssetScan.ReferencersOf(index, m.From)).Distinct().OrderBy(p => p).ToList();
+            foreach (Mapping m in mappings)
+            {
+                m.Referencers.UnionWith(AssetScan.ReferencersOf(index, m.From));
+                // The new asset, and the prefabs and models it nests or is a variant of, keep pointing at the old one:
+                // repointing them would nest the new prefab inside itself. Plain field references may form a cycle.
+                m.Protected.Add(m.To);
+                foreach (string dep in AssetDatabase.GetDependencies(m.To, true))
+                {
+                    if (dep != m.To && AssetDatabase.GetMainAssetTypeAtPath(dep) == typeof(GameObject))
+                    {
+                        m.Protected.Add(dep);
+                    }
+                }
+            }
             if (candidates.Count == 0)
             {
                 ctx.Log.Info("nothing under " + string.Join(", ", roots) + " references " + string.Join(", ", mappings.Select(m => m.From)));
                 return ExitCode.Success;
             }
 
-            var all = new Dictionary<Object, Object>();
-            var unmapped = new HashSet<Object>();
-            foreach (Mapping m in mappings)
-            {
-                foreach (var kv in m.Objects)
-                {
-                    all[kv.Key] = kv.Value;
-                }
-                unmapped.UnionWith(m.Unmapped);
-            }
-
             // Prefab to prefab: instances are references too, and swap through Unity's Replace Prefab Asset,
             // which carries overrides across by name. -keepinstances leaves them alone.
-            var swaps = new Dictionary<string, GameObject>(StringComparer.OrdinalIgnoreCase);
+            var allSwaps = new Dictionary<string, GameObject>(StringComparer.OrdinalIgnoreCase);
             if (!ctx.Args.Has("keepinstances"))
             {
                 foreach (Mapping m in mappings)
@@ -85,7 +95,7 @@ namespace AssetOps
                     var toRoot = AssetDatabase.LoadMainAssetAtPath(m.To) as GameObject;
                     if (toRoot != null && AssetDatabase.LoadMainAssetAtPath(m.From) is GameObject)
                     {
-                        swaps[m.From] = toRoot;
+                        allSwaps[m.From] = toRoot;
                     }
                 }
             }
@@ -96,10 +106,52 @@ namespace AssetOps
             {
                 string path = candidates[i];
                 ctx.Progress(i, candidates.Count, path);
+                // Only the pairs this file references, minus those it must keep (see Protected).
+                var active = new List<Mapping>();
+                foreach (Mapping m in mappings.Where(x => x.Referencers.Contains(path)))
+                {
+                    if (m.Protected.Contains(path))
+                    {
+                        ctx.Log.Warn(path + " is " + (path == m.To ? "the new asset" : "a prefab " + m.To + " is built from") + ", left pointing at " + m.From);
+                        continue;
+                    }
+                    active.Add(m);
+                }
+                if (active.Count == 0)
+                {
+                    continue;
+                }
+                var all = new Dictionary<Object, Object>();
+                var unmapped = new HashSet<Object>();
+                var swaps = new Dictionary<string, GameObject>(StringComparer.OrdinalIgnoreCase);
+                foreach (Mapping m in active)
+                {
+                    foreach (var kv in m.Objects)
+                    {
+                        all[kv.Key] = kv.Value;
+                    }
+                    unmapped.UnionWith(m.Unmapped);
+                    GameObject toRoot;
+                    if (allSwaps.TryGetValue(m.From, out toRoot))
+                    {
+                        swaps[m.From] = toRoot;
+                    }
+                }
+
                 ctx.BeginTarget();
                 int count;
                 string error;
-                bool ok = Remap(ctx, path, all, unmapped, swaps, out count, out error);
+                bool ok;
+                try
+                {
+                    ok = Remap(ctx, path, all, unmapped, swaps, out count, out error);
+                }
+                catch (Exception e)
+                {
+                    ok = false;
+                    count = 0;
+                    error = e.GetType().Name + ": " + e.Message;
+                }
                 if (!ok)
                 {
                     ctx.FailTarget(path, error ?? ctx.TargetError);
@@ -167,11 +219,11 @@ namespace AssetOps
                 if ((c != null || go != null) && toMain is GameObject)
                 {
                     GameObject sourceGo = c != null ? c.gameObject : go;
-                    string rel = RelativePath(sourceGo, (GameObject)fromMain);
-                    GameObject targetGo = rel == null ? null : Find((GameObject)toMain, rel);
+                    List<KeyValuePair<string, int>> steps = RelativeSteps(sourceGo, (GameObject)fromMain);
+                    GameObject targetGo = steps == null ? null : Follow((GameObject)toMain, steps);
                     if (targetGo != null)
                     {
-                        match = c == null ? (Object)targetGo : targetGo.GetComponent(c.GetType());
+                        match = c == null ? (Object)targetGo : SameComponent(targetGo, c);
                     }
                 }
                 else
@@ -190,29 +242,60 @@ namespace AssetOps
             return true;
         }
 
-        static string RelativePath(GameObject go, GameObject root)
+        // The path from root to go as (name, which of the same-named siblings), so "Slot", "Slot" map one to one.
+        static List<KeyValuePair<string, int>> RelativeSteps(GameObject go, GameObject root)
         {
-            var names = new List<string>();
+            var steps = new List<KeyValuePair<string, int>>();
             for (Transform t = go.transform; t != null; t = t.parent)
             {
                 if (t == root.transform)
                 {
-                    names.Reverse();
-                    return string.Join("/", names);
+                    steps.Reverse();
+                    return steps;
                 }
-                names.Add(t.name);
+                int occurrence = 0;
+                for (int i = 0; i < t.GetSiblingIndex(); i++)
+                {
+                    if (t.parent.GetChild(i).name == t.name)
+                    {
+                        occurrence++;
+                    }
+                }
+                steps.Add(new KeyValuePair<string, int>(t.name, occurrence));
             }
             return null;
         }
 
-        static GameObject Find(GameObject root, string rel)
+        static GameObject Follow(GameObject root, List<KeyValuePair<string, int>> steps)
         {
-            if (rel.Length == 0)
+            Transform cur = root.transform;
+            foreach (var step in steps)
             {
-                return root;
+                Transform next = null;
+                int seen = 0;
+                for (int i = 0; i < cur.childCount && next == null; i++)
+                {
+                    Transform child = cur.GetChild(i);
+                    if (child.name == step.Key && seen++ == step.Value)
+                    {
+                        next = child;
+                    }
+                }
+                if (next == null)
+                {
+                    return null;
+                }
+                cur = next;
             }
-            Transform t = root.transform.Find(rel);
-            return t != null ? t.gameObject : null;
+            return cur.gameObject;
+        }
+
+        // The component of the same exact type and the same position among that type, e.g. the second BoxCollider.
+        static Component SameComponent(GameObject go, Component source)
+        {
+            Type type = source.GetType();
+            int index = HierarchyPath.IndexAmongSameType(source);
+            return go.GetComponents(type).Where(x => x != null && x.GetType() == type).ElementAtOrDefault(index);
         }
 
         static bool Remap(RunContext ctx, string path, Dictionary<Object, Object> map, HashSet<Object> unmapped, Dictionary<string, GameObject> swaps, out int count, out string error)
@@ -228,7 +311,11 @@ namespace AssetOps
                     {
                         return false;
                     }
-                    int swapped = SwapInstances(ctx, path, new[] { session.Root }, swaps, false);
+                    int swapped = SwapInstances(ctx, path, new[] { session.Root }, swaps, false, session.Root, out error);
+                    if (swapped < 0)
+                    {
+                        return false;
+                    }
                     if (!RemapObjects(HierarchyObjects(session.Root), map, unmapped, false, !ctx.DryRun, out count, out error))
                     {
                         return false;
@@ -249,7 +336,11 @@ namespace AssetOps
                     {
                         return false;
                     }
-                    int swapped = SwapInstances(ctx, path, session.Scene.GetRootGameObjects(), swaps, session.UseUndo);
+                    int swapped = SwapInstances(ctx, path, session.Scene.GetRootGameObjects(), swaps, session.UseUndo, null, out error);
+                    if (swapped < 0)
+                    {
+                        return false;
+                    }
                     var objects = session.Scene.GetRootGameObjects().SelectMany(HierarchyObjects).ToList();
                     if (!RemapObjects(objects, map, unmapped, session.UseUndo, !ctx.DryRun, out count, out error))
                     {
@@ -307,8 +398,10 @@ namespace AssetOps
             return true;
         }
 
-        static int SwapInstances(RunContext ctx, string path, IEnumerable<GameObject> roots, Dictionary<string, GameObject> swaps, bool useUndo)
+        // Returns the number of instances swapped, or -1 with error set.
+        static int SwapInstances(RunContext ctx, string path, IEnumerable<GameObject> roots, Dictionary<string, GameObject> swaps, bool useUndo, GameObject contentsRoot, out string error)
         {
+            error = null;
             if (swaps.Count == 0)
             {
                 return 0;
@@ -329,6 +422,12 @@ namespace AssetOps
                 {
                     continue;
                 }
+                if (go == contentsRoot)
+                {
+                    // The root of a variant is its base: changing that is a different operation than a reference swap.
+                    ctx.Log.Warn(path + " is a variant of " + source + ", its base is left as it is");
+                    continue;
+                }
                 if (!PrefabUtility.IsOutermostPrefabInstanceRoot(go))
                 {
                     ctx.Log.Warn(path + ": " + HierarchyPath.Of(go) + " is an instance of " + source + " nested inside another instance, swap it in that prefab");
@@ -337,7 +436,15 @@ namespace AssetOps
                 ctx.Log.Info(path + ": " + (ctx.DryRun ? "would swap " : "swapping ") + "instance " + HierarchyPath.Of(go) + " to " + AssetDatabase.GetAssetPath(target));
                 if (!ctx.DryRun)
                 {
-                    PrefabUtility.ReplacePrefabAssetOfPrefabInstance(go, target, useUndo ? InteractionMode.UserAction : InteractionMode.AutomatedAction);
+                    try
+                    {
+                        PrefabUtility.ReplacePrefabAssetOfPrefabInstance(go, target, useUndo ? InteractionMode.UserAction : InteractionMode.AutomatedAction);
+                    }
+                    catch (Exception e)
+                    {
+                        error = "swapping " + HierarchyPath.Of(go) + " failed: " + e.Message;
+                        return -1;
+                    }
                 }
                 swapped++;
             }
@@ -384,13 +491,8 @@ namespace AssetOps
                     {
                         continue;
                     }
-                    if (unmapped.Contains(value))
-                    {
-                        error = PropertyIO.Describe(o) + "." + it.propertyPath + " uses " + value.name + " (" + value.GetType().Name + "), which has no counterpart in the new asset";
-                        return false;
-                    }
-                    Object replacement;
-                    if (!map.TryGetValue(value, out replacement))
+                    bool mapped = map.ContainsKey(value);
+                    if (!mapped && !unmapped.Contains(value))
                     {
                         continue;
                     }
@@ -399,6 +501,12 @@ namespace AssetOps
                         // Inherited from the source prefab, which is remapped as its own asset.
                         continue;
                     }
+                    if (!mapped)
+                    {
+                        error = PropertyIO.Describe(o) + "." + it.propertyPath + " uses " + value.name + " (" + value.GetType().Name + "), which has no counterpart in the new asset";
+                        return false;
+                    }
+                    Object replacement = map[value];
                     it.objectReferenceValue = replacement;
                     if (it.objectReferenceValue != replacement)
                     {

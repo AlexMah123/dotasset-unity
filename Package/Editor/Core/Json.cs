@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Text;
@@ -118,6 +119,42 @@ namespace AssetOps
             }
             JToken value;
             return obj.TryGetValue(key, StringComparison.OrdinalIgnoreCase, out value) ? value : null;
+        }
+
+        // Null when every key of the object is allowed (or a // comment), otherwise the message naming the strays.
+        public static string UnknownKeys(JToken token, params string[] allowed)
+        {
+            var obj = token as JObject;
+            if (obj == null)
+            {
+                return null;
+            }
+            var unknown = new List<string>();
+            foreach (JProperty p in obj.Properties())
+            {
+                if (p.Name.StartsWith("//", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+                bool known = false;
+                foreach (string a in allowed)
+                {
+                    if (string.Equals(a, p.Name, StringComparison.OrdinalIgnoreCase))
+                    {
+                        known = true;
+                        break;
+                    }
+                }
+                if (!known)
+                {
+                    unknown.Add(p.Name);
+                }
+            }
+            if (unknown.Count == 0)
+            {
+                return null;
+            }
+            return "unknown key" + (unknown.Count > 1 ? "s " : " ") + string.Join(", ", unknown) + ". Allowed: " + string.Join(", ", allowed);
         }
 
         public static bool Has(JToken token, string key)

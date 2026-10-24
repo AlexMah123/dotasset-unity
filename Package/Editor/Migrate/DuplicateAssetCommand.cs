@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
@@ -12,6 +13,11 @@ namespace AssetOps
         public override string Summary
         {
             get { return "Copies an asset or folder to a new path with new GUIDs"; }
+        }
+
+        public override bool TakesAssetList
+        {
+            get { return false; }
         }
 
         public override IEnumerable<string> Arguments
@@ -39,22 +45,38 @@ namespace AssetOps
                     ctx.FailTarget(label, copy.Value + " already exists");
                     continue;
                 }
+                if (AssetDatabase.IsValidFolder(copy.Key) && copy.Value.StartsWith(copy.Key + "/", StringComparison.OrdinalIgnoreCase))
+                {
+                    ctx.FailTarget(label, "cannot copy a folder into itself");
+                    continue;
+                }
+                string readOnly = ReadOnly.Reason(copy.Value);
+                if (readOnly != null)
+                {
+                    ctx.FailTarget(label, readOnly);
+                    continue;
+                }
                 if (ctx.DryRun)
                 {
                     ctx.Log.Info("would copy " + label);
                     continue;
                 }
                 string error;
+                CreateAssetCommand.BeginFolderTracking();
                 if (!CreateAssetCommand.EnsureFolder(Path.GetDirectoryName(copy.Value).Replace('\\', '/'), out error))
                 {
+                    CreateAssetCommand.RemoveCreatedFolders(ctx);
                     ctx.FailTarget(label, error);
                     continue;
                 }
+                ctx.BeginTarget();
                 if (!AssetDatabase.CopyAsset(copy.Key, copy.Value))
                 {
-                    ctx.FailTarget(label, "Unity refused the copy");
+                    CreateAssetCommand.RemoveCreatedFolders(ctx);
+                    ctx.FailTarget(label, ctx.TargetFailed() ? ctx.TargetError : "Unity refused the copy");
                     continue;
                 }
+                ctx.WarnIfSavedWithErrors(label);
                 ctx.Log.Info("copied " + label);
             }
             return ctx.FailedTargets.Count > 0 ? ExitCode.Failed : ExitCode.Success;

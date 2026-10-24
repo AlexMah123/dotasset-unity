@@ -15,6 +15,11 @@ namespace AssetOps
             get { return "Prefab GameObjects, components, properties and nested instances, all or nothing per prefab"; }
         }
 
+        public override bool TakesAssetList
+        {
+            get { return false; }
+        }
+
         public override IEnumerable<string> Arguments
         {
             get { return new[] { "spec" }; }

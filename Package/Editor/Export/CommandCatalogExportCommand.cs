@@ -15,6 +15,11 @@ namespace AssetOps
             get { return "Every registered run with its group, summary and arguments"; }
         }
 
+        public override bool TakesAssetList
+        {
+            get { return false; }
+        }
+
         public override ExitCode Execute(RunContext ctx)
         {
             JObject json = ExportHelper.Header(ctx, null);

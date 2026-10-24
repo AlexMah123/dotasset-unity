@@ -224,6 +224,28 @@ class QueueRoute(Base):
         pending = os.path.join(self.project, ops.QUEUE_RELATIVE, ops.PENDING)
         self.assertEqual([f for f in os.listdir(pending) if f.endswith(".json")], [])
 
+    def test_interrupt_withdraws_unclaimed_task(self):
+        editor = FakeEditor(self.project, None, claim=False)
+        editor.start()
+        real = ops.read_alive
+        calls = [0]
+
+        def interrupting(root):
+            calls[0] += 1
+            if calls[0] >= 2:
+                raise KeyboardInterrupt()
+            return real(root)
+        ops.read_alive = interrupting
+        try:
+            code, out = self.call("PrefabExport", "Assets/A.prefab")
+        finally:
+            ops.read_alive = real
+            editor.stop.set()
+        self.assertEqual(code, 1)
+        self.assertIn("withdrawn", out)
+        pending = os.path.join(self.project, ops.QUEUE_RELATIVE, ops.PENDING)
+        self.assertEqual([f for f in os.listdir(pending) if f.endswith(".json")], [])
+
     def test_paused_queue_refuses(self):
         editor = FakeEditor(self.project, None, state="paused")
         editor.start()
@@ -431,9 +453,6 @@ class Discovery(Base):
         self.assertFalse(ops.pid_alive(999999))
 
 
-if __name__ == "__main__":
-    unittest.main()
-
 
 class PackageFiles(unittest.TestCase):
     def test_every_package_file_has_a_meta(self):
@@ -474,3 +493,7 @@ class PackageFiles(unittest.TestCase):
                     json.loads(body)
                 except ValueError:
                     json.loads("{" + body + "}")  # a fragment such as "ArrayOps": [...]
+
+
+if __name__ == "__main__":
+    unittest.main()

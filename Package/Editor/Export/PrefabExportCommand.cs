@@ -26,7 +26,7 @@ namespace AssetOps
             List<string> entries;
             if (!ExportHelper.Entries(ctx, p => AssetScan.HasExtension(p, ".prefab"), out entries))
             {
-                return ExitCode.Refused;
+                return ExportHelper.NoEntries(ctx);
             }
             bool failed = false;
             using (var defaults = new DefaultValues())

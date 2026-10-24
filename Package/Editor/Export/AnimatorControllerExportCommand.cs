@@ -23,7 +23,7 @@ namespace AssetOps
             List<string> entries;
             if (!ExportHelper.Entries(ctx, p => AssetDatabase.GetMainAssetTypeAtPath(p) == typeof(AnimatorController), out entries))
             {
-                return ExitCode.Refused;
+                return ExportHelper.NoEntries(ctx);
             }
             bool failed = false;
             foreach (string path in entries)

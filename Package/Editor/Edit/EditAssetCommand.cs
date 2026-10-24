@@ -18,6 +18,11 @@ namespace AssetOps
             get { return "Serialized properties of ScriptableObjects and other asset objects"; }
         }
 
+        public override bool TakesAssetList
+        {
+            get { return false; }
+        }
+
         public override IEnumerable<string> Arguments
         {
             get { return new[] { "spec" }; }
@@ -53,6 +58,12 @@ namespace AssetOps
                 if (obj == null)
                 {
                     ctx.FailTarget(label, error);
+                    continue;
+                }
+                string readOnly = ReadOnly.Reason(path);
+                if (readOnly != null)
+                {
+                    ctx.FailTarget(label, readOnly);
                     continue;
                 }
                 if (AssetDatabase.IsForeignAsset(obj))

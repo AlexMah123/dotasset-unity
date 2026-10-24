@@ -344,6 +344,16 @@ namespace AssetOps
                         prop.boolValue = (long)value != 0;
                         return;
                     }
+                    if (value.Type == JTokenType.String)
+                    {
+                        // Prefab override values come as Unity's raw strings, "0" and "1".
+                        string b = ((string)value).Trim();
+                        if (b == "0" || b == "1" || string.Equals(b, "true", StringComparison.OrdinalIgnoreCase) || string.Equals(b, "false", StringComparison.OrdinalIgnoreCase))
+                        {
+                            prop.boolValue = b == "1" || string.Equals(b, "true", StringComparison.OrdinalIgnoreCase);
+                            return;
+                        }
+                    }
                     wc.Fail(prop, "expects true or false, got " + Show(value));
                     return;
                 case SerializedPropertyType.Float:
@@ -373,6 +383,12 @@ namespace AssetOps
                     if (value.Type == JTokenType.Object || value.Type == JTokenType.Array)
                     {
                         wc.Fail(prop, "expects a string, got " + value.Type);
+                        return;
+                    }
+                    if (value.Type == JTokenType.String && TruncatedString.IsMatch((string)value))
+                    {
+                        // An export cut this string at -maxstring. Writing it back would cut the field for good.
+                        wc.Fail(prop, "this string was truncated on export, re-export with a higher -maxstring or write the full text");
                         return;
                     }
                     prop.stringValue = value.Type == JTokenType.String ? (string)value : value.ToString(Newtonsoft.Json.Formatting.None);
@@ -899,6 +915,9 @@ namespace AssetOps
         }
 
         // ------------------------------------------------------------------ helpers
+
+        static readonly System.Text.RegularExpressions.Regex TruncatedString =
+            new System.Text.RegularExpressions.Regex(@"\.\.\.\[truncated, \d+ chars\]$", System.Text.RegularExpressions.RegexOptions.Compiled);
 
         static bool Is64(SerializedPropertyNumericType type)
         {

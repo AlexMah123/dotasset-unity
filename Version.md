@@ -39,4 +39,12 @@ First release, the Unity counterpart of uasset-workbench 2.6.
 - A grown `[SerializeReference]` array no longer shares the last element's instance
 - Root `SiblingIndex` is refused under undo, the queue survives malformed task files, a broken `.prefab` fails only its entry
 - The wrapper only trusts `Unity`/`Unity.exe` processes and ignores long-dead idle heartbeats, macOS paths compare case-insensitively
+- Targets in read-only packages (registry, git, tarball) are refused, a material inside a model is refused by `EditMaterial`, Unity's bookkeeping fields are refused as `Properties` keys
+- `CreateAsset` checks every entry's ops before it creates anything, a typo refuses the whole spec
+- Undo is recorded for a new object before anything else can fail, a negative component `Index` is refused
+- `RemapReference` maps children by position among same-named siblings and components by position among their type, leaves `To` and the prefabs it nests alone (per pair), keeps a variant's base, contains a failed swap to its target
+- `MoveAsset` and `DuplicateAsset` refuse a folder into itself and remove the folders they made when the move fails
+- An export whose assets hold nothing of its kind exits 1 instead of 2, an audit without fixes removes the old `.fix.json` and writes none
+- Switch values (`-apply=false`), unclosed quotes and trailing backslashes in `--args` are handled, the wrapper withdraws its task on Ctrl+C and never fails on unprintable asset names
+- Smoke test checks that a dry run leaves the prefab as it was and that an export's properties write back unchanged
 - Not yet compiled inside Unity: written and checked against Unity's C# reference source for 2022.3 and 6000.3

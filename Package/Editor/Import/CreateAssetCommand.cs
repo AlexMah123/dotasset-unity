@@ -30,6 +30,11 @@ namespace AssetOps
             get { return "Creates folders, ScriptableObjects, materials, prefabs, variants, controllers and scenes from a spec"; }
         }
 
+        public override bool TakesAssetList
+        {
+            get { return false; }
+        }
+
         public override IEnumerable<string> Arguments
         {
             get { return new[] { "spec" }; }
@@ -52,6 +57,35 @@ namespace AssetOps
                 if (!Spec.CheckKeys(ctx, entries[i], "Assets[" + i + "]", AllowedKeys(Json.Str(entries[i], "Kind"))))
                 {
                     return ExitCode.Refused;
+                }
+                // A typo in an op is refused here, before any asset of the spec exists.
+                string kind = Json.Str(entries[i], "Kind");
+                var ops = Json.Get(entries[i], "Ops") as JArray;
+                if (Json.Get(entries[i], "Ops") != null && ops == null)
+                {
+                    ctx.Log.Error("Assets[" + i + "]: \"Ops\" must be an array");
+                    return ExitCode.Refused;
+                }
+                string opError = kind == "AnimatorController"
+                    ? EditAnimatorControllerCommand.ValidateOps(ops, "Assets[" + i + "]")
+                    : HierarchyEditor.ValidateOps(ops, "Assets[" + i + "]");
+                if (opError != null)
+                {
+                    ctx.Log.Error(opError);
+                    return ExitCode.Refused;
+                }
+                var components = Json.Get(entries[i], "Components") as JArray;
+                if (components != null)
+                {
+                    foreach (JToken c in components)
+                    {
+                        string bad = c.Type == JTokenType.Object ? Json.UnknownKeys(c, "Type", "Properties") : null;
+                        if (bad != null)
+                        {
+                            ctx.Log.Error("Assets[" + i + "] Components entry: " + bad);
+                            return ExitCode.Refused;
+                        }
+                    }
                 }
             }
 
@@ -150,7 +184,13 @@ namespace AssetOps
         // Folders made while the current entry runs, removed again when the entry fails.
         static readonly List<string> createdFolders = new List<string>();
 
-        static void RemoveCreatedFolders(RunContext ctx)
+        public static void BeginFolderTracking()
+        {
+            createdFolders.Clear();
+        }
+
+        // Removes the folders EnsureFolder made since BeginFolderTracking, when they are still empty.
+        public static void RemoveCreatedFolders(RunContext ctx)
         {
             for (int i = createdFolders.Count - 1; i >= 0; i--)
             {
@@ -158,7 +198,7 @@ namespace AssetOps
                 if (AssetDatabase.IsValidFolder(folder) && AssetDatabase.FindAssets(string.Empty, new[] { folder }).Length == 0)
                 {
                     AssetDatabase.DeleteAsset(folder);
-                    ctx.Log.Info("removed folder " + folder + ", its entry failed");
+                    ctx.Log.Info("removed folder " + folder + ", made for a target that failed");
                 }
             }
             createdFolders.Clear();

@@ -63,5 +63,11 @@ namespace AssetOps
             }
             return true;
         }
+
+        // Exit code when Entries returned false: no AssetList is a refused call, assets that hold nothing to export a failed one.
+        public static ExitCode NoEntries(RunContext ctx)
+        {
+            return ctx.Assets.Count == 0 ? ExitCode.Refused : ExitCode.Failed;
+        }
     }
 }

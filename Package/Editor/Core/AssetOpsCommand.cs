@@ -33,6 +33,13 @@ namespace AssetOps
             get { return Array.Empty<string>(); }
         }
 
+        // False for runs whose targets come from a spec or arguments. An AssetList given to them is refused
+        // rather than silently ignored.
+        public virtual bool TakesAssetList
+        {
+            get { return true; }
+        }
+
         public abstract ExitCode Execute(RunContext ctx);
     }
 

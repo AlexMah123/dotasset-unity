@@ -19,6 +19,11 @@ namespace AssetOps
             get { return "Moves or renames assets and folders, keeping GUIDs, and flags path strings in code"; }
         }
 
+        public override bool TakesAssetList
+        {
+            get { return false; }
+        }
+
         public override IEnumerable<string> Arguments
         {
             get { return new[] { "from", "to", "spec" }; }
@@ -49,6 +54,17 @@ namespace AssetOps
                     ctx.FailTarget(label, to + " already exists");
                     continue;
                 }
+                if (isFolder && to.StartsWith(from + "/", StringComparison.OrdinalIgnoreCase))
+                {
+                    ctx.FailTarget(label, "cannot move a folder into itself");
+                    continue;
+                }
+                string readOnly = ReadOnly.Reason(from) ?? ReadOnly.Reason(to);
+                if (readOnly != null)
+                {
+                    ctx.FailTarget(label, readOnly);
+                    continue;
+                }
                 string parent = Path.GetDirectoryName(to).Replace('\\', '/');
                 if (!AssetDatabase.IsValidFolder(parent))
                 {
@@ -73,17 +89,23 @@ namespace AssetOps
                     continue;
                 }
                 string error;
+                CreateAssetCommand.BeginFolderTracking();
                 if (!CreateAssetCommand.EnsureFolder(parent, out error))
                 {
+                    CreateAssetCommand.RemoveCreatedFolders(ctx);
                     ctx.FailTarget(label, error);
                     continue;
                 }
+                ctx.BeginTarget();
                 string result = AssetDatabase.MoveAsset(from, to);
                 if (!string.IsNullOrEmpty(result))
                 {
+                    CreateAssetCommand.RemoveCreatedFolders(ctx);
                     ctx.FailTarget(label, result);
                     continue;
                 }
+                CreateAssetCommand.BeginFolderTracking();
+                ctx.WarnIfSavedWithErrors(label);
                 moved++;
                 ctx.Log.Info("moved " + label);
             }

@@ -24,7 +24,7 @@ namespace AssetOps
             List<string> entries;
             if (!ExportHelper.Entries(ctx, p => AssetDatabase.GetMainAssetTypeAtPath(p) == typeof(Material), out entries))
             {
-                return ExitCode.Refused;
+                return ExportHelper.NoEntries(ctx);
             }
             bool failed = false;
             for (int i = 0; i < entries.Count; i++)
@@ -69,7 +69,14 @@ namespace AssetOps
             {
                 json["Parent"] = AssetDatabase.GetAssetPath(mat.parent);
             }
-            json["RenderQueue"] = mat.renderQueue;
+            // -1 means "the shader's queue". Export what is stored, so writing it back does not pin the queue.
+            var serialized = new SerializedObject(mat);
+            SerializedProperty custom = serialized.FindProperty("m_CustomRenderQueue");
+            json["RenderQueue"] = custom != null ? custom.intValue : mat.renderQueue;
+            if (custom != null && custom.intValue == -1)
+            {
+                json["ResolvedRenderQueue"] = mat.renderQueue;
+            }
             if (shader != null && (full || mat.renderQueue != shader.renderQueue))
             {
                 json["ShaderRenderQueue"] = shader.renderQueue;
@@ -80,6 +87,7 @@ namespace AssetOps
             json["Keywords"] = new JArray(mat.shaderKeywords.OrderBy(k => k).Select(k => (object)k).ToArray());
 
             var properties = new JObject();
+            var inherited = new JObject();
             var declared = new HashSet<string>();
             var info = new JObject();
             if (shader != null)
@@ -103,7 +111,15 @@ namespace AssetOps
                     {
                         continue;
                     }
-                    properties[name] = value;
+                    if (mat.parent != null && !overridden)
+                    {
+                        // Inherited from the parent. Kept apart: writing it back through EditMaterial would turn it into an override.
+                        inherited[name] = value;
+                    }
+                    else
+                    {
+                        properties[name] = value;
+                    }
                     var meta = new JObject { ["Type"] = type.ToString(), ["Description"] = shader.GetPropertyDescription(p) };
                     if (type == ShaderPropertyType.Range)
                     {
@@ -122,6 +138,10 @@ namespace AssetOps
                 }
             }
             json["Properties"] = properties;
+            if (mat.parent != null)
+            {
+                json["Inherited"] = inherited;
+            }
             json["PropertyInfo"] = info;
             if (!full)
             {

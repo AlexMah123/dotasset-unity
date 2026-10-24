@@ -76,6 +76,26 @@ namespace AssetOps
                 json["FixRun"] = FixRun;
                 ctx.Log.Info("fix spec for " + FixRun + ": " + AssetOpsPaths.ToProjectRelative(fixPath));
             }
+            else
+            {
+                // A fix spec left from an earlier run at the same -report path would look current.
+                string stale = Path.ChangeExtension(reportPath, null) + ".fix.json";
+                try
+                {
+                    if (File.Exists(stale))
+                    {
+                        File.Delete(stale);
+                    }
+                }
+                catch (IOException e)
+                {
+                    ctx.Log.Warn("could not remove the old fix spec " + stale + ": " + e.Message);
+                }
+                catch (UnauthorizedAccessException e)
+                {
+                    ctx.Log.Warn("could not remove the old fix spec " + stale + ": " + e.Message);
+                }
+            }
             Json.WriteFile(reportPath, json);
             ctx.AddOutput(reportPath);
 

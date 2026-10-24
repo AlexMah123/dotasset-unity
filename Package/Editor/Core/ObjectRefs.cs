@@ -165,6 +165,23 @@ namespace AssetOps
                 return null;
             }
 
+            string strays = Json.UnknownKeys(obj, "Asset", "Guid", "Sub", "Type", "Object", "Component", "Index", "Missing", "Unresolved");
+            if (strays != null)
+            {
+                // {"Object": "Player", "Componet": "Collider"} must not quietly resolve to the Transform.
+                error = "reference " + strays;
+                return null;
+            }
+            if (Json.Has(obj, "Unresolved"))
+            {
+                error = "cannot write an {\"Unresolved\"} reference, it points outside this prefab or scene. Give an asset path or a local \"Object\"";
+                return null;
+            }
+            if (Json.Has(obj, "Index") && !Json.Has(obj, "Component"))
+            {
+                error = "\"Index\" picks among components of one type, give \"Component\" with it";
+                return null;
+            }
             if (Json.Bool(obj, "Missing", false))
             {
                 error = "cannot write a {\"Missing\": true} reference, give a real target or null";

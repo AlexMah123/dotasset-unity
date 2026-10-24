@@ -37,11 +37,11 @@ python assetops.py MoveAsset --args '-spec="C:/temp/moves.json" -apply'
 { "Moves": [ { "From": "Assets/Art/Old", "To": "Assets/Art/Characters" }, { "From": "Assets/A.mat", "To": "Assets/Materials/A.mat" } ] }
 ```
 
-Missing parent folders are created. `To` must not exist. Each move goes through `AssetDatabase.MoveAsset`, which keeps the GUID and the `.meta`. The run warns for every `.cs` under `Assets` that contains the old path, or, under a `Resources` folder, the old `Resources.Load` path.
+Missing parent folders are created, and removed again when the move fails. `To` must not exist, and a folder cannot move into itself. Moves run in spec order, each one sees the project as the previous one left it, so a chain (`A` to `B`, then `B` to `C`) works and a swap needs a temporary name. Each move goes through `AssetDatabase.MoveAsset`, which keeps the GUID and the `.meta`. The run warns for every `.cs` under `Assets` that contains the old path, or, under a `Resources` folder, the old `Resources.Load` path.
 
 ## DuplicateAsset
 
-`-from`, `-to`, or `-spec` with `{"Copies": [{"From", "To"}]}`. The copy gets new GUIDs; references inside a copied folder still point at the originals.
+`-from`, `-to`, or `-spec` with `{"Copies": [{"From", "To"}]}`. The copy gets new GUIDs; references inside a copied folder still point at the originals. Missing parent folders are created and removed again when the copy fails. A folder cannot be copied into itself.
 
 ## DeleteAsset
 
@@ -96,6 +96,9 @@ python assetops.py RemapReference --args '-spec="C:/temp/remap.json" -apply'
 - Sub-assets map by name and type: `Hero_old.fbx`'s mesh `Body` goes to `Hero.fbx`'s mesh `Body`. Children and components of a prefab map by hierarchy path. A reference to a sub-object with no counterpart fails that candidate, nothing in it changes.
 - Inside prefab instances only overridden values are rewritten. Inherited values change when the source prefab, a candidate of its own, is fixed.
 - Prefab to prefab: outermost instances of `From` are swapped with `PrefabUtility.ReplacePrefabAssetOfPrefabInstance`, which carries overrides across by name. Instances nested inside other instances are reported, swap them in that prefab.
+- A prefab variant whose base is `From` keeps its base: the run warns and changes only the variant's references.
+- `To` itself, and the prefabs and models `To` nests or is a variant of, are left pointing at `From` with a warning: repointing them would nest `To` inside itself. Other assets `To` references are remapped, a cycle of plain field references is fine. With several pairs this is decided per pair.
+- Children map by name and position among same-named siblings, components by type and position among that type.
 - `From` and `To` must be the same kind of asset.
 
 ## RemapScript
@@ -120,7 +123,7 @@ python assetops.py RemoveMissingScripts "Assets/Prefabs" --args "-apply"
 python assetops.py RemoveMissingScripts --args '-spec="Library/AssetOps/Audit/AuditMissingReference_20261023-201500.fix.json" -apply'
 ```
 
-AssetList, `-scandir`, or `-spec` with `{"Files": [...]}` (the fix spec `AuditMissingReference` writes). Missing scripts on objects inside a prefab instance belong to the source prefab: they are reported with the source path and left alone.
+Give at least one of AssetList, `-scandir`, or `-spec` with `{"Files": [...]}` (the fix spec `AuditMissingReference` writes); with none the run is refused rather than sweeping the whole project. An empty `Files` list does nothing. Missing scripts on objects inside a prefab instance belong to the source prefab: they are reported with the source path and left alone.
 
 ## Exit codes
 

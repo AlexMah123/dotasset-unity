@@ -353,6 +353,18 @@ def withdraw(queue_root, task_id):
 
 def run_queue(args, queue_root, run, assets, extra, alive):
     task_id = uuid.uuid4().hex
+    try:
+        return wait_queue(args, queue_root, task_id, run, assets, extra, alive)
+    except KeyboardInterrupt:
+        done_path = os.path.join(queue_root, DONE, task_id + ".json")
+        if withdraw(queue_root, task_id):
+            log("interrupted, task withdrawn before the editor took it")
+        else:
+            log("interrupted, but the editor already took the task and finishes it. Its result will land in " + done_path)
+        return EXIT_FAILED
+
+
+def wait_queue(args, queue_root, task_id, run, assets, extra, alive):
     log("route: editor (pid %s, %s)" % (alive.get("Pid"), alive.get("State")))
     write_task(queue_root, task_id, run, assets, extra)
     done_path = os.path.join(queue_root, DONE, task_id + ".json")
@@ -372,16 +384,17 @@ def run_queue(args, queue_root, run, assets, extra, alive):
                     break
                 except (OSError, ValueError):
                     time.sleep(0.1)
-            try:
-                os.remove(done_path)
-            except OSError:
-                pass
             if result is None:
                 log("error: unreadable result " + done_path)
                 return EXIT_FAILED
             print_result(result, args.quiet)
             if args.json:
                 print(json.dumps(result, indent=2))
+            # Removed only once printed, so an interrupted print leaves the result on disk.
+            try:
+                os.remove(done_path)
+            except OSError:
+                pass
             return exit_code_of(result)
 
         now = time.time()
@@ -389,7 +402,8 @@ def run_queue(args, queue_root, run, assets, extra, alive):
             if withdraw(queue_root, task_id):
                 log("error: timed out after %ds, the editor never picked the task up (state: %s). Task withdrawn" % (args.timeout, last_state))
             else:
-                log("error: timed out after %ds while the editor runs the task, its result will land in %s" % (args.timeout, done_path))
+                log("error: timed out after %ds, but the editor is still running the task and may still write its targets. "
+                    "Its result will land in %s" % (args.timeout, done_path))
             return EXIT_FAILED
 
         if now >= next_check:
@@ -489,6 +503,10 @@ def run_batch(args, project, queue_root, run, assets, extra):
         return EXIT_FAILED
     try:
         code = proc.wait(timeout=args.timeout)
+    except KeyboardInterrupt:
+        kill_tree(proc)
+        log("interrupted, Unity was stopped. A target it was writing may be half saved, check the Unity log: " + unity_log)
+        return EXIT_FAILED
     except subprocess.TimeoutExpired:
         kill_tree(proc)
         log("error: Unity did not finish within %ds and was stopped" % args.timeout)
@@ -498,13 +516,21 @@ def run_batch(args, project, queue_root, run, assets, extra):
     if not os.path.exists(result_path):
         log("error: Unity exited with %s after %.0fs without running %s" % (code, elapsed, run))
         explain_unity_log(unity_log)
-        return code if code not in (0, None) else EXIT_FAILED
-    with open(result_path, encoding="utf-8") as f:
-        result = json.load(f)
-    os.remove(result_path)
+        # Unity's own exit code (a crash, a license failure) is not one of ours, report it as a failure.
+        return EXIT_FAILED
+    try:
+        with open(result_path, encoding="utf-8") as f:
+            result = json.load(f)
+    except (OSError, ValueError) as e:
+        log("error: unreadable result %s: %s" % (result_path, e))
+        return EXIT_FAILED
     print_result(result, args.quiet)
     if args.json:
         print(json.dumps(result, indent=2))
+    try:
+        os.remove(result_path)
+    except OSError:
+        pass
     try:
         if exit_code_of(result) in (EXIT_SUCCESS, EXIT_ISSUES):
             os.remove(unity_log)
@@ -561,6 +587,13 @@ def status(project):
 
 
 def main(argv=None):
+    # Asset names can hold characters a Windows console code page cannot print, never fail on those.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            try:
+                stream.reconfigure(errors="replace")
+            except (ValueError, OSError):
+                pass
     p = argparse.ArgumentParser(prog="assetops.py", description="AssetOps: run export, import, edit, migrate and audit tasks on a Unity project.")
     p.add_argument("run", nargs="?", help="run name, e.g. PrefabExport")
     p.add_argument("assets", nargs="?", default="", help="comma-separated asset paths or folders")

@@ -26,6 +26,11 @@ namespace AssetOps
             get { return "Import settings of textures (typed) and any importer (raw properties), then reimport"; }
         }
 
+        public override bool TakesAssetList
+        {
+            get { return false; }
+        }
+
         public override IEnumerable<string> Arguments
         {
             get { return new[] { "spec" }; }
@@ -60,7 +65,19 @@ namespace AssetOps
             for (int i = 0; i < targets.Count; i++)
             {
                 JToken target = targets[i];
-                foreach (string path in Paths(ctx, target))
+                if (!Json.Has(target, "Texture") && !Json.Has(target, "Properties"))
+                {
+                    ctx.FailTarget("Targets[" + i + "]", "needs \"Texture\" or \"Properties\", there is nothing to change");
+                    continue;
+                }
+                List<string> paths = Paths(ctx, target);
+                if (paths.Count == 0)
+                {
+                    ctx.FailTarget("Targets[" + i + "]", Json.Has(target, "AssetPath") || Json.Has(target, "AssetPaths")
+                        ? "its paths hold no asset this block applies to" : "needs \"AssetPath\" or \"AssetPaths\"");
+                    continue;
+                }
+                foreach (string path in paths)
                 {
                     ctx.Progress(written, targets.Count, path);
                     if (WriteOne(ctx, path, target))
@@ -96,6 +113,12 @@ namespace AssetOps
             if (importer == null)
             {
                 ctx.FailTarget(path, "has no importer");
+                return false;
+            }
+            string readOnly = ReadOnly.Reason(path);
+            if (readOnly != null)
+            {
+                ctx.FailTarget(path, readOnly);
                 return false;
             }
             ctx.BeginTarget();
@@ -241,6 +264,11 @@ namespace AssetOps
                 }
                 TextureImporterPlatformSettings ps = t.GetPlatformTextureSettings(kv.Key);
                 JToken block = kv.Value;
+                string strays = Json.UnknownKeys(block, "Override", "MaxSize", "Format", "Compression", "CompressionQuality", "CrunchedCompression");
+                if (strays != null)
+                {
+                    return kv.Key + ": " + strays;
+                }
                 ps.overridden = Json.Bool(block, "Override", true);
                 if (Json.Has(block, "MaxSize"))
                 {

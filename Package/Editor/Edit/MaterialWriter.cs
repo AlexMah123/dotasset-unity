@@ -213,8 +213,13 @@ namespace AssetOps
                 case ShaderPropertyType.Texture:
                 {
                     JToken texToken = value;
-                    if (value is JObject && (Json.Has(value, "Texture") || Json.Has(value, "Scale") || Json.Has(value, "Offset")))
+                    if (value is JObject && (Json.Get(value, "Texture") != null || Json.Has(value, "Scale") || Json.Has(value, "Offset")))
                     {
+                        string strays = Json.UnknownKeys(value, "Texture", "Scale", "Offset");
+                        if (strays != null)
+                        {
+                            return strays;
+                        }
                         texToken = Json.Get(value, "Texture");
                         float[] f;
                         if (Json.Has(value, "Scale"))

@@ -24,6 +24,11 @@ namespace AssetOps
             get { return "Repoints components and ScriptableObjects from one script GUID to another script"; }
         }
 
+        public override bool TakesAssetList
+        {
+            get { return false; }
+        }
+
         public override IEnumerable<string> Arguments
         {
             get { return new[] { "from", "to", "scandir", "fromfileid" }; }

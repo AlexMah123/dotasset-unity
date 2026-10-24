@@ -132,6 +132,43 @@ namespace AssetOps
             { "RemoveMissingScripts", new[] { "Op", "Path", "Recursive" } },
         };
 
+        // Checks every op's name and keys up front, so a spec with a typo is refused before anything is touched.
+        public static string ValidateOps(JArray ops, string where)
+        {
+            if (ops == null)
+            {
+                return null;
+            }
+            for (int i = 0; i < ops.Count; i++)
+            {
+                string name = Json.Str(ops[i], "Op");
+                string label = where + " Ops[" + i + "]";
+                string[] keys;
+                if (name == null || !OpKeys.TryGetValue(name, out keys))
+                {
+                    return label + ": unknown op '" + (name ?? "(none)") + "'. Ops: " + string.Join(", ", OpNames);
+                }
+                string strays = Json.UnknownKeys(ops[i], keys);
+                if (strays != null)
+                {
+                    return label + " " + name + ": " + strays;
+                }
+                var components = Json.Get(ops[i], "Components") as JArray;
+                if (components != null)
+                {
+                    foreach (JToken c in components)
+                    {
+                        string bad = c.Type == JTokenType.Object ? Json.UnknownKeys(c, "Type", "Properties") : null;
+                        if (bad != null)
+                        {
+                            return label + " Components entry: " + bad;
+                        }
+                    }
+                }
+            }
+            return null;
+        }
+
         bool CheckKeys(JToken token, string[] allowed, string label)
         {
             var obj = token as JObject;
@@ -292,15 +329,16 @@ namespace AssetOps
             }
             // Straight into the target scene (the prefab's preview scene, or the edited scene).
             GameObject go = GameObjects.Spawn(goName, prefabRoot != null ? prefabRoot.scene : scene);
+            if (useUndo)
+            {
+                // Registered before anything below can fail, so a revert removes the object again.
+                Undo.RegisterCreatedObjectUndo(go, "Add " + goName);
+            }
             if (Json.Bool(op, "RectTransform", false) || (parent != null && parent is RectTransform))
             {
                 go.AddComponent<RectTransform>();
             }
             Place(go, parent, op);
-            if (useUndo)
-            {
-                Undo.RegisterCreatedObjectUndo(go, "Add " + goName);
-            }
             if (!SetGameObjectFields(go, op, label))
             {
                 return;
@@ -352,6 +390,10 @@ namespace AssetOps
                 Fail(label, "Unity could not instantiate " + prefabPath);
                 return;
             }
+            if (useUndo)
+            {
+                Undo.RegisterCreatedObjectUndo(instance, "Add " + instance.name);
+            }
             string newName = Json.Str(op, "Name");
             if (!string.IsNullOrEmpty(newName))
             {
@@ -360,10 +402,6 @@ namespace AssetOps
             if (Json.Has(op, "SiblingIndex"))
             {
                 SetSiblingIndex(instance, Json.Int(op, "SiblingIndex", 0));
-            }
-            if (useUndo)
-            {
-                Undo.RegisterCreatedObjectUndo(instance, "Add " + instance.name);
             }
             SetGameObjectFields(instance, op, label);
             log.Info("added instance of " + prefabPath + " at " + HierarchyPath.Of(instance));

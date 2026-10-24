@@ -35,6 +35,12 @@ namespace AssetOps
                 {
                     return ExitCode.Refused;
                 }
+                string strays = Json.UnknownKeys(spec, "Files");
+                if (strays != null)
+                {
+                    ctx.Log.Error("spec: " + strays);
+                    return ExitCode.Refused;
+                }
                 var files = Json.Get(spec, "Files") as Newtonsoft.Json.Linq.JArray;
                 if (files == null)
                 {
@@ -42,6 +48,21 @@ namespace AssetOps
                     return ExitCode.Refused;
                 }
                 entries.AddRange(files.Select(f => (string)f));
+                if (entries.Count == 0)
+                {
+                    // An emptied fix spec means "nothing to clean", never "clean the whole project".
+                    ctx.Log.Info("the spec lists no files, nothing to do");
+                    return ExitCode.Success;
+                }
+            }
+            if (entries.Count == 0 && !ctx.Args.Has("scandir"))
+            {
+                ctx.Log.Error("RemoveMissingScripts needs AssetList, -spec or -scandir. It does not clean all of Assets unasked");
+                return ExitCode.Refused;
+            }
+            foreach (string skipped in entries.Where(e => !AssetDatabase.IsValidFolder(e) && !filter(e)))
+            {
+                ctx.Log.Warn(skipped + " is not a prefab or scene, a missing script there needs RemapScript");
             }
             List<string> paths = entries.Count > 0
                 ? AssetScan.Expand(entries, filter, ctx.Log).Where(filter).ToList()

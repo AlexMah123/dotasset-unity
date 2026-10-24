@@ -75,6 +75,16 @@ namespace AssetOps
         public static SerializedProperty Find(SerializedObject so, string key, WriteContext wc)
         {
             string path = NormalizePath(key);
+            string head = path.IndexOf('.') < 0 ? path : path.Substring(0, path.IndexOf('.'));
+            string prefixed = head.Length > 0 && !head.StartsWith("m_", StringComparison.Ordinal)
+                ? "m_" + char.ToUpperInvariant(head[0]) + head.Substring(1)
+                : head;
+            if (IsBookkeeping(head) || IsBookkeeping(prefixed))
+            {
+                // Prefab links, the owning GameObject and the hierarchy lists are Unity's bookkeeping.
+                wc.Fail(null, "'" + key + "' is bookkeeping Unity maintains itself and is not written. Use the hierarchy ops to change structure");
+                return null;
+            }
             SerializedProperty prop = so.FindProperty(path);
             if (prop != null)
             {
@@ -82,11 +92,10 @@ namespace AssetOps
             }
             // "mass" -> "m_Mass", "settings.range" -> "m_Settings.range"
             int dot = path.IndexOf('.');
-            string head = dot < 0 ? path : path.Substring(0, dot);
             string rest = dot < 0 ? string.Empty : path.Substring(dot);
-            if (!head.StartsWith("m_", StringComparison.Ordinal) && head.Length > 0)
+            if (prefixed != head)
             {
-                string alt = "m_" + char.ToUpperInvariant(head[0]) + head.Substring(1) + rest;
+                string alt = prefixed + rest;
                 prop = so.FindProperty(alt);
                 if (prop != null)
                 {
@@ -95,6 +104,11 @@ namespace AssetOps
             }
             wc.Fail(null, "'" + key + "' is not a property of " + Describe(so.targetObject) + ". Top-level properties: " + string.Join(", ", TopLevelNames(so).Take(40)));
             return null;
+        }
+
+        static bool IsBookkeeping(string name)
+        {
+            return (Skip.Contains(name) && name != "m_Name") || SkipOnHierarchy.Contains(name);
         }
 
         public static IEnumerable<string> TopLevelNames(SerializedObject so)
@@ -176,6 +190,23 @@ namespace AssetOps
         {
             foreach (JToken op in ops)
             {
+                string strays = Json.UnknownKeys(op, "Property", "Insert", "Value", "Append", "Remove");
+                if (strays != null)
+                {
+                    wc.Fail(null, "ArrayOps entry: " + strays);
+                    return;
+                }
+                int actions = (Json.Get(op, "Insert") != null ? 1 : 0) + (Json.Get(op, "Append") != null ? 1 : 0) + (Json.Get(op, "Remove") != null ? 1 : 0);
+                if (actions != 1)
+                {
+                    wc.Fail(null, "an ArrayOps entry does exactly one of Insert (with Value), Append or Remove");
+                    return;
+                }
+                if (Json.Get(op, "Insert") != null && Json.Get(op, "Value") == null)
+                {
+                    wc.Fail(null, "an ArrayOps Insert needs \"Value\", the new entry would otherwise copy its neighbour");
+                    return;
+                }
                 string key = Json.Str(op, "Property");
                 if (key == null)
                 {

@@ -15,6 +15,11 @@ namespace AssetOps
             get { return "Material shader properties, keywords, render queue, shader and variant parent"; }
         }
 
+        public override bool TakesAssetList
+        {
+            get { return false; }
+        }
+
         public override IEnumerable<string> Arguments
         {
             get { return new[] { "spec" }; }
@@ -49,6 +54,18 @@ namespace AssetOps
                 if (mat == null)
                 {
                     ctx.FailTarget(path ?? "(no AssetPath)", "no material at that path");
+                    continue;
+                }
+                string readOnly = ReadOnly.Reason(path);
+                if (readOnly != null)
+                {
+                    ctx.FailTarget(path, readOnly);
+                    continue;
+                }
+                if (AssetDatabase.IsForeignAsset(mat) || AssetImporter.GetAtPath(path) is ModelImporter)
+                {
+                    // A material that lives inside a model comes out of its importer, a write would be lost on the next import.
+                    ctx.FailTarget(path, "the material at that path is imported from a model, extract it or remap it with EditImporter first");
                     continue;
                 }
                 ctx.BeginTarget();

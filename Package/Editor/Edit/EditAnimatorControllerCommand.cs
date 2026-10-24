@@ -28,6 +28,11 @@ namespace AssetOps
             get { return "Animator Controller parameters, layers, states, blend trees and transitions"; }
         }
 
+        public override bool TakesAssetList
+        {
+            get { return false; }
+        }
+
         public override IEnumerable<string> Arguments
         {
             get { return new[] { "spec" }; }
@@ -71,6 +76,12 @@ namespace AssetOps
                 if (controller == null)
                 {
                     ctx.FailTarget(path, "no Animator Controller at that path");
+                    continue;
+                }
+                string readOnly = ReadOnly.Reason(path);
+                if (readOnly != null)
+                {
+                    ctx.FailTarget(path, readOnly);
                     continue;
                 }
                 if (ops == null)
@@ -123,8 +134,37 @@ namespace AssetOps
             return ctx.FailedTargets.Count > 0 ? ExitCode.Failed : ExitCode.Success;
         }
 
+        // Checks op names and top-level keys before anything is created, for CreateAsset.
+        public static string ValidateOps(JArray ops, string where)
+        {
+            return ControllerEditor.Validate(ops, where);
+        }
+
         sealed class ControllerEditor
         {
+            public static string Validate(JArray ops, string where)
+            {
+                if (ops == null)
+                {
+                    return null;
+                }
+                for (int i = 0; i < ops.Count; i++)
+                {
+                    string name = Json.Str(ops[i], "Op");
+                    string[] keys;
+                    if (name == null || !OpKeys.TryGetValue(name, out keys))
+                    {
+                        return where + " Ops[" + i + "]: unknown op '" + (name ?? "(none)") + "'. Ops: " + string.Join(", ", OpNames);
+                    }
+                    string strays = Json.UnknownKeys(ops[i], keys);
+                    if (strays != null)
+                    {
+                        return where + " Ops[" + i + "] " + name + ": " + strays;
+                    }
+                }
+                return null;
+            }
+
             readonly AnimatorController controller;
             readonly RunLog log;
             public readonly List<string> Errors = new List<string>();

@@ -47,6 +47,8 @@ namespace DotAsset
             List<string> files = ctx.Assets.Count > 0 ? AssetScan.Expand(ctx.Assets, yaml, ctx.Log) : AssetScan.All(AssetScan.Roots(ctx.Args), yaml);
             report.Checked = files.Count;
             var missingScripts = new Dictionary<string, List<string>>();
+            // Per run: in the editor the class outlives the run, and assets come and go between runs.
+            guidExists.Clear();
 
             if (AssetScan.IsForceText())
             {
@@ -128,7 +130,7 @@ namespace DotAsset
                     // Built-in resources.
                     continue;
                 }
-                if (!string.IsNullOrEmpty(AssetDatabase.GUIDToAssetPath(guid)))
+                if (GuidExists(guid))
                 {
                     continue;
                 }
@@ -164,6 +166,22 @@ namespace DotAsset
                     issue["LocalId"] = doc;
                 }
             }
+        }
+
+        // GUIDToAssetPath alone is not enough: in an open editor it keeps answering with the old path of an asset
+        // deleted earlier in the session. The path must still hold an asset.
+        static readonly Dictionary<string, bool> guidExists = new Dictionary<string, bool>();
+
+        static bool GuidExists(string guid)
+        {
+            bool exists;
+            if (!guidExists.TryGetValue(guid, out exists))
+            {
+                string path = AssetDatabase.GUIDToAssetPath(guid);
+                exists = !string.IsNullOrEmpty(path) && AssetDatabase.GetMainAssetTypeAtPath(path) != null;
+                guidExists[guid] = exists;
+            }
+            return exists;
         }
 
         static void DeepPass(RunContext ctx, string path, AuditReport report)

@@ -23,8 +23,8 @@ Status of DotAsset 0.1.0 for whoever picks it up next (a person or Claude Code).
 
 The owner asked for these, in this order:
 
-1. Test 6.3 LTS, 2022.3 and 6.0 LTS, see the next section.
-2. Another review pass over the whole package (Core, every command, the wrapper, the docs), the same kind as the
+1. Test 6.3 LTS, 2022.3 and 6.0 LTS, see the next section. 2022.3 done 2026-10-24, 6.3 and 6.0 wait for the owner.
+2. Done 2026-10-24 (commit 057a7ab). Another review pass over the whole package (Core, every command, the wrapper, the docs), the same kind as the
    cleanup pass of 2026-10-24 (commit b7e4c40): dead code, duplication, stale comments and docs, CLAUDE.md rule
    breaks. No behaviour changes without asking. Commit and push it on its own after the unit tests and the smoke
    test pass.

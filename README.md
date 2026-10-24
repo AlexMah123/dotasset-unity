@@ -263,6 +263,8 @@ Behaviour that lives in Unity's native code, and that the smoke test does not re
 
 The design of the five groups, the closed loop and the dual pipeline comes from [uasset-workbench](https://github.com/hchia93/uasset-workbench) by [hchia93](https://github.com/hchia93). DotAsset for Unity is a separate project, written for Unity, and is not maintained by or affiliated with the uasset-workbench author.
 
+Developed with the help of [Claude Code](https://claude.com/claude-code) (Anthropic). Maintained by Alex Mah, and tested with the unit tests and the end-to-end smoke test on each Unity version listed under Status.
+
 ## Disclaimer
 
 DotAsset for Unity is an independent project. It is not affiliated with, endorsed by or sponsored by Unity Technologies. Unity is a trademark or registered trademark of Unity Technologies or its affiliates in the U.S. and elsewhere.

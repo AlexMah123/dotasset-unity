@@ -47,6 +47,11 @@ namespace AssetOps
                     ctx.Log.Error("the spec has no \"Files\" array");
                     return ExitCode.Refused;
                 }
+                if (files.Any(f => f.Type != Newtonsoft.Json.Linq.JTokenType.String || string.IsNullOrEmpty((string)f)))
+                {
+                    ctx.Log.Error("\"Files\" is an array of asset path strings");
+                    return ExitCode.Refused;
+                }
                 entries.AddRange(files.Select(f => (string)f));
                 if (entries.Count == 0)
                 {
@@ -103,8 +108,19 @@ namespace AssetOps
                 }
                 if (PrefabUtility.IsPartOfPrefabInstance(go) && !PrefabUtility.IsAddedGameObjectOverride(go))
                 {
-                    var source = PrefabUtility.GetCorrespondingObjectFromOriginalSource(go);
-                    ctx.Log.Warn(path + ": " + HierarchyPath.Of(go) + " has " + missing + " missing script(s) from its source prefab " + (source != null ? AssetDatabase.GetAssetPath(source) : "?") + ", clean that prefab");
+                    var source = PrefabUtility.GetCorrespondingObjectFromSource(go);
+                    var original = PrefabUtility.GetCorrespondingObjectFromOriginalSource(go);
+                    int inherited = source != null ? GameObjectUtility.GetMonoBehavioursWithMissingScriptCount(source) : 0;
+                    if (missing > inherited)
+                    {
+                        // Added as an override on this instance: they belong to this file, but are not removed here.
+                        ctx.Log.Error(path + ": " + HierarchyPath.Of(go) + " has " + (missing - inherited) + " missing-script component(s) added on the prefab instance. "
+                            + "AssetOps does not remove instance overrides, remove them in the Inspector or unpack the instance");
+                    }
+                    if (inherited > 0)
+                    {
+                        ctx.Log.Warn(path + ": " + HierarchyPath.Of(go) + " has " + inherited + " missing script(s) from its source prefab " + (original != null ? AssetDatabase.GetAssetPath(original) : "?") + ", clean that prefab");
+                    }
                     continue;
                 }
                 ctx.Log.Info(path + ": " + HierarchyPath.Of(go) + " has " + missing + " missing script(s)");

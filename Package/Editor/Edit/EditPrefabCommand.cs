@@ -43,6 +43,13 @@ namespace AssetOps
                 {
                     return ExitCode.Refused;
                 }
+                // Op names and keys of every target are checked before the first target is written.
+                string opError = HierarchyEditor.ValidateOps(Json.Get(targets[i], "Ops") as JArray, "Targets[" + i + "]");
+                if (opError != null)
+                {
+                    ctx.Log.Error(opError);
+                    return ExitCode.Refused;
+                }
             }
 
             int written = 0;

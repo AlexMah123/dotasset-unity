@@ -388,7 +388,16 @@ namespace AssetOps
                     return false;
                 }
                 bool success;
-                PrefabUtility.SaveAsPrefabAsset(root, path, out success);
+                try
+                {
+                    PrefabUtility.SaveAsPrefabAsset(root, path, out success);
+                }
+                catch (Exception e)
+                {
+                    // A bad file name or an immutable folder throws, the entry fails and the run goes on.
+                    error = "Unity could not save " + path + ": " + e.Message;
+                    return false;
+                }
                 if (!success)
                 {
                     error = "Unity refused to save " + path;
@@ -434,7 +443,16 @@ namespace AssetOps
                     return false;
                 }
                 bool success;
-                PrefabUtility.SaveAsPrefabAsset(instance, path, out success);
+                try
+                {
+                    PrefabUtility.SaveAsPrefabAsset(instance, path, out success);
+                }
+                catch (Exception e)
+                {
+                    // A bad file name or an immutable folder throws, the entry fails and the run goes on.
+                    error = "Unity could not save " + path + ": " + e.Message;
+                    return false;
+                }
                 if (!success)
                 {
                     error = "Unity refused to save " + path;

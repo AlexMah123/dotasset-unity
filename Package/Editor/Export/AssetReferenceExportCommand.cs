@@ -31,7 +31,8 @@ namespace AssetOps
             List<string> entries = AssetScan.Expand(ctx.Assets, null, ctx.Log);
             if (entries.Count == 0)
             {
-                return ExitCode.Refused;
+                ctx.Log.Error("nothing to look up under " + string.Join(", ", ctx.Assets));
+                return ExitCode.Failed;
             }
             List<string> roots = AssetScan.Roots(ctx.Args);
             ctx.Log.Info("indexing references under " + string.Join(", ", roots));

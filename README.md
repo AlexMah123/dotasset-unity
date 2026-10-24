@@ -32,7 +32,7 @@ Every write goes through Unity's own API (`SerializedObject`, `PrefabUtility`, `
 | **Migrate** | `MoveAsset` `DuplicateAsset` `DeleteAsset` `ResaveAsset` `RemapReference` `RemapScript` `RemoveMissingScripts` |
 | **Audit** | `AuditMissingReference` `AuditTexture` `AuditMaterial` |
 
-- **Closed loop**: an export's `Properties` block is what `Set` ops and `EditAsset` take; `ImporterExport`'s `Summary` is what `EditImporter` takes; audits write a `.fix.json` the matching Edit or Migrate run takes as is
+- **Closed loop**: an export's `Properties` block is what `Set` ops and `EditAsset` take; `ImporterExport`'s texture `Summary` is what `EditImporter`'s `Texture` block takes; audits write a `.fix.json` the matching Edit or Migrate run takes as is
 - **Editor open**: the task goes to the editor's queue and runs on its main thread, the editor stays open, a scene open in the editor is edited on one undo group (one Ctrl+Z)
 - **Editor closed**: Unity starts with `-batchmode -nographics`, runs the task, exits
 - **Writes**: all or nothing per target, Edit and Migrate are dry runs until `-apply`, unknown spec keys and arguments are refused rather than ignored

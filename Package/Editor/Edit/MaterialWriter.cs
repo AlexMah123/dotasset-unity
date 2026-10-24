@@ -29,6 +29,29 @@ namespace AssetOps
         {
             int before = errors.Count;
 
+            // Shapes first, so a malformed value fails this material instead of throwing out of the run.
+            foreach (string key in new[] { "EnableKeywords", "DisableKeywords", "RevertProperties" })
+            {
+                JToken list = Json.Get(block, key);
+                if (list != null && list.Type != JTokenType.Null && (!(list is JArray) || ((JArray)list).Any(t => t.Type != JTokenType.String)))
+                {
+                    errors.Add(key + " is an array of strings");
+                    return false;
+                }
+            }
+            JToken parentValue = Json.Get(block, "Parent");
+            if (parentValue != null && parentValue.Type != JTokenType.Null && parentValue.Type != JTokenType.String)
+            {
+                errors.Add("Parent is a material path or null");
+                return false;
+            }
+            JToken shaderValue = Json.Get(block, "Shader");
+            if (shaderValue != null && shaderValue.Type != JTokenType.String)
+            {
+                errors.Add("Shader is a shader name or path");
+                return false;
+            }
+
             if (Json.Has(block, "Shader"))
             {
                 string shaderName = Json.Str(block, "Shader");

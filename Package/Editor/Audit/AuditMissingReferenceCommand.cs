@@ -86,15 +86,15 @@ namespace AssetOps
                     });
                 }
                 report.Extra["MissingScripts"] = groups;
-                var files = missingScripts.Values.SelectMany(v => v).Distinct()
+                var fixFiles = missingScripts.Values.SelectMany(v => v).Distinct()
                     .Where(f => AssetScan.HasExtension(f, ".prefab", ".unity")).OrderBy(f => f).Select(f => (object)f).ToArray();
-                if (files.Length > 0)
+                if (fixFiles.Length > 0)
                 {
                     // Only ScriptableObjects or controllers affected: nothing for RemoveMissingScripts, RemapScript is the fix.
                     report.FixSpec = new JObject
                     {
                         ["// note"] = "Prefabs and scenes with Missing Script components, for RemoveMissingScripts. ScriptableObjects and controllers cannot lose the component, RemapScript their GUIDs (MissingScripts in the report).",
-                        ["Files"] = new JArray(files),
+                        ["Files"] = new JArray(fixFiles),
                     };
                     report.FixRun = "RemoveMissingScripts";
                 }

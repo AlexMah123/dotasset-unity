@@ -47,4 +47,11 @@ First release, the Unity counterpart of uasset-workbench 2.6.
 - An export whose assets hold nothing of its kind exits 1 instead of 2, an audit without fixes removes the old `.fix.json` and writes none
 - Switch values (`-apply=false`), unclosed quotes and trailing backslashes in `--args` are handled, the wrapper withdraws its task on Ctrl+C and never fails on unprintable asset names
 - Smoke test checks that a dry run leaves the prefab as it was and that an export's properties write back unchanged
+- Edit runs check every target's op names and keys (and importer platform blocks) before the first target is written
+- `RemoveLayer` refuses a layer others sync to and shifts synced indices, Bool and Int parameter defaults are type-checked, `SetLayer` refuses a taken name
+- Script ScriptableObjects are snapshotted as JSON, so a rollback never runs their `Awake`/`OnEnable`, a reverted controller is not left dirty
+- `RemapReference` snapshots materials, ScriptableObjects, controllers and importers before writing, a failed check restores them
+- A `MoveAsset` dry run follows chains the way `-apply` does, `DeleteAsset` keeps a target's references alive when that target is refused
+- `RemoveMissingScripts` reports missing scripts added on a prefab instance instead of passing over them
+- Malformed spec values (non-string paths, keywords, parents) fail their target or refuse the run instead of throwing, a prefab save that throws fails only its entry
 - Not yet compiled inside Unity: written and checked against Unity's C# reference source for 2022.3 and 6000.3

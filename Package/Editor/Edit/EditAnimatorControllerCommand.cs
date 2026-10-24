@@ -59,6 +59,12 @@ namespace AssetOps
                 }
                 // One target per controller: headless the undo revert of a failed target is not guaranteed,
                 // and a later target saving the same controller would carry the failed target's changes.
+                string opError = ValidateOps(Json.Get(targets[i], "Ops") as JArray, "Targets[" + i + "]");
+                if (opError != null)
+                {
+                    ctx.Log.Error(opError);
+                    return ExitCode.Refused;
+                }
                 string p = Json.Str(targets[i], "AssetPath");
                 if (p != null && !seen.Add(p))
                 {
@@ -95,6 +101,7 @@ namespace AssetOps
                 Undo.SetCurrentGroupName("AssetOps: EditAnimatorController");
                 int group = Undo.GetCurrentGroup();
                 bool keep = false;
+                bool wasDirty = AssetDatabase.LoadAllAssetsAtPath(path).Any(x => x != null && EditorUtility.IsDirty(x));
                 try
                 {
                     var editor = new ControllerEditor(controller, ctx.Log);
@@ -124,6 +131,18 @@ namespace AssetOps
                     else
                     {
                         Undo.RevertAllDownToGroup(group);
+                        if (!wasDirty)
+                        {
+                            // The revert restores the content but leaves it marked dirty, a later Save Project would
+                            // rewrite the file. Unsaved edits the user already had stay dirty.
+                            foreach (Object o in AssetDatabase.LoadAllAssetsAtPath(path))
+                            {
+                                if (o != null)
+                                {
+                                    EditorUtility.ClearDirty(o);
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -305,7 +324,32 @@ namespace AssetOps
                                 Fail("a controller keeps at least one layer");
                                 return;
                             }
+                            AnimatorControllerLayer[] before = controller.layers;
+                            for (int i = 0; i < before.Length; i++)
+                            {
+                                if (i != index && before[i].syncedLayerIndex == index)
+                                {
+                                    Fail("layer '" + before[i].name + "' is synced to it, remove or unsync that layer first");
+                                    return;
+                                }
+                            }
                             controller.RemoveLayer(index);
+                            // RemoveLayer leaves synced layers' indices as they were, shift those past the removed one.
+                            AnimatorControllerLayer[] after = controller.layers;
+                            bool shifted = false;
+                            for (int i = 0; i < after.Length; i++)
+                            {
+                                if (after[i].syncedLayerIndex > index)
+                                {
+                                    after[i].syncedLayerIndex--;
+                                    shifted = true;
+                                }
+                            }
+                            if (shifted)
+                            {
+                                Undo.RecordObject(controller, "AssetOps: EditAnimatorController");
+                                controller.layers = after;
+                            }
                             log.Info("removed layer " + index);
                         }
                         return;
@@ -447,16 +491,50 @@ namespace AssetOps
                             Fail("Default of an Int is a number");
                             return;
                         }
+                        if (d != Math.Floor(d) || d < int.MinValue || d > int.MaxValue)
+                        {
+                            Fail("Default of an Int is a whole number in the int range");
+                            return;
+                        }
                         ps[index].defaultInt = (int)d;
                         break;
                     case AnimatorControllerParameterType.Bool:
-                        ps[index].defaultBool = value.Type == JTokenType.Boolean && (bool)value;
+                    {
+                        bool b;
+                        if (!TryBool(value, out b))
+                        {
+                            Fail("Default of a Bool is true or false");
+                            return;
+                        }
+                        ps[index].defaultBool = b;
                         break;
+                    }
                     default:
                         Fail("a Trigger has no default");
                         return;
                 }
                 controller.parameters = ps;
+            }
+
+            static bool TryBool(JToken value, out bool b)
+            {
+                b = false;
+                if (value == null)
+                {
+                    return false;
+                }
+                if (value.Type == JTokenType.Boolean)
+                {
+                    b = (bool)value;
+                    return true;
+                }
+                string text = value.Type == JTokenType.Integer || value.Type == JTokenType.String ? ((string)value ?? string.Empty).Trim().ToLowerInvariant() : null;
+                if (text == "true" || text == "1")
+                {
+                    b = true;
+                    return true;
+                }
+                return text == "false" || text == "0";
             }
 
             // Renames the parameter and every condition, blend tree and state field that reads it.
@@ -671,7 +749,25 @@ namespace AssetOps
                 }
                 if (Json.Has(op, "NewName"))
                 {
-                    layer.name = controller.MakeUniqueLayerName(Json.Str(op, "NewName"));
+                    string newName = Json.Str(op, "NewName");
+                    if (string.IsNullOrEmpty(newName))
+                    {
+                        Fail("NewName is empty");
+                        return;
+                    }
+                    if (newName != layer.name)
+                    {
+                        // Unity would quietly add a suffix to a taken name, a spec that names one is refused instead.
+                        for (int i = 0; i < layers.Length; i++)
+                        {
+                            if (i != index && layers[i].name == newName)
+                            {
+                                Fail("another layer is already named '" + newName + "'");
+                                return;
+                            }
+                        }
+                        layer.name = newName;
+                    }
                 }
                 layers[index] = layer;
                 controller.layers = layers;

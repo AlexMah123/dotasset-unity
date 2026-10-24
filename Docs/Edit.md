@@ -169,7 +169,7 @@ A material inside a model (`.fbx`) is refused, it is rebuilt on every import. Ex
 }
 ```
 
-`AssetPath` names one asset, `AssetPaths` many; folders expand to the textures beneath them when there is a `Texture` block, to every asset with an importer otherwise. Each asset is reimported once after all its changes. Models, audio and other importers have no typed block (and no `Summary` in `ImporterExport`), use `Properties`.
+`AssetPath` names one asset, `AssetPaths` many; folders expand to the textures beneath them when there is a `Texture` block, to every asset with a source-file importer otherwise (textures, models, audio and the like, not `.mat`, `.prefab`, `.asset` or scripts). Each asset is reimported once after all its changes. Models, audio and other importers have no typed block (and no `Summary` in `ImporterExport`), use `Properties`.
 
 `Texture` keys (the same keys `ImporterExport` prints in `Summary`, so a summary edits and feeds back as is):
 

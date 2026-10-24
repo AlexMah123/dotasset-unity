@@ -405,8 +405,11 @@ namespace AssetOps
             name = target.name;
             hideFlags = target.hideFlags;
             wasDirty = EditorUtility.IsDirty(target);
-            if (target is AssetImporter)
+            var so = target as ScriptableObject;
+            if (target is AssetImporter || (so != null && MonoScript.FromScriptableObject(so) != null))
             {
+                // Importers cannot be cloned, and cloning a script's ScriptableObject would run its Awake,
+                // OnEnable and OnDestroy. Both are kept as their serialized JSON instead.
                 json = EditorJsonUtility.ToJson(target);
             }
             else

@@ -59,6 +59,18 @@ namespace AssetOps
                 {
                     return ExitCode.Refused;
                 }
+                string platformError = CheckPlatforms(Json.Get(tex, "Platforms"));
+                if (platformError != null)
+                {
+                    ctx.Log.Error("Targets[" + i + "].Texture.Platforms: " + platformError);
+                    return ExitCode.Refused;
+                }
+                var many = Json.Get(targets[i], "AssetPaths");
+                if (many != null && (!(many is JArray) || ((JArray)many).Any(t => t.Type != JTokenType.String)))
+                {
+                    ctx.Log.Error("Targets[" + i + "].AssetPaths is an array of path strings");
+                    return ExitCode.Refused;
+                }
             }
 
             int written = 0;
@@ -247,6 +259,37 @@ namespace AssetOps
                     return;
                 }
             }
+        }
+
+        // Platform names and block keys, checked for every target before the first one is reimported.
+        static string CheckPlatforms(JToken platforms)
+        {
+            if (platforms == null)
+            {
+                return null;
+            }
+            var obj = platforms as JObject;
+            if (obj == null)
+            {
+                return "expects {\"<platform>\": {\"Override\", \"MaxSize\", \"Format\", ...}}";
+            }
+            foreach (var kv in obj)
+            {
+                if (Array.IndexOf(PlatformNames, kv.Key) < 0)
+                {
+                    return "unknown platform '" + kv.Key + "'. Platforms: " + string.Join(", ", PlatformNames);
+                }
+                if (!(kv.Value is JObject))
+                {
+                    return kv.Key + " is an object of settings";
+                }
+                string strays = Json.UnknownKeys(kv.Value, "Override", "MaxSize", "Format", "Compression", "CompressionQuality", "CrunchedCompression");
+                if (strays != null)
+                {
+                    return kv.Key + ": " + strays;
+                }
+            }
+            return null;
         }
 
         static string ApplyPlatforms(TextureImporter t, JObject platforms)

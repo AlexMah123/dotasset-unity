@@ -362,39 +362,69 @@ namespace AssetOps
                 {
                     return true;
                 }
-                if (!RemapObjects(new Object[] { importer }, map, unmapped, false, !ctx.DryRun, out count, out error))
+                using (var snapshot = new AssetSnapshot(importer))
                 {
-                    return false;
-                }
-                if (count > 0 && !ctx.DryRun)
-                {
+                    if (!RemapObjects(new Object[] { importer }, map, unmapped, false, !ctx.DryRun, out count, out error))
+                    {
+                        return false;
+                    }
+                    if (count == 0 || ctx.DryRun)
+                    {
+                        return true;
+                    }
+                    // A failed check restores the importer from the snapshot, nothing half-applied stays in memory.
                     if (!ctx.ReadyToSave(out error))
                     {
                         return false;
                     }
-                    importer.SaveAndReimport();
+                    snapshot.Commit();
                 }
+                importer.SaveAndReimport();
                 return true;
             }
 
             // Nothing is applied unless every reference in the file maps, so a failure leaves the asset untouched.
             Object[] assetObjects = AssetDatabase.LoadAllAssetsAtPath(path).Where(o => o != null).ToArray();
-            if (!RemapObjects(assetObjects, map, unmapped, false, !ctx.DryRun, out count, out error))
+            // Each object is snapshotted before the commit, and restored unless the whole file passes its checks.
+            var snapshots = new List<AssetSnapshot>();
+            try
             {
-                return false;
-            }
-            if (count > 0 && !ctx.DryRun)
-            {
+                if (!ctx.DryRun)
+                {
+                    foreach (Object o in assetObjects)
+                    {
+                        snapshots.Add(new AssetSnapshot(o));
+                    }
+                }
+                if (!RemapObjects(assetObjects, map, unmapped, false, !ctx.DryRun, out count, out error))
+                {
+                    return false;
+                }
+                if (count == 0 || ctx.DryRun)
+                {
+                    return true;
+                }
                 if (!ctx.ReadyToSave(out error))
                 {
                     return false;
                 }
-                foreach (Object o in assetObjects)
+                foreach (AssetSnapshot snapshot in snapshots)
                 {
-                    EditorUtility.SetDirty(o);
+                    snapshot.Commit();
                 }
-                AssetDatabase.SaveAssetIfDirty(AssetDatabase.LoadMainAssetAtPath(path));
             }
+            finally
+            {
+                foreach (AssetSnapshot snapshot in snapshots)
+                {
+                    snapshot.Dispose();
+                }
+            }
+            foreach (Object o in assetObjects)
+            {
+                EditorUtility.SetDirty(o);
+            }
+            AssetDatabase.SaveAssetIfDirty(AssetDatabase.LoadMainAssetAtPath(path));
             return true;
         }
 

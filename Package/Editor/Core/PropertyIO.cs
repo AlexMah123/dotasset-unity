@@ -79,7 +79,7 @@ namespace AssetOps
             string prefixed = head.Length > 0 && !head.StartsWith("m_", StringComparison.Ordinal)
                 ? "m_" + char.ToUpperInvariant(head[0]) + head.Substring(1)
                 : head;
-            if (IsBookkeeping(head) || IsBookkeeping(prefixed))
+            if (IsBookkeeping(head))
             {
                 // Prefab links, the owning GameObject and the hierarchy lists are Unity's bookkeeping.
                 wc.Fail(null, "'" + key + "' is bookkeeping Unity maintains itself and is not written. Use the hierarchy ops to change structure");
@@ -95,6 +95,12 @@ namespace AssetOps
             string rest = dot < 0 ? string.Empty : path.Substring(dot);
             if (prefixed != head)
             {
+                if (IsBookkeeping(prefixed))
+                {
+                    // "gameObject" is not a field of this object, and its m_ form is Unity's bookkeeping.
+                    wc.Fail(null, "'" + key + "' would be " + prefixed + ", which is bookkeeping Unity maintains itself and is not written");
+                    return null;
+                }
                 string alt = prefixed + rest;
                 prop = so.FindProperty(alt);
                 if (prop != null)

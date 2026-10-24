@@ -149,6 +149,11 @@ namespace AssetOps
                 var subs = new JArray();
                 foreach (ChildAnimatorStateMachine child in sm.stateMachines)
                 {
+                    if (child.stateMachine == null)
+                    {
+                        // A broken controller can list a sub-machine that no longer exists.
+                        continue;
+                    }
                     JObject sub = StateMachine(child.stateMachine, prefix + child.stateMachine.name + "/");
                     sub["Path"] = prefix + child.stateMachine.name;
                     sub["Position"] = Json.Array(child.position.x, child.position.y);

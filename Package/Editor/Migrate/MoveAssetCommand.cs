@@ -38,18 +38,21 @@ namespace AssetOps
             }
             string[] scripts = null;
             int moved = 0;
+            // A dry run moves nothing, so it tracks the paths earlier moves would free and fill: a chain A to B,
+            // B to C checks the same way it runs.
+            var plan = new DryRunPaths();
             foreach (var move in moves)
             {
                 string from = move.Key;
                 string to = move.Value;
                 string label = from + " -> " + to;
-                bool isFolder = AssetDatabase.IsValidFolder(from);
-                if (!isFolder && AssetDatabase.GetMainAssetTypeAtPath(from) == null)
+                bool isFolder = plan.IsFolder(from);
+                if (!plan.Exists(from))
                 {
                     ctx.FailTarget(label, "nothing at " + from);
                     continue;
                 }
-                if (AssetDatabase.IsValidFolder(to) || AssetDatabase.GetMainAssetTypeAtPath(to) != null)
+                if (plan.Exists(to))
                 {
                     ctx.FailTarget(label, to + " already exists");
                     continue;
@@ -70,7 +73,7 @@ namespace AssetOps
                 {
                     ctx.Log.Info((ctx.DryRun ? "would create folder " : "creating folder ") + parent);
                 }
-                else
+                else if (!plan.Touches(from) && !plan.Touches(to))
                 {
                     string problem = AssetDatabase.ValidateMoveAsset(from, to);
                     if (!string.IsNullOrEmpty(problem))
@@ -86,6 +89,7 @@ namespace AssetOps
                 if (ctx.DryRun)
                 {
                     ctx.Log.Info("would move " + label);
+                    plan.Move(from, to, isFolder);
                     continue;
                 }
                 string error;
@@ -164,6 +168,61 @@ namespace AssetOps
                 rest = rest.Substring(0, rest.Length - ext.Length);
             }
             return rest;
+        }
+
+        // The project as a dry run's earlier moves would leave it. In a real run nothing is recorded and every
+        // question goes straight to the AssetDatabase.
+        sealed class DryRunPaths
+        {
+            readonly Dictionary<string, bool> added = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
+            readonly List<string> removed = new List<string>();
+
+            public void Move(string from, string to, bool isFolder)
+            {
+                removed.Add(from);
+                added.Remove(from);
+                added[to] = isFolder;
+            }
+
+            public bool Touches(string path)
+            {
+                return added.ContainsKey(path) || Removed(path);
+            }
+
+            bool Removed(string path)
+            {
+                foreach (string r in removed)
+                {
+                    if (string.Equals(path, r, StringComparison.OrdinalIgnoreCase) || path.StartsWith(r + "/", StringComparison.OrdinalIgnoreCase))
+                    {
+                        return !added.ContainsKey(path);
+                    }
+                }
+                return false;
+            }
+
+            public bool Exists(string path)
+            {
+                if (added.ContainsKey(path))
+                {
+                    return true;
+                }
+                if (Removed(path))
+                {
+                    return false;
+                }
+                return AssetDatabase.IsValidFolder(path) || AssetDatabase.GetMainAssetTypeAtPath(path) != null;
+            }
+
+            public bool IsFolder(string path)
+            {
+                bool folder;
+                if (added.TryGetValue(path, out folder))
+                {
+                    return folder;
+                }
+                return !Removed(path) && AssetDatabase.IsValidFolder(path);
+            }
         }
 
         // -from/-to, or a spec array of {"From", "To"}. Both ends must be under Assets/ or Packages/.

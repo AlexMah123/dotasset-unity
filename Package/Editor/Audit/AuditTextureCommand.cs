@@ -60,8 +60,9 @@ namespace AssetOps
                 ctx.Log.Error("-rules: unknown " + string.Join(", ", badRules) + ". Rules: " + string.Join(", ", knownRules));
                 return ExitCode.Refused;
             }
-            string[] normal = ctx.Args.Has("normalsuffix") ? ctx.Args.GetList("normalsuffix").ToArray() : DefaultNormal;
-            string[] data = ctx.Args.Has("datasuffix") ? ctx.Args.GetList("datasuffix").ToArray() : DefaultData;
+            // File names are compared lowercased, so the suffixes are too.
+            string[] normal = (ctx.Args.Has("normalsuffix") ? ctx.Args.GetList("normalsuffix").ToArray() : DefaultNormal).Select(x => x.ToLowerInvariant()).ToArray();
+            string[] data = (ctx.Args.Has("datasuffix") ? ctx.Args.GetList("datasuffix").ToArray() : DefaultData).Select(x => x.ToLowerInvariant()).ToArray();
             Func<string, bool> on = id => rules.Count == 0 || rules.Contains(id);
 
             Func<string, bool> isTexture = p => AssetImporter.GetAtPath(p) is TextureImporter;

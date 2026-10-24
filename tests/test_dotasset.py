@@ -47,12 +47,15 @@ def result(run, code=0, lines=None, outputs=None, error=None):
 class FakeEditor(threading.Thread):
     """Serves the queue like TaskQueue.cs: claim by move, write done, keep a heartbeat."""
 
-    def __init__(self, project, respond, state="ready", claim=True):
+    def __init__(self, project, respond, state="ready", claim=True, quit_refusal=None, on_quit=None):
         super().__init__(daemon=True)
         self.queue = os.path.join(project, ops.QUEUE_RELATIVE)
         self.respond = respond
         self.state = state
         self.claim = claim
+        self.quit_refusal = quit_refusal
+        self.on_quit = on_quit
+        self.quit_requests = []
         self.stop = threading.Event()
         self.tasks = []
         for d in (ops.PENDING, ops.PROCESSING, ops.DONE):
@@ -83,7 +86,28 @@ class FakeEditor(threading.Thread):
                     with open(os.path.join(self.queue, ops.DONE, name), "w") as f:
                         json.dump(self.respond(task), f)
                     os.remove(dst)
+                if self.serve_quit():
+                    return
             time.sleep(0.05)
+
+    def serve_quit(self):
+        """Answers quit.json like TaskQueue.HandleQuitRequest. True when the fake editor closed."""
+        path = os.path.join(self.queue, ops.QUIT_REQUEST)
+        if not os.path.exists(path):
+            return False
+        with open(path) as f:
+            request = json.load(f)
+        os.remove(path)
+        self.quit_requests.append(request)
+        refusal = None if request.get("Force") else self.quit_refusal
+        with open(os.path.join(self.queue, ops.QUIT_RESULT), "w") as f:
+            json.dump({"Quit": refusal is None, "Error": refusal}, f)
+        if refusal is not None:
+            return False
+        os.remove(os.path.join(self.queue, ops.ALIVE))
+        if self.on_quit:
+            self.on_quit()
+        return True
 
 
 FAKE_UNITY = r'''#!/usr/bin/env python3
@@ -101,6 +125,17 @@ setup = os.path.join(val("-projectPath"), "Library", "LastSceneManagerSetup.txt"
 if os.path.isdir(os.path.dirname(setup)):
     with open(setup, "w") as f:
         f.write("sceneSetups: []\n")
+if "-batchmode" not in argv:
+    # Opened as an editor by --launch: come up with a heartbeat the way TaskQueue.cs does, then linger.
+    import time
+    if mode == "exit_early":
+        sys.exit(4)
+    queue = os.path.join(val("-projectPath"), "Library", "DotAsset", "Queue")
+    os.makedirs(queue, exist_ok=True)
+    with open(os.path.join(queue, ".alive"), "w") as f:
+        json.dump({"Pid": int(os.environ.get("FAKE_EDITOR_PID", os.getpid())), "State": "ready", "ProjectPath": val("-projectPath")}, f)
+    time.sleep(float(os.environ.get("FAKE_UNITY_LINGER", "2")))
+    sys.exit(0)
 if mode == "compile_error":
     with open(log, "w") as f:
         f.write("Assets/Foo.cs(3,1): error CS1002: ; expected\nScripts have compiler errors.\n")
@@ -138,7 +173,7 @@ class Base(unittest.TestCase):
             with open(self.fake_unity, "w") as f:
                 f.write(FAKE_UNITY)
             os.chmod(self.fake_unity, os.stat(self.fake_unity).st_mode | stat.S_IEXEC)
-        for k in ("FAKE_UNITY_MODE", "FAKE_UNITY_EXIT", "FAKE_UNITY_RECORD", "DOTASSET_UNITY", "DOTASSET_PROJECT"):
+        for k in ("FAKE_UNITY_MODE", "FAKE_UNITY_EXIT", "FAKE_UNITY_RECORD", "FAKE_EDITOR_PID", "FAKE_UNITY_LINGER", "DOTASSET_UNITY", "DOTASSET_PROJECT"):
             os.environ.pop(k, None)
 
     def tearDown(self):
@@ -184,8 +219,72 @@ class GroupRule(unittest.TestCase):
         src = open(os.path.join(PACKAGE, "Editor", "Core", "TaskQueue.cs")).read()
         self.assertIn('QueueRelative = "Library/DotAsset/Queue"', src)
         self.assertEqual(ops.QUEUE_RELATIVE.replace(os.sep, "/"), "Library/DotAsset/Queue")
-        for const in ("pending", "processing", "done", ".alive"):
+        for const in ("pending", "processing", "done", ".alive", "quit.json", "quit.result.json"):
             self.assertIn('"%s"' % const, src)
+
+
+class EditorControl(Base):
+    def test_launch_starts_the_editor_and_waits_for_ready(self):
+        record = os.path.join(self.tmp, "argv.json")
+        os.environ["FAKE_UNITY_RECORD"] = record
+        os.environ["FAKE_EDITOR_PID"] = str(os.getpid())
+        code, out = self.call("--launch", "--unity", self.fake_unity, "--startup-wait", "30")
+        self.assertEqual(code, 0, out)
+        self.assertIn("the editor is ready", out)
+        with open(record) as f:
+            argv = json.load(f)
+        self.assertNotIn("-batchmode", argv)
+        self.assertIn("-projectPath", argv)
+
+    def test_launch_reports_an_editor_that_exits_early(self):
+        os.environ["FAKE_UNITY_MODE"] = "exit_early"
+        code, out = self.call("--launch", "--unity", self.fake_unity, "--startup-wait", "30")
+        self.assertEqual(code, 1)
+        self.assertIn("exited", out)
+
+    def test_launch_with_the_editor_already_open_starts_nothing(self):
+        editor = FakeEditor(self.project, lambda t: result(t["RunName"]))
+        editor.start()
+        try:
+            code, out = self.call("--launch", "--unity", os.path.join(self.tmp, "missing"))
+        finally:
+            editor.stop.set()
+        self.assertEqual(code, 0, out)
+        self.assertIn("already has the project open", out)
+
+    def test_quit_closes_the_editor(self):
+        editor = FakeEditor(self.project, lambda t: result(t["RunName"]), on_quit=lambda: setattr(self, "editor_alive", False))
+        editor.start()
+        try:
+            code, out = self.call("--quit", "--timeout", "10")
+        finally:
+            editor.stop.set()
+        self.assertEqual(code, 0, out)
+        self.assertIn("the editor closed", out)
+        self.assertEqual(editor.quit_requests, [{"Force": False}])
+
+    def test_quit_refused_with_unsaved_changes(self):
+        editor = FakeEditor(self.project, lambda t: result(t["RunName"]), quit_refusal="unsaved changes in Assets/Main.unity",
+                            on_quit=lambda: setattr(self, "editor_alive", False))
+        editor.start()
+        try:
+            code, out = self.call("--quit", "--timeout", "10")
+            self.assertEqual(code, 2, out)
+            self.assertIn("unsaved changes in Assets/Main.unity", out)
+            code, out = self.call("--quit", "--force", "--timeout", "10")
+        finally:
+            editor.stop.set()
+        self.assertEqual(code, 0, out)
+        self.assertEqual(editor.quit_requests[-1], {"Force": True})
+
+    def test_quit_without_an_editor(self):
+        code, out = self.call("--quit")
+        self.assertEqual(code, 0)
+        self.assertIn("no editor has this project open", out)
+
+    def test_force_needs_quit(self):
+        code, out = self.call("PrefabExport", "Assets/A.prefab", "--force")
+        self.assertEqual(code, 2)
 
 
 class QueueRoute(Base):

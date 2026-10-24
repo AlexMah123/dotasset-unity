@@ -21,7 +21,7 @@ python tests/smoke/run_smoke.py --project "<path to the Unity project>" --clean
 Run it twice:
 
 1. With the Unity editor closed (headless route). Add `--unity "<path to Unity.exe>"` if the editor is not found.
-2. With the project open in the editor (queue route). The open scene must be saved, not Untitled. The editor should be idle.
+2. With the project open in the editor (queue route). The open scene must be saved, not Untitled. No one needs to be at the machine: `python Package/Scripts~/dotasset.py --project <project> --launch` opens the editor and waits until it is ready, and `--quit` closes it after the run.
 
 If the editor shows an Untitled scene, open a saved one first, or `CreateAsset` cannot create its scene and four steps fail. Headless runs used to cause this: batch Unity empties `Library/LastSceneManagerSetup.txt` on quit. The wrapper now puts the file back after every headless run.
 
@@ -31,7 +31,7 @@ Each step prints `ok` or `FAIL` with its exit code. For a failure, read the prin
 
 ## Checks to run after any change
 
-- `python -m unittest discover -s tests` checks the wrapper and the naming rules (37 tests).
+- `python -m unittest discover -s tests` checks the wrapper and the naming rules (44 tests).
 - `python tools/gen_meta.py --check` checks that every package file has a `.meta`.
 - Unity itself is the only real compiler. Watch for CS0136 (a local redeclared inside a nested block), which slipped through once.
 

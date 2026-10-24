@@ -9,8 +9,8 @@ Defined in `Package/Editor/Core/DotAssetVersion.cs` and `Package/package.json`, 
 First release. The design follows uasset-workbench 2.6, a tool for Unreal Engine `.uasset` files.
 
 - Core: `DotAssetCommand` registry (class name is the run name, name decides the group), `RunDispatcher` with one result shape for both routes, refusal of unknown arguments and spec keys, Unity's own errors during a target fail that target
-- Routes: in-editor task queue under `Library/DotAsset/Queue` with a heartbeat that carries pid and state, headless `-batchmode -executeMethod DotAsset.Cli.Run` with base64 arguments
-- Wrapper `Scripts~/dotasset.py`: routing, startup wait on a locked project, fallback to headless when the editor exits before taking a task, Unity Hub discovery from `ProjectVersion.txt`, hints from the Unity log when a headless run cannot start, a headless run leaves the scenes the editor reopens as it found them
+- Routes: in-editor task queue under `Library/DotAsset/Queue` with a heartbeat that carries pid and state, started from the first editor update so an editor that never gets focus still takes tasks, headless `-batchmode -executeMethod DotAsset.Cli.Run` with base64 arguments
+- Wrapper `Scripts~/dotasset.py`: routing, startup wait on a locked project, fallback to headless when the editor exits before taking a task, Unity Hub discovery from `ProjectVersion.txt`, hints from the Unity log when a headless run cannot start, a headless run leaves the scenes the editor reopens as it found them, `--launch` and `--quit` open and close the editor without anyone at the machine
 - Export: `PrefabExport`, `SceneExport`, `AssetExport`, `MaterialExport`, `AnimatorControllerExport`, `ImporterExport`, `AssetReferenceExport`, `TypeCatalogExport`, `CommandCatalogExport`. Delta from defaults, prefab instances as overrides, capped arrays and strings
 - Import: `CreateAsset` for folders, ScriptableObjects, materials, prefabs, variants, Animator Controllers, scenes
 - Edit: `EditPrefab`, `EditScene` (undo group when the scene is open), `EditAsset`, `EditMaterial`, `EditImporter`, `EditAnimatorController`

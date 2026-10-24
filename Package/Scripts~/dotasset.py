@@ -13,6 +13,9 @@ Usage:
   python dotasset.py <RunName> [AssetList] [--args "<extra args>"] [--project DIR] [--unity PATH] [--timeout SEC]
   python dotasset.py --list          every run the project knows, with its summary
   python dotasset.py --status        what the editor's queue is doing
+  python dotasset.py --launch        open the project in the editor and wait until it takes tasks
+  python dotasset.py --quit [--force]  close the editor that has the project open, refused while a scene has
+                                       unsaved changes unless --force
 
   AssetList   comma-separated asset paths or folders, e.g. "Assets/Prefabs/A.prefab,Assets/Prefabs/B.prefab".
               Spec-driven runs (Edit*, Create*, most Migrate runs) name targets in the spec, leave it out.
@@ -43,6 +46,8 @@ PENDING = "pending"
 PROCESSING = "processing"
 DONE = "done"
 ALIVE = ".alive"
+QUIT_REQUEST = "quit.json"
+QUIT_RESULT = "quit.result.json"
 HEARTBEAT_FRESHNESS_SEC = 15.0
 # Beyond this an idle heartbeat counts as dead for routing. Generous, an unfocused editor can tick slowly.
 STALE_HEARTBEAT_SEC = 120.0
@@ -618,6 +623,128 @@ def status(project):
     return EXIT_SUCCESS
 
 
+def start_detached(cmd):
+    """Starts the editor so it outlives this script and the terminal that ran it."""
+    kwargs = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL, "close_fds": True}
+    if sys.platform == "win32":
+        kwargs["creationflags"] = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+    else:
+        kwargs["start_new_session"] = True
+    return subprocess.Popen(cmd, **kwargs)
+
+
+def launch(args, project):
+    """Opens the project in the editor, or finds it already open, and waits until its queue is ready."""
+    queue_root = os.path.join(project, QUEUE_RELATIVE)
+    proc = None
+    if live_editor(queue_root) is None and not project_locked(project):
+        unity = find_unity(args.unity, project)
+        if not unity:
+            log("error: no Unity %s found. Pass --unity <path to the editor executable> or set DOTASSET_UNITY" % (project_unity_version(project) or "?"))
+            return EXIT_FAILED
+        try:
+            proc = start_detached([unity, "-projectPath", project])
+        except OSError as e:
+            log("error: cannot start Unity: %s" % e)
+            return EXIT_FAILED
+        log("launched %s (pid %d), waiting up to %ds for the editor to take tasks" % (unity, proc.pid, args.startup_wait))
+    else:
+        log("an editor already has the project open, waiting for it to take tasks")
+    deadline = time.time() + args.startup_wait
+    last_state = None
+    while time.time() < deadline:
+        alive = live_editor(queue_root)
+        state = alive.get("State") if alive else None
+        if state and state != last_state:
+            log("editor state: " + state)
+            last_state = state
+        if state == "ready":
+            log("the editor is ready (pid %s)" % alive.get("Pid"))
+            return EXIT_SUCCESS
+        if state == "paused":
+            log("error: the editor is open but its queue is paused (Window > DotAsset > Accept tasks)")
+            return EXIT_REFUSED
+        if proc is not None and alive is None and proc.poll() is not None:
+            log("error: Unity exited with %s before its task queue came up. Check %s" % (proc.returncode, editor_log_hint()))
+            return EXIT_FAILED
+        time.sleep(1.0)
+    log("error: the editor did not take tasks within %ds (last state: %s). Compile errors, a Safe Mode prompt or a license "
+        "dialog can hold it, check %s" % (args.startup_wait, last_state or "no heartbeat", editor_log_hint()))
+    return EXIT_FAILED
+
+
+def editor_log_hint():
+    if sys.platform == "win32":
+        return os.path.join(os.environ.get("LOCALAPPDATA", ""), "Unity", "Editor", "Editor.log") + " and <Project>/Logs/Editor.log"
+    if sys.platform == "darwin":
+        return os.path.expanduser("~/Library/Logs/Unity/Editor.log")
+    return os.path.expanduser("~/.config/unity3d/Editor.log")
+
+
+def quit_editor(args, project):
+    """Asks the editor that has the project open to close, and waits until the project is free."""
+    queue_root = os.path.join(project, QUEUE_RELATIVE)
+    alive = live_editor(queue_root)
+    if alive is None:
+        if project_locked(project):
+            log("error: Unity has the project open but its task queue is not up, close it by hand")
+            return EXIT_REFUSED
+        log("no editor has this project open")
+        return EXIT_SUCCESS
+    if alive.get("State") == "paused":
+        log("error: the editor's queue is paused (Window > DotAsset > Accept tasks), it cannot take the quit request")
+        return EXIT_REFUSED
+    pid = int(alive.get("Pid", 0))
+    request = os.path.join(queue_root, QUIT_REQUEST)
+    answer = os.path.join(queue_root, QUIT_RESULT)
+    try:
+        os.remove(answer)
+    except FileNotFoundError:
+        pass
+    with open(request + ".tmp", "w", encoding="utf-8") as f:
+        json.dump({"Force": bool(args.force)}, f)
+    os.replace(request + ".tmp", request)
+    log("asked the editor (pid %d) to close%s" % (pid, ", discarding unsaved changes" if args.force else ""))
+
+    deadline = time.time() + args.timeout
+    result = None
+    while time.time() < deadline and result is None:
+        if os.path.exists(answer):
+            try:
+                with open(answer, encoding="utf-8") as f:
+                    result = json.load(f)
+            except (OSError, ValueError):
+                time.sleep(0.1)
+                continue
+        elif not is_unity_process(pid):
+            result = {"Quit": True}
+        else:
+            time.sleep(0.25)
+    if result is None:
+        try:
+            os.remove(request)
+        except FileNotFoundError:
+            pass
+        state = (live_editor(queue_root) or {}).get("State")
+        log("error: the editor did not answer within %ds (state: %s). Request withdrawn" % (args.timeout, state))
+        return EXIT_FAILED
+    try:
+        os.remove(answer)
+    except FileNotFoundError:
+        pass
+    if not result.get("Quit"):
+        log("error: the editor refused to close: " + (result.get("Error") or "no reason given"))
+        return EXIT_REFUSED
+
+    while time.time() < deadline:
+        if not is_unity_process(pid) and not project_locked(project):
+            log("the editor closed, the project is free")
+            return EXIT_SUCCESS
+        time.sleep(0.5)
+    log("error: the editor agreed to close but is still running after %ds" % args.timeout)
+    return EXIT_FAILED
+
+
 def main(argv=None):
     # Asset names can hold characters a Windows console code page cannot print, never fail on those.
     for stream in (sys.stdout, sys.stderr):
@@ -640,6 +767,9 @@ def main(argv=None):
     p.add_argument("--json", action="store_true", help="also print the full result JSON")
     p.add_argument("--list", action="store_true", help="list every run the project knows")
     p.add_argument("--status", action="store_true", help="show what the editor's queue is doing")
+    p.add_argument("--launch", action="store_true", help="open the project in the editor and wait until it takes tasks")
+    p.add_argument("--quit", action="store_true", help="close the editor that has the project open")
+    p.add_argument("--force", action="store_true", help="with --quit: close even when a scene has unsaved changes")
     argv = list(sys.argv[1:] if argv is None else argv)
     # "--args -apply" would make argparse read -apply as an option of its own. Glue the value on.
     for i in range(len(argv) - 1):
@@ -655,6 +785,13 @@ def main(argv=None):
 
     if args.status:
         return status(project)
+    if args.launch:
+        return launch(args, project)
+    if args.quit:
+        return quit_editor(args, project)
+    if args.force:
+        log("error: --force only goes with --quit")
+        return EXIT_REFUSED
     run = args.run
     if args.list:
         run = "CommandCatalogExport"

@@ -15,6 +15,8 @@ namespace DotAsset
     //   pending/<id>.json      the wrapper writes a task {Id, RunName, Assets[], ExtraArgs}
     //   processing/<id>.json   the editor claims a task by moving it here
     //   done/<id>.json         the editor writes the RunResult here, the wrapper reads and deletes it
+    //   quit.json              the wrapper asks the editor to close {Force}, taken once no task is pending
+    //   quit.result.json       the editor's answer {Quit, Error}, written before it exits
     // Scripts~/dotasset.py holds the same constants. Change both together.
     public static class TaskQueueProtocol
     {
@@ -23,6 +25,8 @@ namespace DotAsset
         public const string Processing = "processing";
         public const string Done = "done";
         public const string AliveFile = ".alive";
+        public const string QuitRequest = "quit.json";
+        public const string QuitResult = "quit.result.json";
         public const double HeartbeatSeconds = 2.0;
         public const double FreshnessSeconds = 15.0;
     }
@@ -33,6 +37,7 @@ namespace DotAsset
         static double nextHeartbeat;
         static double nextScan;
         static bool ready;
+        static bool startAttempted;
         static bool processing;
         static string lastState;
 
@@ -88,8 +93,6 @@ namespace DotAsset
             EditorApplication.update += Tick;
             EditorApplication.quitting += OnQuitting;
             AssemblyReloadEvents.beforeAssemblyReload += OnBeforeReload;
-            // First tick after the editor finished loading this domain.
-            EditorApplication.delayCall += Start;
         }
 
         static void Start()
@@ -142,6 +145,13 @@ namespace DotAsset
 
         static void Tick()
         {
+            // Started from the first update after the domain loaded, not from EditorApplication.delayCall: an editor
+            // that never gets focus (launched by --launch on a remote machine) was seen never to run its delay calls.
+            if (!startAttempted)
+            {
+                startAttempted = true;
+                Start();
+            }
             double now = EditorApplication.timeSinceStartup;
             string state = CurrentState();
             if (now >= nextHeartbeat || state != lastState)
@@ -170,7 +180,69 @@ namespace DotAsset
                     processing = false;
                 }
                 WriteHeartbeat();
+                return;
             }
+            HandleQuitRequest();
+        }
+
+        // dotasset.py --quit. Refused while a scene or Prefab Mode has unsaved changes, unless forced, because
+        // EditorApplication.Exit closes without asking.
+        static void HandleQuitRequest()
+        {
+            string requestPath = DotAssetPaths.Combine(QueueRoot, TaskQueueProtocol.QuitRequest);
+            if (!File.Exists(requestPath))
+            {
+                return;
+            }
+            JObject request;
+            string error;
+            bool force = Json.TryReadFile(requestPath, out request, out error) && Json.Bool(request, "Force", false);
+            TryDelete(requestPath);
+            string refusal = force ? null : UnsavedWork();
+            try
+            {
+                Json.WriteFile(DotAssetPaths.Combine(QueueRoot, TaskQueueProtocol.QuitResult), new JObject
+                {
+                    ["Quit"] = refusal == null,
+                    ["Error"] = refusal,
+                });
+            }
+            catch (Exception e)
+            {
+                UnityEngine.Debug.LogWarning("[DotAsset] could not answer the quit request: " + e.Message);
+                return;
+            }
+            if (refusal != null)
+            {
+                UnityEngine.Debug.LogWarning("[DotAsset] quit request refused: " + refusal);
+                return;
+            }
+            UnityEngine.Debug.Log("[DotAsset] closing the editor on request" + (force ? ", unsaved changes discarded" : string.Empty));
+            TryDelete(AlivePath);
+            EditorApplication.Exit(0);
+        }
+
+        static string UnsavedWork()
+        {
+            var dirty = new List<string>();
+            for (int i = 0; i < UnityEngine.SceneManagement.SceneManager.sceneCount; i++)
+            {
+                UnityEngine.SceneManagement.Scene scene = UnityEngine.SceneManagement.SceneManager.GetSceneAt(i);
+                if (scene.isDirty)
+                {
+                    dirty.Add(string.IsNullOrEmpty(scene.path) ? "an Untitled scene" : scene.path);
+                }
+            }
+            UnityEditor.SceneManagement.PrefabStage stage = UnityEditor.SceneManagement.PrefabStageUtility.GetCurrentPrefabStage();
+            if (stage != null && stage.scene.isDirty)
+            {
+                dirty.Add(stage.assetPath + " in Prefab Mode");
+            }
+            if (dirty.Count == 0)
+            {
+                return null;
+            }
+            return "unsaved changes in " + string.Join(", ", dirty) + ". Save them first, or quit with --force to discard them";
         }
 
         static string NextPending()

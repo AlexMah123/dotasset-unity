@@ -55,6 +55,8 @@ The wrapper is `dotasset.py` (in the package's `Scripts~/`, or copied to the pro
 | `--quiet` | print only warnings, errors and the summary |
 | `--json` | also print the full result JSON |
 | `--list`, `--status` | every run with its summary; what the editor's queue is doing |
+| `--launch` | open the project in the editor (no window interaction needed) and wait until its queue is `ready`. Exit 0 when ready, also when an editor was already open |
+| `--quit [--force]` | close the editor that has the project open, once it is idle. Refused (exit 2) while a scene or Prefab Mode has unsaved changes, `--force` discards them |
 
 Ctrl+C withdraws a task the editor has not taken, and stops a headless Unity.
 

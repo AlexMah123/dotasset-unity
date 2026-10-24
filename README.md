@@ -56,10 +56,10 @@ Every write goes through Unity's own API (`SerializedObject`, `PrefabUtility`, `
 Window > Package Manager > + > Add package from git URL:
 
 ```
-https://github.com/<you>/DotAsset.git?path=/Package
+https://github.com/AlexMah123/dotasset-unity.git?path=/Package
 ```
 
-Or copy `Package/` into your project as `Packages/com.alexmah.dotasset/`. It pulls in `com.unity.nuget.newtonsoft-json`.
+Pin a version by adding `#<commit or tag>` to the URL. Or copy `Package/` into your project as `Packages/com.alexmah.dotasset/`. It pulls in `com.unity.nuget.newtonsoft-json`.
 
 **2. Get the wrapper**
 
@@ -96,6 +96,79 @@ python dotasset.py --quit        # close it, the project is free for headless ru
 
 Output: `Library/DotAsset/Export/<AssetPath>_<timestamp>.json`. Logs: `Library/DotAsset/Logs/`, and `Window > DotAsset` in the editor.
 
+**Requirements:** Unity 2022.3 or 6000.x, Python 3.8 or newer (standard library only) for the wrapper, Windows, macOS or Linux. Everything DotAsset writes stays under `Library/DotAsset/`, which version control ignores.
+
+## A round trip, end to end
+
+Export a prefab. Component properties come out as the delta from a fresh component, references as paths:
+
+```bash
+python dotasset.py PrefabExport Assets/Prefabs/Player.prefab
+```
+
+```json
+{
+  "ExportType": "PrefabExport",
+  "AssetPath": "Assets/Prefabs/Player.prefab",
+  "Hierarchy": [
+    {
+      "Path": "Player",
+      "Components": [
+        { "Type": "Rigidbody", "Properties": { "m_Mass": 2, "m_Interpolate": "Interpolate" } },
+        { "Type": "PlayerController", "Script": "Assets/Scripts/PlayerController.cs",
+          "Properties": { "speed": 6.5, "weapon": { "Object": "Player/Hand/Gun" } } }
+      ]
+    }
+  ]
+}
+```
+
+Write an edit spec in the same terms. A `Properties` block from the export can be pasted into a `Set` op as is:
+
+```json
+{
+  "Targets": [
+    {
+      "AssetPath": "Assets/Prefabs/Player.prefab",
+      "Ops": [
+        { "Op": "AddGameObject", "Parent": "Player", "Name": "Hand.R", "Components": ["BoxCollider"] },
+        { "Op": "Set", "Path": "Player", "Component": "PlayerController", "Properties": { "speed": 7 } }
+      ]
+    }
+  ]
+}
+```
+
+Run it without `-apply` first. The dry run does everything a real run does, checks it just as hard, and then drops the changes:
+
+```
+$ python dotasset.py EditPrefab --args '-spec="C:/temp/player.edit.json"'
+[dotasset] route: batchmode (C:/Program Files/Unity/Hub/Editor/6000.6.7f1/Editor/Unity.exe)
+DotAsset 0.1.0, Unity 6000.6.7f1, batchmode
+dry run, nothing is written. Add -apply to write.
+Assets/Prefabs/Player.prefab: 2 op(s) would apply
+[dotasset] EditPrefab dry run passed, 0 warning(s), 0 error(s), 0.4s
+```
+
+Then add `-apply`. If any op fails, nothing of that prefab is saved and the run exits 1 with the reason. Had the `Set` op named `Player/Hnad` by mistake, it would read:
+
+```
+error: EditPrefab failed for Assets/Prefabs/Player.prefab. Reason: Ops[1] Set: no GameObject 'Hnad' under 'Player'. There: Hand, Hand.R
+```
+
+Audits close the loop the other way: `AuditTexture` and the other audits write a `.fix.json` next to their report, a ready spec for the Edit or Migrate run that fixes what they found.
+
+## Exit codes
+
+| Code | Meaning |
+| :-: | :-- |
+| 0 | Success, or a dry run that would succeed |
+| 1 | Failed: a target could not be written (nothing of it was saved), or Unity failed before the run started |
+| 2 | Refused: unknown run or argument, bad spec, misspelt key, or an editor that cannot take the task |
+| 3 | Audits only: the run succeeded and the report lists issues |
+
+`--json` prints the full result as well: every log line, the outputs, the failed targets.
+
 ## For AI agents
 
 | Doc | Content |
@@ -127,6 +200,45 @@ python dotasset.py ──┬──▶│ Library/DotAsset/Queue/pending │─�
 - Both routes return the same `RunResult` (exit code, summary, every log line, outputs), and the wrapper prints it the same way.
 
 Commands are plain classes: derive from `DotAssetCommand`, name the class `<RunName>Command`, and it is registered — including from your own editor assemblies. The name picks the group: `*Export`, `*Import` / `Create*`, `Edit*`, `Audit*`, everything else Migrate.
+
+## Compared with other tools
+
+| Tool | Editor closed | Writes | Best for |
+| :-- | :-: | :-- | :-- |
+| **DotAsset** | ✓ (headless) | Fixed runs: dry run by default, all or nothing per asset, unknown keys refused | Repeatable asset changes, migrations and audits, in CI or by an agent |
+| MCP servers for Unity (e.g. [CoplayDev/unity-mcp](https://github.com/CoplayDev/unity-mcp)) | ✗ | Free-form editor tools | Interactive work in an open editor |
+| [Unity CLI](https://unity.com/blog/meet-the-unity-cli) with `com.unity.pipeline` | Editor features need a running Unity 6 editor | `eval` runs any C#, custom `[CliCommand]`s | Editor installs, builds, tests, ad-hoc C# |
+| YAML parsers (e.g. [unityparser](https://pypi.org/project/unityparser)) | ✓ (no Unity at all) | Raw YAML, no validation, no reimport | Reading or patching files without Unity |
+
+They combine well: an agent can drive the editor through an MCP server or the Unity CLI, and call DotAsset for the changes that must be safe and repeatable.
+
+## Troubleshooting
+
+| Symptom | Cause and fix |
+| :-- | :-- |
+| `python` opens the Microsoft Store | Windows ships an alias, not Python. Install Python 3.8+ or call a real interpreter by path |
+| A task waits and never runs | The editor's queue only takes tasks when it is `ready` (not compiling, importing, in play mode or paused). `--status` shows the state |
+| `CreateAsset` cannot create a scene, or `EditScene` cannot open one | The editor shows an unsaved Untitled scene. Open or save a scene first |
+| `--launch` times out | Compile errors, a Safe Mode prompt or a license dialog hold the editor. The error names the Editor.log to check |
+| `no Unity <version> found` | Pass `--unity <path to the editor>` or set `DOTASSET_UNITY` |
+| `--quit` is refused | A scene or Prefab Mode has unsaved changes. Save them, or `--quit --force` to discard them |
+
+## Development
+
+```
+Package/                  the UPM package (com.alexmah.dotasset)
+  Editor/Core/            dispatcher, task queue, headless entry, value codec, sessions
+  Editor/<Group>/         one <RunName>Command.cs per run
+  Scripts~/dotasset.py    the wrapper
+Docs/                     agent-facing docs, one per group plus AI-Guide.md
+tests/                    wrapper tests and naming-rule checks, tests/smoke/ the end-to-end test
+tools/gen_meta.py         writes missing .meta files
+```
+
+- `python -m unittest discover -s tests` runs the wrapper tests against a fake editor and a fake Unity
+- `python tests/smoke/run_smoke.py --project <project> --clean` runs every group end to end in a real project. Run it headless, then again after `--launch`
+- `python tools/gen_meta.py` after adding a file (a git-installed package ignores files without a `.meta`)
+- A new run is one class: derive from `DotAssetCommand`, name it `<RunName>Command`, put it in the folder its name's group resolves to. The code rules are in [.claude/CLAUDE.md](.claude/CLAUDE.md)
 
 ## Status
 

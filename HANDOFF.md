@@ -8,7 +8,20 @@ Status of DotAsset 0.1.0 for whoever picks it up next (a person or Claude Code).
 - Seven review passes have been made, written and checked without a compiler against Unity's C# reference source (6000.3 and 2022.3). Their history is in `git log`.
 - The end-to-end smoke test passes on 6000.6.7f1 on Windows, both headless and with the editor open (all 31 steps each), last run on commit 0e5681a on 2026-10-24. The editor-open run used `--launch` and `--quit` over remote control.
 
-## Next step: compile and smoke test on Unity 2022.3 and 6000.0-6000.3
+## Next step: compile and smoke test on Unity 6.3 LTS, 6.0 LTS and 2022.3
+
+Agreed on 2026-10-24. 6.6 (6000.6.7f1) is done. In order:
+
+1. **6.3 LTS** (6000.3.27f1). Install with Unity Hub's command line if missing:
+   `"C:/Program Files/Unity Hub/Unity Hub.exe" -- --headless install --version 6000.3.27f1`
+2. **2022.3** (2022.3.18f1, already installed). The oldest supported version, the most likely to break.
+3. **6.0 LTS** (6000.0.85f1). Install the same way.
+
+For each version: create an empty project headless (`Unity.exe -batchmode -quit -createProject <dir>`), add
+`"com.alexmah.dotasset": "file:<absolute path to this repo>/Package"` to its `Packages/manifest.json`, then run the
+smoke test headless (`--unity <that version's Unity.exe>`), and with the editor open through `--launch` / `--quit`.
+Compile errors show in the `Unity log:` path the run prints. Fix, commit each fix on its own, rerun. Record each
+version's result in "Where it stands".
 
 ## Running the smoke test
 

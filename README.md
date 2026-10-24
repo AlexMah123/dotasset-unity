@@ -248,8 +248,8 @@ tools/gen_meta.py         writes missing .meta files
 | Unity | Version tested | Result | Date |
 | :-- | :-- | :-- | :-- |
 | 6.6 | 6000.6.7f1 | passes | 2026-10-24 |
-| 6.3 LTS | | not tested yet | |
-| 6.0 LTS | | not tested yet | |
+| 6.3 LTS | 6000.3.27f1 | passes | 2026-10-25 |
+| 6.0 LTS | 6000.0.85f1 | passes | 2026-10-25 |
 | 2022.3 LTS | 2022.3.18f1 | passes | 2026-10-24 |
 
 Patches within a tested version are expected to work, Unity keeps the API stable within a version. Rerun the smoke test when moving to a new Unity version.

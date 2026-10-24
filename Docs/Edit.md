@@ -149,7 +149,7 @@ A material inside a model (`.fbx`) is refused, it is rebuilt on every import. Ex
 | `Properties` | shader property names. Colors `[r,g,b,a]` or `"#hex"`, vectors `[x,y,z,w]`, floats and ranges numbers, ints integers, textures a reference or `{Texture, Scale, Offset}` (each optional) |
 | `RevertProperties` | variant only: property names whose override is dropped |
 | `EnableKeywords`, `DisableKeywords` | keyword names. Disabling also removes undeclared keywords from the saved lists |
-| `RenderQueue` | -1 for the shader's queue, up to 5000 |
+| `RenderQueue` | -1 for the shader's queue, up to 5000. Shaders whose editor sets the queue from the surface type (Standard, URP Lit) put it back the next time Unity validates the material, which any later property change does, here or in the Inspector |
 | `EnableInstancing`, `DoubleSidedGI` | bool |
 | `GlobalIlluminationFlags` | `None`, `RealtimeEmissive`, `BakedEmissive`, `EmissiveIsBlack`, `AnyEmissive` |
 | `RemoveStaleProperties` | `true` drops saved values the shader does not declare |

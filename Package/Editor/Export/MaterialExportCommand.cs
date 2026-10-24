@@ -84,6 +84,10 @@ namespace DotAsset
             var info = new JObject();
             if (shader != null)
             {
+                // Values are read from a copy. The first property read lets Unity validate the material through its
+                // shader GUI, which on Standard and URP Lit resets a custom render queue and marks the asset dirty,
+                // a change Unity then saves on quit. An export must leave the asset as it found it.
+                var reader = new Material(mat) { hideFlags = HideFlags.HideAndDontSave };
                 int count = shader.GetPropertyCount();
                 for (int p = 0; p < count; p++)
                 {
@@ -95,7 +99,7 @@ namespace DotAsset
                     {
                         continue;
                     }
-                    JToken value = ReadProperty(mat, shader, p, name, type);
+                    JToken value = ReadProperty(reader, shader, p, name, type);
                     JToken defaultValue = DefaultOf(shader, p, type);
                     bool isDefault = defaultValue != null && JToken.DeepEquals(value, defaultValue);
                     bool overridden = mat.parent != null && mat.IsPropertyOverriden(name);
@@ -128,6 +132,7 @@ namespace DotAsset
                     }
                     info[name] = meta;
                 }
+                Object.DestroyImmediate(reader);
             }
             json["Properties"] = properties;
             if (mat.parent != null)

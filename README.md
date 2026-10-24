@@ -206,11 +206,12 @@ Commands are plain classes: derive from `DotAssetCommand`, name the class `<RunN
 | Tool | Editor closed | Writes | Best for |
 | :-- | :-: | :-- | :-- |
 | **DotAsset** | ✓ (headless) | Fixed runs: dry run by default, all or nothing per asset, unknown keys refused | Repeatable asset changes, migrations and audits, in CI or by an agent |
+| [UniCli](https://github.com/yucchiy/UniCli) | ✗ | 80+ editor commands (GameObjects, scenes, prefabs, materials, builds, tests, packages, `Eval`), refuses dirty scenes by default | Driving the whole editor from a terminal: compile, test, build, inspect |
 | MCP servers for Unity (e.g. [CoplayDev/unity-mcp](https://github.com/CoplayDev/unity-mcp)) | ✗ | Free-form editor tools | Interactive work in an open editor |
 | [Unity CLI](https://unity.com/blog/meet-the-unity-cli) with `com.unity.pipeline` | Editor features need a running Unity 6 editor | `eval` runs any C#, custom `[CliCommand]`s | Editor installs, builds, tests, ad-hoc C# |
 | YAML parsers (e.g. [unityparser](https://pypi.org/project/unityparser)) | ✓ (no Unity at all) | Raw YAML, no validation, no reimport | Reading or patching files without Unity |
 
-They combine well: an agent can drive the editor through an MCP server or the Unity CLI, and call DotAsset for the changes that must be safe and repeatable.
+They combine well: an agent can drive the editor through UniCli, an MCP server or the Unity CLI (builds, tests, the Console), and call DotAsset for asset changes that must be safe and repeatable, with the editor open or closed.
 
 ## Troubleshooting
 

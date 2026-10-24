@@ -17,6 +17,10 @@ Agreed on 2026-10-24. 6.6 (6000.6.7f1) is done. In order:
 2. **2022.3** (2022.3.18f1, already installed). The oldest supported version, the most likely to break.
 3. **6.0 LTS** (6000.0.85f1). Install the same way.
 
+Both installs were started on 2026-10-24 (logs in `%LOCALAPPDATA%/Temp/dotasset-hub-install2/`). Check
+`C:/Program Files/Unity/Hub/Editor/` before starting them again. From a shell inside VS Code, clear
+`ELECTRON_RUN_AS_NODE` first: VS Code sets it, and Unity Hub then runs as plain Node and fails with MODULE_NOT_FOUND.
+
 For each version: create an empty project headless (`Unity.exe -batchmode -quit -createProject <dir>`), add
 `"com.alexmah.dotasset": "file:<absolute path to this repo>/Package"` to its `Packages/manifest.json`, then run the
 smoke test headless (`--unity <that version's Unity.exe>`), and with the editor open through `--launch` / `--quit`.

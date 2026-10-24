@@ -97,13 +97,8 @@ namespace AssetOps
 
         public static string Str(JToken token, string key, string fallback = null)
         {
-            var obj = token as JObject;
-            if (obj == null)
-            {
-                return fallback;
-            }
-            JToken value;
-            if (!obj.TryGetValue(key, StringComparison.OrdinalIgnoreCase, out value) || value.Type == JTokenType.Null)
+            var value = Get(token, key);
+            if (value == null || value.Type == JTokenType.Null)
             {
                 return fallback;
             }

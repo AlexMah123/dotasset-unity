@@ -169,6 +169,81 @@ namespace AssetOps
             return null;
         }
 
+        public delegate T SessionOpener<T>(string path, out string error);
+
+        // The EditPrefab and EditScene run. Every target's ops are checked before the first target is opened,
+        // then each target is opened, edited and saved, all or nothing per target.
+        public static ExitCode RunSpec<T>(RunContext ctx, string noun, SessionOpener<T> open, Func<T, HierarchyEditor> editorFor)
+            where T : class, IEditSession
+        {
+            JArray targets = Spec.LoadTargets(ctx);
+            if (targets == null)
+            {
+                return ExitCode.Refused;
+            }
+            for (int i = 0; i < targets.Count; i++)
+            {
+                if (!Spec.CheckKeys(ctx, targets[i], "Targets[" + i + "]", "AssetPath", "Ops"))
+                {
+                    return ExitCode.Refused;
+                }
+                string opError = ValidateOps(Json.Get(targets[i], "Ops") as JArray, "Targets[" + i + "]");
+                if (opError != null)
+                {
+                    ctx.Log.Error(opError);
+                    return ExitCode.Refused;
+                }
+            }
+
+            int written = 0;
+            for (int i = 0; i < targets.Count; i++)
+            {
+                JToken target = targets[i];
+                string path = Json.Str(target, "AssetPath") ?? "(no AssetPath)";
+                var ops = Json.Get(target, "Ops") as JArray;
+                ctx.Progress(i, targets.Count, path);
+                if (ops == null)
+                {
+                    ctx.FailTarget(path, "needs an \"Ops\" array");
+                    continue;
+                }
+                string error;
+                ctx.BeginTarget();
+                using (T session = open(path, out error))
+                {
+                    if (session == null)
+                    {
+                        ctx.FailTarget(path, error);
+                        continue;
+                    }
+                    HierarchyEditor editor = editorFor(session);
+                    if (!editor.Apply(ops) || ctx.TargetFailed())
+                    {
+                        ctx.FailTarget(path, editor.Errors.Count > 0 ? editor.Errors[0] : ctx.TargetError);
+                        continue;
+                    }
+                    if (ctx.DryRun)
+                    {
+                        ctx.Log.Info(path + ": " + editor.Changes + " op(s) would apply");
+                        continue;
+                    }
+                    if (!session.Save(out error))
+                    {
+                        ctx.FailTarget(path, error ?? ctx.TargetError);
+                        continue;
+                    }
+                    ctx.WarnIfSavedWithErrors(path);
+                    written++;
+                    ctx.Log.Info("saved " + path + " (" + editor.Changes + " op(s))");
+                }
+            }
+            if (!ctx.DryRun)
+            {
+                ctx.Log.Info("saved " + written + " " + noun + "(s)");
+            }
+            return ctx.FailedTargets.Count > 0 ? ExitCode.Failed : ExitCode.Success;
+        }
+
         bool CheckKeys(JToken token, string[] allowed, string label)
         {
             var obj = token as JObject;
@@ -177,12 +252,10 @@ namespace AssetOps
                 Fail(label, "is not an object");
                 return false;
             }
-            var unknown = obj.Properties().Select(p => p.Name)
-                .Where(n => !n.StartsWith("//", StringComparison.Ordinal) && !allowed.Contains(n, StringComparer.OrdinalIgnoreCase))
-                .ToList();
-            if (unknown.Count > 0)
+            string strays = Json.UnknownKeys(obj, allowed);
+            if (strays != null)
             {
-                Fail(label, "unknown key" + (unknown.Count > 1 ? "s " : " ") + string.Join(", ", unknown) + ". Allowed: " + string.Join(", ", allowed));
+                Fail(label, strays);
                 return false;
             }
             return true;

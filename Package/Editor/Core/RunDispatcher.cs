@@ -116,7 +116,8 @@ namespace AssetOps
             result.Warnings = log.Warnings;
             result.Errors = log.Errors;
             result.Lines.AddRange(log.Lines);
-            if (code == ExitCode.Failed || code == ExitCode.Refused)
+            bool failed = code == ExitCode.Failed || code == ExitCode.Refused;
+            if (failed)
             {
                 result.Error = ctx.FailedTargets.Count > 0
                     ? runName + " failed for " + string.Join(", ", ctx.FailedTargets) + ". " + (log.FirstError ?? string.Empty)
@@ -127,18 +128,8 @@ namespace AssetOps
             if (inEditor)
             {
                 string line = "[AssetOps] " + result.Summary + "  (log: " + AssetOpsPaths.ToProjectRelative(result.LogFile ?? "") + ")";
-                if (code == ExitCode.Failed || code == ExitCode.Refused)
-                {
-                    UnityEngine.Debug.LogFormat(LogType.Error, LogOption.NoStacktrace, null, "{0}", line);
-                }
-                else if (code == ExitCode.IssuesFound || log.Warnings > 0)
-                {
-                    UnityEngine.Debug.LogFormat(LogType.Warning, LogOption.NoStacktrace, null, "{0}", line);
-                }
-                else
-                {
-                    UnityEngine.Debug.LogFormat(LogType.Log, LogOption.NoStacktrace, null, "{0}", line);
-                }
+                LogType type = failed ? LogType.Error : code == ExitCode.IssuesFound || log.Warnings > 0 ? LogType.Warning : LogType.Log;
+                UnityEngine.Debug.LogFormat(type, LogOption.NoStacktrace, null, "{0}", line);
             }
 
             var handler = RunFinished;
@@ -255,7 +246,7 @@ namespace AssetOps
                 code = ExitCode.Failed;
             }
 
-            if (cmd.Group == CommandGroup.Export && (code == ExitCode.Success))
+            if (cmd.Group == CommandGroup.Export && code == ExitCode.Success)
             {
                 var missing = ctx.Outputs.Where(o => !File.Exists(o)).ToList();
                 foreach (string m in missing)

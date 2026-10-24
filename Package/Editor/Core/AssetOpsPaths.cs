@@ -5,7 +5,7 @@ using UnityEngine;
 
 namespace AssetOps
 {
-    // Everything the workbench writes lives under <Project>/Library/AssetOps, which version control ignores.
+    // Everything AssetOps writes lives under <Project>/Library/AssetOps, which version control ignores.
     //   Export/   export JSON, one file per asset per run
     //   Audit/    audit reports and their fix specs
     //   Logs/     one log per run
@@ -67,8 +67,7 @@ namespace AssetOps
         // Two exports of the same asset in the same second get a -2, -3 suffix instead of overwriting.
         public static string ExportFileFor(string assetPath, string outDir)
         {
-            string root = string.IsNullOrEmpty(outDir) ? ExportRoot : Absolute(outDir);
-            return Unique(Combine(root, Normalize(assetPath) + "_" + Timestamp()), ".json");
+            return ExportFileNamed(Normalize(assetPath), outDir);
         }
 
         // Export/<name>_<timestamp>.json for exports not tied to one asset.

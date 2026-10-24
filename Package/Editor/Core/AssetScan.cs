@@ -155,6 +155,13 @@ namespace AssetOps
             return true;
         }
 
+        // The spec's one top-level array, the targets of a spec-driven run. Null after logging why.
+        public static JArray LoadTargets(RunContext ctx, string key = "Targets")
+        {
+            JObject spec;
+            return Load(ctx, out spec) ? Targets(ctx, spec, key) : null;
+        }
+
         public static JArray Targets(RunContext ctx, JObject spec, string key = "Targets")
         {
             string strays = Json.UnknownKeys(spec, key);
@@ -181,11 +188,10 @@ namespace AssetOps
                 ctx.Log.Error(label + " is not an object");
                 return false;
             }
-            var set = new HashSet<string>(allowed, StringComparer.OrdinalIgnoreCase);
-            var unknown = obj.Properties().Select(p => p.Name).Where(n => !set.Contains(n) && !n.StartsWith("//", StringComparison.Ordinal)).ToList();
-            if (unknown.Count > 0)
+            string strays = Json.UnknownKeys(obj, allowed);
+            if (strays != null)
             {
-                ctx.Log.Error(label + ": unknown key" + (unknown.Count > 1 ? "s " : " ") + string.Join(", ", unknown) + ". Allowed: " + string.Join(", ", allowed));
+                ctx.Log.Error(label + ": " + strays);
                 return false;
             }
             return true;

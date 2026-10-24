@@ -35,6 +35,8 @@ namespace AssetOps
         }
 
         int targetErrorMark;
+        int lastBucket = -1;
+        bool progressShown;
 
         // Call before writing a target, then TargetFailed() tells whether anything logged an error since,
         // including errors Unity itself raised while the target was written.
@@ -109,9 +111,6 @@ namespace AssetOps
                 Log.Info("progress " + done + "/" + total);
             }
         }
-
-        int lastBucket = -1;
-        bool progressShown;
 
         internal void ClearProgress()
         {

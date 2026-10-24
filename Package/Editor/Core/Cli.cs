@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using System.Text;
 using UnityEditor;
 using UnityEngine;
@@ -30,7 +29,7 @@ namespace AssetOps
 
                 // No editor check here: Unity itself refuses to open a project another instance holds,
                 // so reaching this line means the project is ours.
-                RunResult result = RunDispatcher.Run(run, Split(assets), extra, false);
+                RunResult result = RunDispatcher.Run(run, RunArgs.SplitList(assets), extra, false);
                 if (!string.IsNullOrEmpty(resultPath))
                 {
                     Json.WriteFile(resultPath, result.ToJson());
@@ -64,24 +63,6 @@ namespace AssetOps
                 return null;
             }
             return Encoding.UTF8.GetString(Convert.FromBase64String(b64));
-        }
-
-        internal static List<string> Split(string csv)
-        {
-            var list = new List<string>();
-            if (string.IsNullOrEmpty(csv))
-            {
-                return list;
-            }
-            foreach (string part in csv.Split(','))
-            {
-                string p = part.Trim();
-                if (p.Length > 0)
-                {
-                    list.Add(p);
-                }
-            }
-            return list;
         }
     }
 }

@@ -45,17 +45,20 @@ namespace AssetOps
     // SerializedProperty <-> JSON. One format for every export and every edit, so an export reads back as a spec.
     //   numbers, bools, strings      as JSON
     //   enums                        the name, or the integer value when no single name matches (flags)
-    //   Vector2/3/4, Rect, Color     [x, y, ...]; colors also take "#RRGGBB" or "#RRGGBBAA"
-    //   Quaternion                   [x, y, z, w] on export; a write takes 4 numbers, or 3 as Euler degrees
+    //   Vector2/3/4, Rect, Color     [x, y, ...], colors also take "#RRGGBB" or "#RRGGBBAA"
+    //   Quaternion                   [x, y, z, w] on export, a write takes 4 numbers, or 3 as Euler degrees
     //   Bounds                       {"Center": [..], "Extents": [..]}
     //   object references            see ObjectRefs
     //   arrays and lists             JSON arrays, longer than MaxArray end with {"$truncated": <total>}
-    //   structs and plain classes    objects of their fields; a write patches only the fields given
+    //   structs and plain classes    objects of their fields, a write patches only the fields given
     //   [SerializeReference]         {"$type": "<assembly> <type>", fields...}, null for none
     //   AnimationCurve               {"Keys": [{"Time","Value","In","Out"}], "PreWrap", "PostWrap"}
     //   Gradient                     {"Mode", "Colors": [[t, r, g, b]], "Alphas": [[t, a]]}
     public static class ValueCodec
     {
+        // SerializedPropertyType.RenderingLayerMask, which 2022.3 does not have.
+        const int RenderingLayerMaskType = 26;
+
         // ------------------------------------------------------------------ read
 
         public static JToken Read(SerializedProperty prop, ReadOptions opt, int depth = 0)
@@ -146,7 +149,7 @@ namespace AssetOps
                     return ReadGeneric(prop, opt, depth);
                 default:
                     // Newer property kinds, e.g. RenderingLayerMask in Unity 6, are unsigned bit masks.
-                    if ((int)prop.propertyType == 26)
+                    if ((int)prop.propertyType == RenderingLayerMaskType)
                     {
                         return new JValue(prop.uintValue);
                     }
@@ -609,7 +612,7 @@ namespace AssetOps
                     WriteGeneric(prop, value, wc);
                     return;
                 default:
-                    if ((int)prop.propertyType == 26)
+                    if ((int)prop.propertyType == RenderingLayerMaskType)
                     {
                         double d;
                         if (!Json.TryDouble(value, out d) || d < 0)

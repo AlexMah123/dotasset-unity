@@ -300,17 +300,8 @@ namespace AssetOps
             try
             {
                 Directory.CreateDirectory(QueueRoot);
-                var alive = new JObject
-                {
-                    ["Pid"] = Process.GetCurrentProcess().Id,
-                    ["State"] = state,
-                    ["UnityVersion"] = Application.unityVersion,
-                    ["AssetOpsVersion"] = AssetOpsVersion.Version,
-                    ["ProjectPath"] = AssetOpsPaths.ProjectRoot,
-                    ["UpdatedUtc"] = DateTime.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture),
-                };
                 string tmp = AlivePath + ".tmp";
-                File.WriteAllText(tmp, alive.ToString(Newtonsoft.Json.Formatting.None), new UTF8Encoding(false));
+                File.WriteAllText(tmp, Heartbeat(state), new UTF8Encoding(false));
                 if (File.Exists(AlivePath))
                 {
                     File.Replace(tmp, AlivePath, null);
@@ -333,20 +324,25 @@ namespace AssetOps
             lastState = "reloading";
             try
             {
-                var alive = new JObject
-                {
-                    ["Pid"] = Process.GetCurrentProcess().Id,
-                    ["State"] = "reloading",
-                    ["UnityVersion"] = Application.unityVersion,
-                    ["AssetOpsVersion"] = AssetOpsVersion.Version,
-                    ["ProjectPath"] = AssetOpsPaths.ProjectRoot,
-                    ["UpdatedUtc"] = DateTime.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture),
-                };
-                File.WriteAllText(AlivePath, alive.ToString(Newtonsoft.Json.Formatting.None), new UTF8Encoding(false));
+                File.WriteAllText(AlivePath, Heartbeat(lastState), new UTF8Encoding(false));
             }
             catch (Exception)
             {
             }
+        }
+
+        static string Heartbeat(string state)
+        {
+            var alive = new JObject
+            {
+                ["Pid"] = Process.GetCurrentProcess().Id,
+                ["State"] = state,
+                ["UnityVersion"] = Application.unityVersion,
+                ["AssetOpsVersion"] = AssetOpsVersion.Version,
+                ["ProjectPath"] = AssetOpsPaths.ProjectRoot,
+                ["UpdatedUtc"] = DateTime.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture),
+            };
+            return alive.ToString(Newtonsoft.Json.Formatting.None);
         }
 
         static void OnQuitting()

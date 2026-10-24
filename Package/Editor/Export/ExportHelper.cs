@@ -69,5 +69,26 @@ namespace AssetOps
         {
             return ctx.Assets.Count == 0 ? ExitCode.Refused : ExitCode.Failed;
         }
+
+        // The per-asset export loop. exportOne logs its own error and returns false for an asset it could not export,
+        // the others still export and the run fails at the end.
+        public static ExitCode Run(RunContext ctx, Func<string, bool> filter, Func<string, bool> exportOne)
+        {
+            System.Collections.Generic.List<string> entries;
+            if (!Entries(ctx, filter, out entries))
+            {
+                return NoEntries(ctx);
+            }
+            bool failed = false;
+            for (int i = 0; i < entries.Count; i++)
+            {
+                ctx.Progress(i, entries.Count, entries[i]);
+                if (!exportOne(entries[i]))
+                {
+                    failed = true;
+                }
+            }
+            return failed ? ExitCode.Failed : ExitCode.Success;
+        }
     }
 }

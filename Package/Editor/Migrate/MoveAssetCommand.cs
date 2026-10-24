@@ -270,12 +270,7 @@ namespace AssetOps
             }
             if (ctx.Args.Has("spec"))
             {
-                JObject spec;
-                if (!Spec.Load(ctx, out spec))
-                {
-                    return false;
-                }
-                JArray list = Spec.Targets(ctx, spec, specKey);
+                JArray list = Spec.LoadTargets(ctx, specKey);
                 if (list == null)
                 {
                     return false;

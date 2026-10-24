@@ -42,12 +42,7 @@ namespace AssetOps
 
         public override ExitCode Execute(RunContext ctx)
         {
-            JObject spec;
-            if (!Spec.Load(ctx, out spec))
-            {
-                return ExitCode.Refused;
-            }
-            JArray entries = Spec.Targets(ctx, spec, "Assets");
+            JArray entries = Spec.LoadTargets(ctx, "Assets");
             if (entries == null)
             {
                 return ExitCode.Refused;

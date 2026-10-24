@@ -11,7 +11,7 @@ namespace AssetOps
     // Token-aware by default:
     //   - component properties are the delta from a fresh component of the same type (-full for everything)
     //   - GameObject fields at their defaults (active, Untagged, Default layer, not static) are left out
-    //   - a prefab instance is its source path plus overrides, added and removed objects; the inside of the
+    //   - a prefab instance is its source path plus overrides, added and removed objects. The inside of the
     //     instance is the source prefab's own export (-expand to walk into instances anyway)
     public sealed class HierarchyExporter
     {

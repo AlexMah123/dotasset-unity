@@ -40,12 +40,7 @@ namespace AssetOps
 
         public override ExitCode Execute(RunContext ctx)
         {
-            JObject spec;
-            if (!Spec.Load(ctx, out spec))
-            {
-                return ExitCode.Refused;
-            }
-            JArray targets = Spec.Targets(ctx, spec);
+            JArray targets = Spec.LoadTargets(ctx);
             if (targets == null)
             {
                 return ExitCode.Refused;
@@ -274,12 +269,10 @@ namespace AssetOps
                     Fail("is not an object");
                     return false;
                 }
-                var unknown = obj.Properties().Select(p => p.Name)
-                    .Where(n => !n.StartsWith("//", StringComparison.Ordinal) && !allowed.Contains(n, StringComparer.OrdinalIgnoreCase))
-                    .ToList();
-                if (unknown.Count > 0)
+                string strays = Json.UnknownKeys(obj, allowed);
+                if (strays != null)
                 {
-                    Fail("unknown key" + (unknown.Count > 1 ? "s " : " ") + string.Join(", ", unknown) + ". Allowed: " + string.Join(", ", allowed));
+                    Fail(strays);
                     return false;
                 }
                 return true;
@@ -1188,9 +1181,7 @@ namespace AssetOps
                 }
                 else
                 {
-                    AnimatorStateMachine owner;
-                    var fromOp = new JObject { ["Layer"] = Json.Get(op, "Layer"), ["State"] = from };
-                    AnimatorState source = FindState(fromOp, "State", out owner);
+                    AnimatorState source = SourceState(op, from);
                     if (source == null)
                     {
                         return;
@@ -1230,6 +1221,13 @@ namespace AssetOps
                 return s;
             }
 
+            // The state a transition op's "From" names, in the op's layer.
+            AnimatorState SourceState(JToken op, string from)
+            {
+                AnimatorStateMachine owner;
+                return FindState(new JObject { ["Layer"] = Json.Get(op, "Layer"), ["State"] = from }, "State", out owner);
+            }
+
             List<AnimatorTransitionBase> Candidates(JToken op, out Action<AnimatorTransitionBase> remove)
             {
                 remove = null;
@@ -1265,9 +1263,7 @@ namespace AssetOps
                 }
                 else
                 {
-                    AnimatorStateMachine owner;
-                    var fromOp = new JObject { ["Layer"] = Json.Get(op, "Layer"), ["State"] = from };
-                    AnimatorState source = FindState(fromOp, "State", out owner);
+                    AnimatorState source = SourceState(op, from);
                     if (source == null)
                     {
                         return null;

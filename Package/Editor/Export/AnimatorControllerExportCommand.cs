@@ -20,20 +20,13 @@ namespace AssetOps
 
         public override ExitCode Execute(RunContext ctx)
         {
-            List<string> entries;
-            if (!ExportHelper.Entries(ctx, p => AssetDatabase.GetMainAssetTypeAtPath(p) == typeof(AnimatorController), out entries))
-            {
-                return ExportHelper.NoEntries(ctx);
-            }
-            bool failed = false;
-            foreach (string path in entries)
+            return ExportHelper.Run(ctx, p => AssetDatabase.GetMainAssetTypeAtPath(p) == typeof(AnimatorController), path =>
             {
                 var controller = AssetDatabase.LoadAssetAtPath<AnimatorController>(path);
                 if (controller == null)
                 {
                     ctx.Log.Error(path + " is not an Animator Controller");
-                    failed = true;
-                    continue;
+                    return false;
                 }
                 JObject json = ExportHelper.Header(ctx, path);
                 json["Parameters"] = new JArray(controller.parameters.Select(Parameter).ToArray());
@@ -44,8 +37,8 @@ namespace AssetOps
                 }
                 json["Layers"] = layers;
                 ExportHelper.Save(ctx, path, json);
-            }
-            return failed ? ExitCode.Failed : ExitCode.Success;
+                return true;
+            });
         }
 
         static JObject Parameter(AnimatorControllerParameter p)

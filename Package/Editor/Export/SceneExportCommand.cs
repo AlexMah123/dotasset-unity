@@ -25,24 +25,10 @@ namespace AssetOps
 
         public override ExitCode Execute(RunContext ctx)
         {
-            List<string> entries;
-            if (!ExportHelper.Entries(ctx, p => AssetScan.HasExtension(p, ".unity"), out entries))
-            {
-                return ExportHelper.NoEntries(ctx);
-            }
-            bool failed = false;
             using (var defaults = new DefaultValues())
             {
-                for (int i = 0; i < entries.Count; i++)
-                {
-                    ctx.Progress(i, entries.Count, entries[i]);
-                    if (!ExportOne(ctx, entries[i], defaults))
-                    {
-                        failed = true;
-                    }
-                }
+                return ExportHelper.Run(ctx, p => AssetScan.HasExtension(p, ".unity"), p => ExportOne(ctx, p, defaults));
             }
-            return failed ? ExitCode.Failed : ExitCode.Success;
         }
 
         static bool ExportOne(RunContext ctx, string path, DefaultValues defaults)

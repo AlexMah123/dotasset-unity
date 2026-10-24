@@ -93,12 +93,6 @@ namespace AssetOps
 
         // Splits on whitespace outside double quotes. Quotes are removed. A backslash before a quote keeps the quote,
         // except where that quote ends a value ("Assets\Art\" followed by a space or the end): Windows folders end in \.
-        public static List<string> Tokenize(string raw)
-        {
-            bool unclosed;
-            return Tokenize(raw, out unclosed);
-        }
-
         public static List<string> Tokenize(string raw, out bool unclosed)
         {
             var tokens = new List<string>();
@@ -183,13 +177,17 @@ namespace AssetOps
         // Comma-separated list, entries trimmed, empties dropped.
         public List<string> GetList(string key)
         {
+            return SplitList(Get(key));
+        }
+
+        public static List<string> SplitList(string csv)
+        {
             var list = new List<string>();
-            string value = Get(key);
-            if (string.IsNullOrEmpty(value))
+            if (string.IsNullOrEmpty(csv))
             {
                 return list;
             }
-            foreach (string part in value.Split(','))
+            foreach (string part in csv.Split(','))
             {
                 string trimmed = part.Trim();
                 if (trimmed.Length > 0)
@@ -198,13 +196,6 @@ namespace AssetOps
                 }
             }
             return list;
-        }
-
-        // A value-taking key given without a value, e.g. "-spec" instead of "-spec=path".
-        public bool IsBareFlag(string key)
-        {
-            string value;
-            return values.TryGetValue(key, out value) && value == null;
         }
     }
 }

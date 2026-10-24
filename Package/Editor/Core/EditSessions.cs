@@ -8,9 +8,13 @@ using Object = UnityEngine.Object;
 namespace AssetOps
 {
     // All-or-nothing writes. Each session holds one target. Save() writes it, disposing without Save() drops every change.
+    public interface IEditSession : IDisposable
+    {
+        bool Save(out string error);
+    }
 
     // A prefab loaded into an isolated preview scene. Dropping it is free, nothing touched the asset.
-    public sealed class PrefabSession : IDisposable
+    public sealed class PrefabSession : IEditSession
     {
         public GameObject Root { get; private set; }
         public string Path { get; private set; }
@@ -104,7 +108,7 @@ namespace AssetOps
     //   Not loaded: opened additively, closed without saving when dropped.
     //   Loaded in the editor: every change is recorded on one undo group, dropped by reverting the group,
     //   and after Save() the whole run is a single Ctrl+Z.
-    public sealed class SceneSession : IDisposable
+    public sealed class SceneSession : IEditSession
     {
         public Scene Scene { get; private set; }
         public bool OpenedByUs { get; private set; }

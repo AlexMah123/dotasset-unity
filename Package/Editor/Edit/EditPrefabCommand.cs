@@ -1,5 +1,4 @@
 using System.Collections.Generic;
-using Newtonsoft.Json.Linq;
 
 namespace AssetOps
 {
@@ -27,78 +26,8 @@ namespace AssetOps
 
         public override ExitCode Execute(RunContext ctx)
         {
-            JObject spec;
-            if (!Spec.Load(ctx, out spec))
-            {
-                return ExitCode.Refused;
-            }
-            JArray targets = Spec.Targets(ctx, spec);
-            if (targets == null)
-            {
-                return ExitCode.Refused;
-            }
-            for (int i = 0; i < targets.Count; i++)
-            {
-                if (!Spec.CheckKeys(ctx, targets[i], "Targets[" + i + "]", "AssetPath", "Ops"))
-                {
-                    return ExitCode.Refused;
-                }
-                // Op names and keys of every target are checked before the first target is written.
-                string opError = HierarchyEditor.ValidateOps(Json.Get(targets[i], "Ops") as JArray, "Targets[" + i + "]");
-                if (opError != null)
-                {
-                    ctx.Log.Error(opError);
-                    return ExitCode.Refused;
-                }
-            }
-
-            int written = 0;
-            for (int i = 0; i < targets.Count; i++)
-            {
-                JToken target = targets[i];
-                string path = Json.Str(target, "AssetPath") ?? "(no AssetPath)";
-                var ops = Json.Get(target, "Ops") as JArray;
-                ctx.Progress(i, targets.Count, path);
-                if (ops == null)
-                {
-                    ctx.FailTarget(path, "needs an \"Ops\" array");
-                    continue;
-                }
-                string error;
-                ctx.BeginTarget();
-                using (PrefabSession session = PrefabSession.Open(path, out error))
-                {
-                    if (session == null)
-                    {
-                        ctx.FailTarget(path, error);
-                        continue;
-                    }
-                    var editor = new HierarchyEditor(session.Root, path, ctx.Log);
-                    if (!editor.Apply(ops) || ctx.TargetFailed())
-                    {
-                        ctx.FailTarget(path, editor.Errors.Count > 0 ? editor.Errors[0] : ctx.TargetError);
-                        continue;
-                    }
-                    if (ctx.DryRun)
-                    {
-                        ctx.Log.Info(path + ": " + editor.Changes + " op(s) would apply");
-                        continue;
-                    }
-                    if (!session.Save(out error))
-                    {
-                        ctx.FailTarget(path, error ?? ctx.TargetError);
-                        continue;
-                    }
-                    ctx.WarnIfSavedWithErrors(path);
-                    written++;
-                    ctx.Log.Info("saved " + path + " (" + editor.Changes + " op(s))");
-                }
-            }
-            if (!ctx.DryRun)
-            {
-                ctx.Log.Info("saved " + written + " prefab(s)");
-            }
-            return ctx.FailedTargets.Count > 0 ? ExitCode.Failed : ExitCode.Success;
+            return HierarchyEditor.RunSpec<PrefabSession>(ctx, "prefab", PrefabSession.Open,
+                session => new HierarchyEditor(session.Root, session.Path, ctx.Log));
         }
     }
 }

@@ -21,27 +21,19 @@ namespace AssetOps
 
         public override ExitCode Execute(RunContext ctx)
         {
-            List<string> entries;
-            if (!ExportHelper.Entries(ctx, p => AssetDatabase.GetMainAssetTypeAtPath(p) == typeof(Material), out entries))
+            return ExportHelper.Run(ctx, p => AssetDatabase.GetMainAssetTypeAtPath(p) == typeof(Material), path =>
             {
-                return ExportHelper.NoEntries(ctx);
-            }
-            bool failed = false;
-            for (int i = 0; i < entries.Count; i++)
-            {
-                ctx.Progress(i, entries.Count, entries[i]);
-                var mat = AssetDatabase.LoadMainAssetAtPath(entries[i]) as Material;
+                var mat = AssetDatabase.LoadMainAssetAtPath(path) as Material;
                 if (mat == null)
                 {
-                    ctx.Log.Error(entries[i] + " is not a material");
-                    failed = true;
-                    continue;
+                    ctx.Log.Error(path + " is not a material");
+                    return false;
                 }
-                JObject json = ExportHelper.Header(ctx, entries[i]);
+                JObject json = ExportHelper.Header(ctx, path);
                 Describe(mat, json, ctx.Args.Has("full"));
-                ExportHelper.Save(ctx, entries[i], json);
-            }
-            return failed ? ExitCode.Failed : ExitCode.Success;
+                ExportHelper.Save(ctx, path, json);
+                return true;
+            });
         }
 
         public static void Describe(Material mat, JObject json, bool full)

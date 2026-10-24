@@ -19,22 +19,13 @@ namespace AssetOps
 
         public override ExitCode Execute(RunContext ctx)
         {
-            List<string> entries;
-            if (!ExportHelper.Entries(ctx, AssetScan.HasSourceImporter, out entries))
+            return ExportHelper.Run(ctx, AssetScan.HasSourceImporter, path =>
             {
-                return ExportHelper.NoEntries(ctx);
-            }
-            bool failed = false;
-            for (int i = 0; i < entries.Count; i++)
-            {
-                string path = entries[i];
-                ctx.Progress(i, entries.Count, path);
                 AssetImporter importer = AssetImporter.GetAtPath(path);
                 if (importer == null)
                 {
                     ctx.Log.Error(path + " has no importer");
-                    failed = true;
-                    continue;
+                    return false;
                 }
                 JObject json = ExportHelper.Header(ctx, path);
                 json["Importer"] = TypeResolver.DisplayName(importer.GetType());
@@ -50,8 +41,8 @@ namespace AssetOps
                 }
                 json["Properties"] = PropertyIO.Read(importer, ReadOptions.FromArgs(ctx.Args, RefScope.None));
                 ExportHelper.Save(ctx, path, json);
-            }
-            return failed ? ExitCode.Failed : ExitCode.Success;
+                return true;
+            });
         }
 
         // Keys match EditImporter's "Texture" block, so a summary edits and feeds back as is.

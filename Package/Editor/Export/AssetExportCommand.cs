@@ -39,70 +39,63 @@ namespace AssetOps
                 }
             }
 
-            List<string> entries;
-            if (!ExportHelper.Entries(ctx, p => Accept(p, filterType), out entries))
-            {
-                return ExportHelper.NoEntries(ctx);
-            }
-            bool failed = false;
             using (var defaults = new DefaultValues())
             {
-                for (int i = 0; i < entries.Count; i++)
-                {
-                    string path = entries[i];
-                    ctx.Progress(i, entries.Count, path);
-                    System.Type main = AssetDatabase.GetMainAssetTypeAtPath(path);
-                    if (main == typeof(SceneAsset) || main == typeof(GameObject))
-                    {
-                        ctx.Log.Error(path + " is a " + (main == typeof(SceneAsset) ? "scene, use SceneExport" : "prefab or model, use PrefabExport"));
-                        failed = true;
-                        continue;
-                    }
-                    JObject json = ExportHelper.Header(ctx, path);
-                    json["MainType"] = main != null ? TypeResolver.DisplayName(main) : null;
-                    var objects = new JArray();
-                    Object[] all = ctx.Args.Has("nosub")
-                        ? new[] { AssetDatabase.LoadMainAssetAtPath(path) }
-                        : AssetDatabase.LoadAllAssetsAtPath(path);
-                    var opt = ReadOptions.FromArgs(ctx.Args, RefScope.None);
-                    foreach (Object o in all.Where(o => o != null).OrderBy(o => AssetDatabase.IsMainAsset(o) ? 0 : 1))
-                    {
-                        if ((o.hideFlags & HideFlags.HideInHierarchy) != 0 && !AssetDatabase.IsMainAsset(o) && !ctx.Args.Has("full"))
-                        {
-                            // Hidden sub-objects, e.g. the states inside an Animator Controller, belong to their dedicated export.
-                            continue;
-                        }
-                        var entry = new JObject
-                        {
-                            ["Name"] = o.name,
-                            ["Type"] = TypeResolver.DisplayName(o.GetType()),
-                            ["Main"] = AssetDatabase.IsMainAsset(o),
-                        };
-                        string guid;
-                        long localId;
-                        if (AssetDatabase.TryGetGUIDAndLocalFileIdentifier(o, out guid, out localId))
-                        {
-                            entry["LocalId"] = localId;
-                        }
-                        var so = o as ScriptableObject;
-                        if (so != null)
-                        {
-                            MonoScript script = MonoScript.FromScriptableObject(so);
-                            string scriptPath = script != null ? AssetDatabase.GetAssetPath(script) : null;
-                            if (!string.IsNullOrEmpty(scriptPath))
-                            {
-                                entry["Script"] = scriptPath;
-                            }
-                        }
-                        JObject defaultsFor = ctx.Args.Has("full") || so == null ? null : defaults.For(o.GetType());
-                        entry["Properties"] = PropertyIO.Read(o, opt, defaultsFor);
-                        objects.Add(entry);
-                    }
-                    json["Objects"] = objects;
-                    ExportHelper.Save(ctx, path, json);
-                }
+                return ExportHelper.Run(ctx, p => Accept(p, filterType), p => ExportOne(ctx, p, defaults));
             }
-            return failed ? ExitCode.Failed : ExitCode.Success;
+        }
+
+        static bool ExportOne(RunContext ctx, string path, DefaultValues defaults)
+        {
+            System.Type main = AssetDatabase.GetMainAssetTypeAtPath(path);
+            if (main == typeof(SceneAsset) || main == typeof(GameObject))
+            {
+                ctx.Log.Error(path + " is a " + (main == typeof(SceneAsset) ? "scene, use SceneExport" : "prefab or model, use PrefabExport"));
+                return false;
+            }
+            JObject json = ExportHelper.Header(ctx, path);
+            json["MainType"] = main != null ? TypeResolver.DisplayName(main) : null;
+            var objects = new JArray();
+            Object[] all = ctx.Args.Has("nosub")
+                ? new[] { AssetDatabase.LoadMainAssetAtPath(path) }
+                : AssetDatabase.LoadAllAssetsAtPath(path);
+            var opt = ReadOptions.FromArgs(ctx.Args, RefScope.None);
+            foreach (Object o in all.Where(o => o != null).OrderBy(o => AssetDatabase.IsMainAsset(o) ? 0 : 1))
+            {
+                if ((o.hideFlags & HideFlags.HideInHierarchy) != 0 && !AssetDatabase.IsMainAsset(o) && !ctx.Args.Has("full"))
+                {
+                    // Hidden sub-objects, e.g. the states inside an Animator Controller, belong to their dedicated export.
+                    continue;
+                }
+                var entry = new JObject
+                {
+                    ["Name"] = o.name,
+                    ["Type"] = TypeResolver.DisplayName(o.GetType()),
+                    ["Main"] = AssetDatabase.IsMainAsset(o),
+                };
+                string guid;
+                long localId;
+                if (AssetDatabase.TryGetGUIDAndLocalFileIdentifier(o, out guid, out localId))
+                {
+                    entry["LocalId"] = localId;
+                }
+                var so = o as ScriptableObject;
+                if (so != null)
+                {
+                    MonoScript script = MonoScript.FromScriptableObject(so);
+                    string scriptPath = script != null ? AssetDatabase.GetAssetPath(script) : null;
+                    if (!string.IsNullOrEmpty(scriptPath))
+                    {
+                        entry["Script"] = scriptPath;
+                    }
+                }
+                JObject defaultsFor = ctx.Args.Has("full") || so == null ? null : defaults.For(o.GetType());
+                entry["Properties"] = PropertyIO.Read(o, opt, defaultsFor);
+                objects.Add(entry);
+            }
+            json["Objects"] = objects;
+            ExportHelper.Save(ctx, path, json);
+            return true;
         }
 
         static bool Accept(string path, System.Type filterType)

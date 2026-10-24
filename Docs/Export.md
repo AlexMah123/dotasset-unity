@@ -8,7 +8,7 @@ Reads assets through Unity's serializer and writes grep-friendly JSON. Nothing i
 | --- | --- | --- |
 | `PrefabExport` | Prefab hierarchy, components, properties; variants and nested instances as overrides | `.prefab` (folders expand), models accepted by explicit path |
 | `SceneExport` | Scene hierarchy in the same node format, prefab instances as overrides | `.unity` |
-| `AssetExport` | ScriptableObjects, and the main object plus sub-assets of any other asset file | anything but scenes, prefabs, scripts |
+| `AssetExport` | ScriptableObjects, and the main object plus sub-assets of any other asset file | anything but scenes and prefabs or models. Folders skip scripts, a script given by path exports as its `MonoScript` |
 | `MaterialExport` | Shader properties with values, keywords, render queue, variant parent, stale properties | `.mat` |
 | `AnimatorControllerExport` | Parameters, layers, state machines, states, transitions, conditions, blend trees | `.controller` |
 | `ImporterExport` | Import settings (the `.meta`), with a typed summary for textures and models | textures, models, audio, any asset with an importer |

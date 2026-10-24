@@ -46,7 +46,7 @@ namespace AssetOps
                 return false;
             }
             JToken shaderValue = Json.Get(block, "Shader");
-            if (shaderValue != null && shaderValue.Type != JTokenType.String)
+            if (shaderValue != null && shaderValue.Type != JTokenType.Null && shaderValue.Type != JTokenType.String)
             {
                 errors.Add("Shader is a shader name or path");
                 return false;

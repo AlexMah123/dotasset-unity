@@ -1,3 +1,4 @@
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using UnityEditor;
@@ -38,6 +39,9 @@ namespace AssetOps
                 }
                 targets.Add(path);
             }
+            // "Assets/Old,Assets/Old/A.mat": the folder takes A.mat with it, a second delete would fail after the first.
+            targets = targets.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
+            targets = targets.Where(t => !targets.Any(o => o != t && t.StartsWith(o + "/", StringComparison.OrdinalIgnoreCase))).ToList();
             ctx.Log.Info("indexing references under " + string.Join(", ", AssetScan.Roots(ctx.Args)));
             var index = AssetScan.Referencers(AssetScan.Roots(ctx.Args), ctx);
             bool force = ctx.Args.Has("force");

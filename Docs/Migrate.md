@@ -123,7 +123,7 @@ python assetops.py RemoveMissingScripts "Assets/Prefabs" --args "-apply"
 python assetops.py RemoveMissingScripts --args '-spec="Library/AssetOps/Audit/AuditMissingReference_20261023-201500.fix.json" -apply'
 ```
 
-Give at least one of AssetList, `-scandir`, or `-spec` with `{"Files": [...]}` (the fix spec `AuditMissingReference` writes); with none the run is refused rather than sweeping the whole project. An empty `Files` list does nothing. Missing scripts on objects inside a prefab instance belong to the source prefab: they are reported with the source path and left alone.
+Give at least one of AssetList, `-scandir`, or `-spec` with `{"Files": [...]}` (the fix spec `AuditMissingReference` writes); with none the run is refused rather than sweeping the whole project. An empty `Files` list does nothing. Missing scripts on objects inside a prefab instance are left alone and reported: those inherited from the source prefab with the source path to clean, those added as overrides on the instance (every component a variant adds is one) with a warning to remove them in the Inspector, unpack the instance, or `RemapScript` the GUID.
 
 ## Exit codes
 

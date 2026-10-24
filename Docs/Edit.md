@@ -60,7 +60,7 @@ A missing `Parent` in `AddGameObject` / `AddPrefabInstance` / `Reparent` means a
 
 ## Hierarchy ops
 
-Shared by `EditPrefab`, `EditScene` and `CreateAsset`. `Path` and `Parent` are [GameObject paths](Export.md#paths). The first failing op stops the target. Every op, `Components` entry, condition and blend tree child is checked against the keys listed here, and an unknown key fails the op.
+Shared by `EditPrefab`, `EditScene` and `CreateAsset`. `Path` and `Parent` are [GameObject paths](Export.md#paths). The first failing op stops the target. Every op, `Components` entry, condition and blend tree child is checked against the keys listed here. An unknown op, op key or `Components` key refuses the whole run (exit 2) before any target is touched. An unknown key in a condition or blend tree child fails that target (exit 1). A key that should hold a number but holds something else fails its op, it is never skipped.
 
 | Op | Keys | Does |
 | --- | --- | --- |
@@ -121,7 +121,7 @@ Applied after `Properties`, in order. A new entry starts as a copy of its neighb
 | `Sub`, `SubType` | a named sub-asset instead of the main object; `SubType` when names repeat |
 | `Properties`, `ArrayOps` | as above |
 
-A copy of the object is taken first and copied back when the target fails or the run is dry.
+A snapshot of the object is taken first and restored when the target fails or the run is dry. For a script's ScriptableObject the snapshot is its serialized JSON, so restoring it never runs `Awake` or `OnEnable`.
 
 ## EditMaterial
 
@@ -224,8 +224,8 @@ Every op takes `Layer` (name or index, default 0). States are paths inside the l
 | `RenameParameter` | `Name`, `NewName`. Also renames it in every condition, blend tree and state parameter field |
 | `RemoveParameter` | `Name` |
 | `AddLayer` | `Name`, `Weight`, `Blending` (`Override`, `Additive`), `IKPass`, `AvatarMask`. The new layer goes last, there is no `Layer` key |
-| `SetLayer` | `Layer`, `NewName`, `Weight`, `Blending`, `IKPass`, `AvatarMask` (`null` clears) |
-| `RemoveLayer` | `Layer` |
+| `SetLayer` | `Layer`, `NewName`, `Weight`, `Blending`, `IKPass`, `AvatarMask` (`null` clears). A `NewName` another layer already has is refused |
+| `RemoveLayer` | `Layer`. Refused while another layer is synced to it; synced layers after it keep pointing at the right layer |
 | `AddStateMachine` | `Path`, `Position` |
 | `AddState` | `Path`, `Position`, and any `SetState` field |
 | `SetState` | `State`, `NewName`, `Motion`, `Speed`, `Tag`, `WriteDefaultValues`, `SpeedParameter`, `TimeParameter`, `Mirror`, `MirrorParameter`, `CycleOffset`, `CycleOffsetParameter`, `IKOnFeet`, `Default`, `Properties` (raw serialized fields) |

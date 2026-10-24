@@ -132,6 +132,11 @@ namespace AssetOps
             var states = new JArray();
             foreach (ChildAnimatorState child in sm.states)
             {
+                if (child.state == null)
+                {
+                    // A broken controller can list a state that no longer exists.
+                    continue;
+                }
                 states.Add(State(child, prefix, sm));
             }
             obj["States"] = states;

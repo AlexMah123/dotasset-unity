@@ -114,8 +114,8 @@ namespace AssetOps
                     if (missing > inherited)
                     {
                         // Added as an override on this instance: they belong to this file, but are not removed here.
-                        ctx.Log.Error(path + ": " + HierarchyPath.Of(go) + " has " + (missing - inherited) + " missing-script component(s) added on the prefab instance. "
-                            + "AssetOps does not remove instance overrides, remove them in the Inspector or unpack the instance");
+                        ctx.Log.Warn(path + ": " + HierarchyPath.Of(go) + " has " + (missing - inherited) + " missing-script component(s) added on the prefab instance, left as they are. "
+                            + "AssetOps does not remove instance overrides, remove them in the Inspector, unpack the instance, or RemapScript their GUID");
                     }
                     if (inherited > 0)
                     {

@@ -54,4 +54,7 @@ First release, the Unity counterpart of uasset-workbench 2.6.
 - A `MoveAsset` dry run follows chains the way `-apply` does, `DeleteAsset` keeps a target's references alive when that target is refused
 - `RemoveMissingScripts` reports missing scripts added on a prefab instance instead of passing over them
 - Malformed spec values (non-string paths, keywords, parents) fail their target or refuse the run instead of throwing, a prefab save that throws fails only its entry
+- Animator edits fail on a non-numeric `Weight`, `Speed`, `ExitTime`, `Duration`, `Offset`, `CycleOffset`, `TimeScale` or `Threshold` instead of skipping it, `"Shader": null` is accepted again
+- A `MoveAsset` dry run follows the contents of folders earlier moves would carry, `DeleteAsset` drops targets inside other targets
+- `RemoveMissingScripts` leaves instance-added missing scripts with a warning, `RemapReference` warns about a dependency it cannot rewrite, the controller export skips dangling states
 - Not yet compiled inside Unity: written and checked against Unity's C# reference source for 2022.3 and 6000.3

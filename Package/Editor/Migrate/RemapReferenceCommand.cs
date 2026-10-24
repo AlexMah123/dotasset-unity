@@ -166,6 +166,12 @@ namespace AssetOps
                 {
                     ctx.WarnIfSavedWithErrors(path);
                 }
+                if (count == 0 && !AssetScan.HasExtension(path, ".prefab", ".unity"))
+                {
+                    // Prefabs and scenes often only inherit the reference from a source prefab, which is its own candidate.
+                    ctx.Log.Warn(path + " depends on " + string.Join(", ", active.Select(x => x.From)) + " but holds no reference this run can repoint, "
+                        + "e.g. one kept in its import settings. It will still block DeleteAsset");
+                }
                 if (count > 0)
                 {
                     changedAssets++;

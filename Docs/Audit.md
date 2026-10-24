@@ -51,7 +51,7 @@ When issues have a mechanical fix the audit writes `<report>.fix.json` next to t
 | --- | --- | --- |
 | `AuditTexture` | `EditImporter` | T1 T2 T3 T4 T5 T6 T8 |
 | `AuditMaterial` | `EditMaterial` | M4 M5 |
-| `AuditMissingReference` | `RemoveMissingScripts` | R2 (and the report's `MissingScripts` lists each GUID for `RemapScript`) |
+| `AuditMissingReference` | `RemoveMissingScripts` | R2 on ordinary objects. Missing scripts added on prefab instances (variants included) are listed but left, with a warning. The report's `MissingScripts` lists each GUID for `RemapScript`, which fixes both |
 
 Read it, delete what should stay, run `FixRun` without `-apply`, then with it:
 

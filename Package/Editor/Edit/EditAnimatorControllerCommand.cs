@@ -329,7 +329,7 @@ namespace AssetOps
                             {
                                 if (i != index && before[i].syncedLayerIndex == index)
                                 {
-                                    Fail("layer '" + before[i].name + "' is synced to it, remove or unsync that layer first");
+                                    Fail("layer '" + before[i].name + "' is synced to it, remove that layer first");
                                     return;
                                 }
                             }
@@ -514,6 +514,24 @@ namespace AssetOps
                         return;
                 }
                 controller.parameters = ps;
+            }
+
+            // True with the value when the key holds a number. A key that is there but holds something else fails the op,
+            // "Weight": "0,5" must not pass as "no change".
+            bool Number(JToken holder, string key, out double d)
+            {
+                d = 0;
+                JToken value = Json.Get(holder, key);
+                if (value == null || value.Type == JTokenType.Null)
+                {
+                    return false;
+                }
+                if (Json.TryDouble(value, out d))
+                {
+                    return true;
+                }
+                Fail(key + " is a number, got " + value.ToString(Newtonsoft.Json.Formatting.None));
+                return false;
             }
 
             static bool TryBool(JToken value, out bool b)
@@ -718,7 +736,7 @@ namespace AssetOps
                 AnimatorControllerLayer[] layers = controller.layers;
                 AnimatorControllerLayer layer = layers[index];
                 double d;
-                if (Json.TryDouble(Json.Get(op, "Weight"), out d))
+                if (Number(op, "Weight", out d))
                 {
                     layer.defaultWeight = (float)d;
                 }
@@ -935,7 +953,7 @@ namespace AssetOps
                         DestroyTree(oldTree);
                     }
                 }
-                if (Json.TryDouble(Json.Get(op, "Speed"), out d))
+                if (Number(op, "Speed", out d))
                 {
                     state.speed = (float)d;
                 }
@@ -969,7 +987,7 @@ namespace AssetOps
                     state.mirrorParameterActive = !string.IsNullOrEmpty(p);
                     state.mirrorParameter = p ?? string.Empty;
                 }
-                if (Json.TryDouble(Json.Get(op, "CycleOffset"), out d))
+                if (Number(op, "CycleOffset", out d))
                 {
                     state.cycleOffset = (float)d;
                 }
@@ -1107,11 +1125,11 @@ namespace AssetOps
                     }
                     var child = new ChildMotion { motion = m, timeScale = 1f };
                     double d;
-                    if (Json.TryDouble(Json.Get(c, "TimeScale"), out d))
+                    if (Number(c, "TimeScale", out d))
                     {
                         child.timeScale = (float)d;
                     }
-                    if (Json.TryDouble(Json.Get(c, "Threshold"), out d))
+                    if (Number(c, "Threshold", out d))
                     {
                         child.threshold = (float)d;
                     }
@@ -1338,11 +1356,11 @@ namespace AssetOps
                     {
                         st.hasExitTime = Json.Bool(op, "HasExitTime", false);
                     }
-                    if (Json.TryDouble(Json.Get(op, "ExitTime"), out d))
+                    if (Number(op, "ExitTime", out d))
                     {
                         st.exitTime = (float)d;
                     }
-                    if (Json.TryDouble(Json.Get(op, "Duration"), out d))
+                    if (Number(op, "Duration", out d))
                     {
                         st.duration = (float)d;
                     }
@@ -1350,7 +1368,7 @@ namespace AssetOps
                     {
                         st.hasFixedDuration = Json.Bool(op, "FixedDuration", true);
                     }
-                    if (Json.TryDouble(Json.Get(op, "Offset"), out d))
+                    if (Number(op, "Offset", out d))
                     {
                         st.offset = (float)d;
                     }
@@ -1404,7 +1422,12 @@ namespace AssetOps
                             Fail("Mode " + mode + " does not fit the " + p.type + " parameter '" + parameter + "'");
                             return;
                         }
-                        Json.TryDouble(Json.Get(c, "Threshold"), out d);
+                        int before = Errors.Count;
+                        Number(c, "Threshold", out d);
+                        if (Errors.Count > before)
+                        {
+                            return;
+                        }
                         list.Add(new AnimatorCondition { parameter = parameter, mode = mode, threshold = (float)d });
                     }
                     t.conditions = list.ToArray();

@@ -69,7 +69,7 @@ namespace AssetOps
                     continue;
                 }
                 string parent = Path.GetDirectoryName(to).Replace('\\', '/');
-                if (!AssetDatabase.IsValidFolder(parent))
+                if (!plan.IsFolder(parent))
                 {
                     ctx.Log.Info((ctx.DryRun ? "would create folder " : "creating folder ") + parent);
                 }
@@ -89,7 +89,7 @@ namespace AssetOps
                 if (ctx.DryRun)
                 {
                     ctx.Log.Info("would move " + label);
-                    plan.Move(from, to, isFolder);
+                    plan.Move(from, to);
                     continue;
                 }
                 string error;
@@ -170,58 +170,66 @@ namespace AssetOps
             return rest;
         }
 
-        // The project as a dry run's earlier moves would leave it. In a real run nothing is recorded and every
-        // question goes straight to the AssetDatabase.
+        // The project as a dry run's earlier moves would leave it, contents of moved folders included. In a real run
+        // nothing is recorded and every question goes straight to the AssetDatabase.
         sealed class DryRunPaths
         {
-            readonly Dictionary<string, bool> added = new Dictionary<string, bool>(StringComparer.OrdinalIgnoreCase);
-            readonly List<string> removed = new List<string>();
+            readonly List<KeyValuePair<string, string>> moves = new List<KeyValuePair<string, string>>();
 
-            public void Move(string from, string to, bool isFolder)
+            public void Move(string from, string to)
             {
-                removed.Add(from);
-                added.Remove(from);
-                added[to] = isFolder;
+                moves.Add(new KeyValuePair<string, string>(from, to));
             }
 
-            public bool Touches(string path)
+            static bool Within(string path, string root, out string rest)
             {
-                return added.ContainsKey(path) || Removed(path);
-            }
-
-            bool Removed(string path)
-            {
-                foreach (string r in removed)
+                rest = null;
+                if (string.Equals(path, root, StringComparison.OrdinalIgnoreCase))
                 {
-                    if (string.Equals(path, r, StringComparison.OrdinalIgnoreCase) || path.StartsWith(r + "/", StringComparison.OrdinalIgnoreCase))
-                    {
-                        return !added.ContainsKey(path);
-                    }
+                    rest = string.Empty;
+                    return true;
+                }
+                if (path.StartsWith(root + "/", StringComparison.OrdinalIgnoreCase))
+                {
+                    rest = path.Substring(root.Length);
+                    return true;
                 }
                 return false;
             }
 
+            // Where path's content sits in the real project now, or null when an earlier move took it away.
+            string Original(string path)
+            {
+                for (int i = moves.Count - 1; i >= 0; i--)
+                {
+                    string rest;
+                    if (Within(path, moves[i].Value, out rest))
+                    {
+                        path = moves[i].Key + rest;
+                    }
+                    else if (Within(path, moves[i].Key, out rest))
+                    {
+                        return null;
+                    }
+                }
+                return path;
+            }
+
+            public bool Touches(string path)
+            {
+                return Original(path) != path;
+            }
+
             public bool Exists(string path)
             {
-                if (added.ContainsKey(path))
-                {
-                    return true;
-                }
-                if (Removed(path))
-                {
-                    return false;
-                }
-                return AssetDatabase.IsValidFolder(path) || AssetDatabase.GetMainAssetTypeAtPath(path) != null;
+                string original = Original(path);
+                return original != null && (AssetDatabase.IsValidFolder(original) || AssetDatabase.GetMainAssetTypeAtPath(original) != null);
             }
 
             public bool IsFolder(string path)
             {
-                bool folder;
-                if (added.TryGetValue(path, out folder))
-                {
-                    return folder;
-                }
-                return !Removed(path) && AssetDatabase.IsValidFolder(path);
+                string original = Original(path);
+                return original != null && AssetDatabase.IsValidFolder(original);
             }
         }
 

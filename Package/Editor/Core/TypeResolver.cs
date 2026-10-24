@@ -18,7 +18,11 @@ namespace AssetOps
         {
             byFullName = new Dictionary<string, Type>(StringComparer.Ordinal);
             byShortName = new Dictionary<string, List<Type>>(StringComparer.OrdinalIgnoreCase);
+            // Statics reset on every domain reload, so this list is rebuilt after each one and never holds an
+            // unloaded assembly. Plain classes for [SerializeReference] are needed too, which TypeCache does not list.
+#pragma warning disable UAC0005
             foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+#pragma warning restore UAC0005
             {
                 Type[] types;
                 try
@@ -92,7 +96,9 @@ namespace AssetOps
             {
                 string assemblyName = name.Substring(0, space);
                 string typeName = name.Substring(space + 1).Replace('/', '+');
+#pragma warning disable UAC0005
                 foreach (var assembly in AppDomain.CurrentDomain.GetAssemblies())
+#pragma warning restore UAC0005
                 {
                     if (assembly.GetName().Name == assemblyName)
                     {

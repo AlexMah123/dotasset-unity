@@ -87,7 +87,7 @@ namespace AssetOps
                     Color c = prop.colorValue;
                     return Json.Array(c.r, c.g, c.b, c.a);
                 case SerializedPropertyType.ObjectReference:
-                    if (prop.objectReferenceValue == null && prop.objectReferenceInstanceIDValue != 0)
+                    if (ObjectRefs.IsMissing(prop))
                     {
                         return new JObject { ["Missing"] = true };
                     }

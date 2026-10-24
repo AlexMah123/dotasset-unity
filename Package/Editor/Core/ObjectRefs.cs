@@ -64,6 +64,22 @@ namespace AssetOps
     // Built-in resources read as {"Asset": "Library/unity default resources", "Sub": "Cube", "Type": "Mesh"}.
     public static class ObjectRefs
     {
+        // A reference that is set but resolves to nothing: the target was deleted, or its script is gone.
+        // The same test Unity's ObjectField uses. Unity 6.4 replaced the instance ID accessor with an EntityId one,
+        // and newer versions refuse the old one at compile time.
+        public static bool IsMissing(SerializedProperty prop)
+        {
+            if (prop.propertyType != SerializedPropertyType.ObjectReference || prop.objectReferenceValue != null)
+            {
+                return false;
+            }
+#if UNITY_6000_4_OR_NEWER
+            return prop.objectReferenceEntityIdValue != EntityId.None;
+#else
+            return prop.objectReferenceInstanceIDValue != 0;
+#endif
+        }
+
         public static JToken Write(Object o, RefScope scope)
         {
             if (o == null)

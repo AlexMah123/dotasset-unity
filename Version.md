@@ -57,4 +57,5 @@ First release, the Unity counterpart of uasset-workbench 2.6.
 - Animator edits fail on a non-numeric `Weight`, `Speed`, `ExitTime`, `Duration`, `Offset`, `CycleOffset`, `TimeScale` or `Threshold` instead of skipping it, `"Shader": null` is accepted again
 - A `MoveAsset` dry run follows the contents of folders earlier moves would carry, `DeleteAsset` drops targets inside other targets
 - `RemoveMissingScripts` leaves instance-added missing scripts with a warning, `RemapReference` warns about a dependency it cannot rewrite, the controller export skips dangling states
-- Not yet compiled inside Unity: written and checked against Unity's C# reference source for 2022.3 and 6000.3
+- Compiles on Unity 6.4 and later: missing references are detected through `objectReferenceEntityIdValue` there (the instance ID accessor is a compile error), the assembly scan's UAC0005 warning is suppressed with its reason
+- Not yet compiled inside Unity 2022.3 or 6000.0-6000.3: written and checked against Unity's C# reference source for 2022.3 and 6000.3

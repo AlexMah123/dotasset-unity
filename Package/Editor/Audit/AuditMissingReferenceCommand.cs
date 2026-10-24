@@ -197,7 +197,7 @@ namespace AssetOps
                     {
                         continue;
                     }
-                    if (it.objectReferenceValue == null && it.objectReferenceInstanceIDValue != 0)
+                    if (ObjectRefs.IsMissing(it))
                     {
                         JObject issue = report.Add("R3", "Error", path, PropertyIO.Describe(o) + "." + it.propertyPath + " points at an object that is gone");
                         issue["Property"] = it.propertyPath;

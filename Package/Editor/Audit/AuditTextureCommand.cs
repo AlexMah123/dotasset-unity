@@ -52,18 +52,14 @@ namespace DotAsset
                 ctx.Log.Error("-maxsize must be a power of two between 32 and 16384, the fix spec writes it as a max size");
                 return ExitCode.Refused;
             }
-            var rules = new HashSet<string>(ctx.Args.GetList("rules"), StringComparer.OrdinalIgnoreCase);
-            var knownRules = new[] { "T1", "T2", "T3", "T4", "T5", "T6", "T7", "T8" };
-            var badRules = rules.Where(r => !knownRules.Contains(r, StringComparer.OrdinalIgnoreCase)).ToList();
-            if (badRules.Count > 0)
+            Func<string, bool> on = report.RuleFilter();
+            if (on == null)
             {
-                ctx.Log.Error("-rules: unknown " + string.Join(", ", badRules) + ". Rules: " + string.Join(", ", knownRules));
                 return ExitCode.Refused;
             }
             // File names are compared lowercased, so the suffixes are too.
             string[] normal = (ctx.Args.Has("normalsuffix") ? ctx.Args.GetList("normalsuffix").ToArray() : DefaultNormal).Select(x => x.ToLowerInvariant()).ToArray();
             string[] data = (ctx.Args.Has("datasuffix") ? ctx.Args.GetList("datasuffix").ToArray() : DefaultData).Select(x => x.ToLowerInvariant()).ToArray();
-            Func<string, bool> on = id => rules.Count == 0 || rules.Contains(id);
 
             Func<string, bool> isTexture = p => AssetImporter.GetAtPath(p) is TextureImporter;
             List<string> paths = ctx.Assets.Count > 0 ? AssetScan.Expand(ctx.Assets, isTexture, ctx.Log).Where(isTexture).ToList() : AssetScan.All(AssetScan.Roots(ctx.Args), isTexture);

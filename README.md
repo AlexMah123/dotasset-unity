@@ -243,7 +243,7 @@ tools/gen_meta.py         writes missing .meta files
 
 ## Status
 
-0.1.0 is a preview. It compiles and passes the smoke test on Unity 6000.6, both with the editor closed and open. It was written against Unity's C# reference source for 2022.3 and 6000.3, but has not been compiled on 2022.3 or 6000.0-6000.3 yet.
+0.1.0 is a preview. It compiles and passes the smoke test on Unity 6000.6 and 2022.3, both with the editor closed and open. Unity 6000.0 to 6000.3 have not been tested yet.
 
 - `python -m unittest discover -s tests` covers the wrapper: both routes, startup wait, fallback, quoting, timeouts, exit codes.
 - `python tests/smoke/run_smoke.py --project <your project>` runs every group end to end in a real project, under `Assets/DotAssetSmoke`, and cleans up (`--clean` removes leftovers of an interrupted run first). Run it once with the editor closed and once with it open.

@@ -41,15 +41,11 @@ namespace DotAsset
             report.Rule("M4", "saved values for properties the shader no longer declares");
             report.Rule("M5", "enabled keywords the shader does not declare");
 
-            var rules = new HashSet<string>(ctx.Args.GetList("rules"), StringComparer.OrdinalIgnoreCase);
-            var knownRules = new[] { "M1", "M2", "M3", "M4", "M5" };
-            var badRules = rules.Where(r => !knownRules.Contains(r, StringComparer.OrdinalIgnoreCase)).ToList();
-            if (badRules.Count > 0)
+            Func<string, bool> on = report.RuleFilter();
+            if (on == null)
             {
-                ctx.Log.Error("-rules: unknown " + string.Join(", ", badRules) + ". Rules: " + string.Join(", ", knownRules));
                 return ExitCode.Refused;
             }
-            Func<string, bool> on = id => rules.Count == 0 || rules.Contains(id);
             Func<string, bool> isMaterial = p => AssetDatabase.GetMainAssetTypeAtPath(p) == typeof(Material);
             List<string> paths = ctx.Assets.Count > 0 ? AssetScan.Expand(ctx.Assets, isMaterial, ctx.Log).Where(isMaterial).ToList() : AssetScan.All(AssetScan.Roots(ctx.Args), isMaterial);
             report.Checked = paths.Count;

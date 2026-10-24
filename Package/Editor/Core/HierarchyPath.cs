@@ -212,12 +212,6 @@ namespace DotAsset
             }
         }
 
-        // Components, with null entries standing for missing scripts.
-        public static Component[] ComponentsOf(GameObject go)
-        {
-            return go.GetComponents<Component>();
-        }
-
         public static int IndexAmongSameType(Component c)
         {
             if (c == null)

@@ -38,6 +38,21 @@ namespace DotAsset
             rules[id] = description;
         }
 
+        // -rules=T1,T3 limits the audit to some of the rules registered with Rule(), none given means all.
+        // Null after logging an unknown id, the run is then refused.
+        public Func<string, bool> RuleFilter()
+        {
+            var chosen = new HashSet<string>(ctx.Args.GetList("rules"), StringComparer.OrdinalIgnoreCase);
+            var known = rules.Properties().Select(p => p.Name).ToList();
+            var bad = chosen.Where(r => !known.Contains(r, StringComparer.OrdinalIgnoreCase)).ToList();
+            if (bad.Count > 0)
+            {
+                ctx.Log.Error("-rules: unknown " + string.Join(", ", bad) + ". Rules: " + string.Join(", ", known));
+                return null;
+            }
+            return id => chosen.Count == 0 || chosen.Contains(id);
+        }
+
         public JObject Add(string rule, string severity, string asset, string message)
         {
             var issue = new JObject { ["Rule"] = rule, ["Severity"] = severity, ["Asset"] = asset, ["Message"] = message };

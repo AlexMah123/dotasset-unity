@@ -4,7 +4,7 @@ Status of DotAsset 0.1.0 for whoever picks it up next (a person or Claude Code).
 
 ## Where it stands
 
-- The package compiles without errors on Unity 6000.6.7f1. Unity 2022.3 and 6000.0-6000.3 have not been compiled yet.
+- The package compiles without errors on Unity 6000.6.7f1 and 2022.3.18f1. Unity 6000.0-6000.3 have not been compiled yet.
 - Seven review passes have been made, written and checked without a compiler against Unity's C# reference source (6000.3 and 2022.3). Their history is in `git log`.
 - The end-to-end smoke test passes on 6000.6.7f1 on Windows, both headless and with the editor open (all 31 steps each), last run on commit 0e5681a on 2026-10-24. The editor-open run used `--launch` and `--quit` over remote control.
 
@@ -13,11 +13,11 @@ Status of DotAsset 0.1.0 for whoever picks it up next (a person or Claude Code).
 | Version | Tested | State on 2026-10-24 |
 | :-- | :-- | :-- |
 | 6.6 (6000.6.7f1) | yes, smoke test headless and editor open | done |
-| 6.3 LTS (6000.3.27f1) | no | installing through Unity Hub |
-| 6.0 LTS (6000.0.85f1) | no | installing through Unity Hub |
-| 2022.3 (2022.3.18f1) | no | installed, not tested |
+| 2022.3 (2022.3.18f1) | yes, smoke test headless and editor open | done, test project `D:/GameDevProjects/Prototype/DotAssetTest-2022.3` |
+| 6.3 LTS (6000.3.27f1) | no | downloaded, install waits for a Windows admin (UAC) prompt on the desktop |
+| 6.0 LTS (6000.0.85f1) | no | downloaded, install waits for a Windows admin (UAC) prompt on the desktop |
 
-Only 6.6 counts as supported until the others pass. Update this table as each one does.
+6.6 and 2022.3 are supported. 6.3 and 6.0 need the owner at the machine: installing into `C:/Program Files/Unity/Hub/Editor` (next to 6.6, where the owner wants them) needs the admin prompt approved, which nothing remote can do. If the queued installs gave up, restart them with the command below and approve the prompts. A project created headless has no scene: create one (`CreateAsset` with a `Scene` entry) and point `Library/LastSceneManagerSetup.txt` at it before the editor-open run. Update this table as each one does.
 
 ## Queued for the next session
 

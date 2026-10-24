@@ -5,14 +5,14 @@ using System.Linq;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
 
-namespace AssetOps
+namespace DotAsset
 {
     // Moves or renames assets and folders through the AssetDatabase, so GUIDs and every reference survive.
     // Also flags what a GUID cannot carry: Resources.Load paths and other path strings in code.
-    // Usage: assetops.py MoveAsset --args '-from=Assets/Old/Gun.prefab -to=Assets/Weapons/Gun.prefab -apply'
-    //        assetops.py MoveAsset --args '-spec="C:/temp/moves.json" -apply'    {"Moves": [{"From": ..., "To": ...}]}
+    // Usage: dotasset.py MoveAsset --args '-from=Assets/Old/Gun.prefab -to=Assets/Weapons/Gun.prefab -apply'
+    //        dotasset.py MoveAsset --args '-spec="C:/temp/moves.json" -apply'    {"Moves": [{"From": ..., "To": ...}]}
     // Docs/Migrate.md
-    public sealed class MoveAssetCommand : AssetOpsCommand
+    public sealed class MoveAssetCommand : DotAssetCommand
     {
         public override string Summary
         {
@@ -136,7 +136,7 @@ namespace AssetOps
                 string text;
                 try
                 {
-                    text = File.ReadAllText(AssetOpsPaths.Absolute(script));
+                    text = File.ReadAllText(DotAssetPaths.Absolute(script));
                 }
                 catch (Exception)
                 {
@@ -266,7 +266,7 @@ namespace AssetOps
                     ctx.Log.Error("give both -from and -to");
                     return false;
                 }
-                pairs.Add(new KeyValuePair<string, string>(AssetOpsPaths.Normalize(from).TrimEnd('/'), AssetOpsPaths.Normalize(to).TrimEnd('/')));
+                pairs.Add(new KeyValuePair<string, string>(DotAssetPaths.Normalize(from).TrimEnd('/'), DotAssetPaths.Normalize(to).TrimEnd('/')));
             }
             if (ctx.Args.Has("spec"))
             {
@@ -288,7 +288,7 @@ namespace AssetOps
                         ctx.Log.Error("every " + specKey + " entry needs \"From\" and \"To\"");
                         return false;
                     }
-                    pairs.Add(new KeyValuePair<string, string>(AssetOpsPaths.Normalize(f).TrimEnd('/'), AssetOpsPaths.Normalize(t).TrimEnd('/')));
+                    pairs.Add(new KeyValuePair<string, string>(DotAssetPaths.Normalize(f).TrimEnd('/'), DotAssetPaths.Normalize(t).TrimEnd('/')));
                 }
             }
             if (pairs.Count == 0)

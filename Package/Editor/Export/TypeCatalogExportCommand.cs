@@ -6,13 +6,13 @@ using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
-namespace AssetOps
+namespace DotAsset
 {
     // The property paths a component or ScriptableObject type serializes, with their kind, default value and
     // enum options. Answers "what do I write in Properties" before editing anything. -filter is required.
-    // Usage: assetops.py TypeCatalogExport --args "-filter=Light"   (matches type names containing the text)
+    // Usage: dotasset.py TypeCatalogExport --args "-filter=Light"   (matches type names containing the text)
     // Docs/Export.md
-    public sealed class TypeCatalogExportCommand : AssetOpsCommand
+    public sealed class TypeCatalogExportCommand : DotAssetCommand
     {
         const int MaxTypes = 40;
 
@@ -102,7 +102,7 @@ namespace AssetOps
                 }
                 else
                 {
-                    host = EditorUtility.CreateGameObjectWithHideFlags("AssetOps.Catalog", HideFlags.HideAndDontSave);
+                    host = EditorUtility.CreateGameObjectWithHideFlags("DotAsset.Catalog", HideFlags.HideAndDontSave);
                     host.SetActive(false);
                     instance = t == typeof(Transform) ? host.transform : host.AddComponent(t);
                 }

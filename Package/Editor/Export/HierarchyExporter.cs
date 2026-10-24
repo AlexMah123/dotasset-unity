@@ -5,7 +5,7 @@ using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
-namespace AssetOps
+namespace DotAsset
 {
     // Flattens a GameObject hierarchy into one JSON node per GameObject, depth first.
     // Token-aware by default:

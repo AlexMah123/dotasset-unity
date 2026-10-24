@@ -5,14 +5,14 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace AssetOps
+namespace DotAsset
 {
     // Material as the shader sees it: every shader property with its value, keywords, render queue, variant parent,
     // plus saved values the current shader no longer declares (stale properties).
     // The Properties block reads back as EditMaterial's Properties.
-    // Usage: assetops.py MaterialExport Assets/Materials[,Assets/Art/Rock.mat] [--args "-full"]
+    // Usage: dotasset.py MaterialExport Assets/Materials[,Assets/Art/Rock.mat] [--args "-full"]
     // Docs/Export.md
-    public sealed class MaterialExportCommand : AssetOpsCommand
+    public sealed class MaterialExportCommand : DotAssetCommand
     {
         public override string Summary
         {

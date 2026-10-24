@@ -1,6 +1,6 @@
 # Handoff
 
-Status of AssetOps 0.1.0 for whoever picks it up next (a person or Claude Code). Read `.claude/CLAUDE.md` first for the code rules.
+Status of DotAsset 0.1.0 for whoever picks it up next (a person or Claude Code). Read `.claude/CLAUDE.md` first for the code rules.
 
 ## Where it stands
 

@@ -1,13 +1,13 @@
 using System.Collections.Generic;
 
-namespace AssetOps
+namespace DotAsset
 {
     // Edits prefabs in an isolated preview scene: add, delete, rename, move GameObjects, add and remove components,
     // set properties and references, add nested prefab instances, revert or unpack instances.
     // The prefab is saved only when every op of the target succeeded. Op reference: HierarchyEditor, Docs/Edit.md.
-    // Usage: assetops.py EditPrefab --args '-spec="C:/temp/prefab.json" -apply'
+    // Usage: dotasset.py EditPrefab --args '-spec="C:/temp/prefab.json" -apply'
     // Docs/Edit.md
-    public sealed class EditPrefabCommand : AssetOpsCommand
+    public sealed class EditPrefabCommand : DotAssetCommand
     {
         public override string Summary
         {

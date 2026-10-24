@@ -2,13 +2,13 @@ using System.Collections.Generic;
 using System.Linq;
 using Newtonsoft.Json.Linq;
 
-namespace AssetOps
+namespace DotAsset
 {
     // Every registered run with its group, summary and arguments, including commands from your own assemblies.
     // The wrapper's --list prints it.
-    // Usage: assetops.py CommandCatalogExport      (or: assetops.py --list)
+    // Usage: dotasset.py CommandCatalogExport      (or: dotasset.py --list)
     // Docs/AI-Guide.md
-    public sealed class CommandCatalogExportCommand : AssetOpsCommand
+    public sealed class CommandCatalogExportCommand : DotAssetCommand
     {
         public override string Summary
         {
@@ -24,7 +24,7 @@ namespace AssetOps
         {
             JObject json = ExportHelper.Header(ctx, null);
             var list = new JArray();
-            foreach (AssetOpsCommand cmd in CommandRegistry.All.Values.OrderBy(c => c.Group).ThenBy(c => c.Name))
+            foreach (DotAssetCommand cmd in CommandRegistry.All.Values.OrderBy(c => c.Group).ThenBy(c => c.Name))
             {
                 list.Add(new JObject
                 {

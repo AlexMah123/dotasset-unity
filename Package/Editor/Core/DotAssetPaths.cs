@@ -3,14 +3,14 @@ using System.Globalization;
 using System.IO;
 using UnityEngine;
 
-namespace AssetOps
+namespace DotAsset
 {
-    // Everything AssetOps writes lives under <Project>/Library/AssetOps, which version control ignores.
+    // Everything DotAsset writes lives under <Project>/Library/DotAsset, which version control ignores.
     //   Export/   export JSON, one file per asset per run
     //   Audit/    audit reports and their fix specs
     //   Logs/     one log per run
     //   Queue/    task queue between the wrapper and the open editor, see TaskQueueProtocol
-    public static class AssetOpsPaths
+    public static class DotAssetPaths
     {
         public static string ProjectRoot
         {
@@ -19,7 +19,7 @@ namespace AssetOps
 
         public static string Root
         {
-            get { return Combine(ProjectRoot, "Library/AssetOps"); }
+            get { return Combine(ProjectRoot, "Library/DotAsset"); }
         }
 
         public static string ExportRoot

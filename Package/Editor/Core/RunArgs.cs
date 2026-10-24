@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Text;
 
-namespace AssetOps
+namespace DotAsset
 {
     // Extra arguments of a run, in commandlet style:
     //   -apply                     flag

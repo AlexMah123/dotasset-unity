@@ -5,13 +5,13 @@ using UnityEditor;
 using UnityEditor.Animations;
 using UnityEngine;
 
-namespace AssetOps
+namespace DotAsset
 {
     // Animator Controller: parameters, layers, state machines with their states, sub-state machines,
     // transitions with conditions, blend trees. State paths ("Locomotion/Run") are what EditAnimatorController takes.
-    // Usage: assetops.py AnimatorControllerExport Assets/Animation/Player.controller
+    // Usage: dotasset.py AnimatorControllerExport Assets/Animation/Player.controller
     // Docs/Export.md
-    public sealed class AnimatorControllerExportCommand : AssetOpsCommand
+    public sealed class AnimatorControllerExportCommand : DotAssetCommand
     {
         public override string Summary
         {

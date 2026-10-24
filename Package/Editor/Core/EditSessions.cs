@@ -5,7 +5,7 @@ using UnityEngine;
 using UnityEngine.SceneManagement;
 using Object = UnityEngine.Object;
 
-namespace AssetOps
+namespace DotAsset
 {
     // All-or-nothing writes. Each session holds one target. Save() writes it, disposing without Save() drops every change.
     public interface IEditSession : IDisposable
@@ -171,7 +171,7 @@ namespace AssetOps
                 SceneManager.SetActiveScene(scene);
             }
             Undo.IncrementCurrentGroup();
-            Undo.SetCurrentGroupName("AssetOps: " + label);
+            Undo.SetCurrentGroupName("DotAsset: " + label);
             session.undoGroup = Undo.GetCurrentGroup();
             return session;
         }

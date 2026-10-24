@@ -6,7 +6,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace AssetOps
+namespace DotAsset
 {
     // Applies a material block, shared by EditMaterial and CreateAsset:
     //   "Shader": "Universal Render Pipeline/Lit" or a shader asset path

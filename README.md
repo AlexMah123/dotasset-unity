@@ -1,4 +1,4 @@
-# AssetOps
+# DotAsset for Unity
 
 ![Unity](https://img.shields.io/badge/Unity-2022.3%20%7C%206000.x-black?logo=unity)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
@@ -6,7 +6,7 @@
 
 An editor package that lets scripts and AI agents read, write, edit and audit Unity assets — with the editor open or closed, through one command line.
 
-The Unity counterpart of [uasset-workbench](https://github.com/hchia93/uasset-workbench): the same five groups, the same closed loop (export output reads back as an edit spec, audit reports carry fix specs), the same safety rules (all or nothing per asset, dry run by default), and the same dual pipeline (an in-editor task queue when the editor is open, a headless run when it is closed, identical output either way).
+Its design follows [uasset-workbench](https://github.com/hchia93/uasset-workbench) by [hchia93](https://github.com/hchia93), a tool for Unreal Engine `.uasset` files: the same five groups, the same closed loop (export output reads back as an edit spec, audit reports carry fix specs), the same safety rules (all or nothing per asset, dry run by default), and the same dual pipeline (an in-editor task queue when the editor is open, a headless run when it is closed, identical output either way).
 
 ## What it solves
 
@@ -56,37 +56,37 @@ Every write goes through Unity's own API (`SerializedObject`, `PrefabUtility`, `
 Window > Package Manager > + > Add package from git URL:
 
 ```
-https://github.com/<you>/AssetOps.git?path=/Package
+https://github.com/<you>/DotAsset.git?path=/Package
 ```
 
-Or copy `Package/` into your project as `Packages/com.assetops.editor/`. It pulls in `com.unity.nuget.newtonsoft-json`.
+Or copy `Package/` into your project as `Packages/com.alexmah.dotasset/`. It pulls in `com.unity.nuget.newtonsoft-json`.
 
 **2. Get the wrapper**
 
-The **Copy assetops.py** button in `Window > AssetOps` puts it at the project root. It is one Python 3.8+ file with no dependencies, so it also works copied anywhere.
+The **Copy dotasset.py** button in `Window > DotAsset` puts it at the project root. It is one Python 3.8+ file with no dependencies, so it also works copied anywhere.
 
 **3. Run**
 
 ```bash
 # Export: a prefab's hierarchy, components and overrides as JSON
-python assetops.py PrefabExport Assets/Prefabs/Player.prefab
+python dotasset.py PrefabExport Assets/Prefabs/Player.prefab
 
 # Import: create assets from a spec
-python assetops.py CreateAsset --args '-spec="C:/temp/create.json"'
+python dotasset.py CreateAsset --args '-spec="C:/temp/create.json"'
 
 # Edit: change a prefab, -apply writes it
-python assetops.py EditPrefab --args '-spec="C:/temp/player.edit.json" -apply'
+python dotasset.py EditPrefab --args '-spec="C:/temp/player.edit.json" -apply'
 
 # Migrate: point every reference to an old material at a new one
-python assetops.py RemapReference --args '-from=Assets/Mat/Old.mat -to=Assets/Mat/New.mat -apply'
+python dotasset.py RemapReference --args '-from=Assets/Mat/Old.mat -to=Assets/Mat/New.mat -apply'
 
 # Audit: check every texture's import settings
-python assetops.py AuditTexture --args '-scandir=Assets'
+python dotasset.py AuditTexture --args '-scandir=Assets'
 ```
 
-The wrapper finds the project from the current directory (or `--project`) and the editor from `ProjectSettings/ProjectVersion.txt` through Unity Hub's install folder (or `--unity`, or `ASSETOPS_UNITY`). `python assetops.py --list` prints every run, `--status` shows what the editor's queue is doing.
+The wrapper finds the project from the current directory (or `--project`) and the editor from `ProjectSettings/ProjectVersion.txt` through Unity Hub's install folder (or `--unity`, or `DOTASSET_UNITY`). `python dotasset.py --list` prints every run, `--status` shows what the editor's queue is doing.
 
-Output: `Library/AssetOps/Export/<AssetPath>_<timestamp>.json`. Logs: `Library/AssetOps/Logs/`, and `Window > AssetOps` in the editor.
+Output: `Library/DotAsset/Export/<AssetPath>_<timestamp>.json`. Logs: `Library/DotAsset/Logs/`, and `Window > DotAsset` in the editor.
 
 ## For AI agents
 
@@ -103,13 +103,13 @@ Output: `Library/AssetOps/Export/<AssetPath>_<timestamp>.json`. Logs: `Library/A
 
 ```
                          ┌───────── editor open ──────────┐
-python assetops.py ──┬──▶│ Library/AssetOps/Queue/pending │──▶ TaskQueue (main thread) ──┐
+python dotasset.py ──┬──▶│ Library/DotAsset/Queue/pending │──▶ TaskQueue (main thread) ──┐
                      │   └────────────────────────────────┘                              │
                      │                                                                   ├─▶ RunDispatcher ─▶ command ─▶ RunResult JSON
                      │   ┌──────── editor closed ─────────┐                              │
                      └──▶│ Unity -batchmode               │──▶ Cli.Run ──────────────────┘
                          │   -executeMethod               │
-                         │   AssetOps.Cli.Run             │
+                         │   DotAsset.Cli.Run             │
                          └────────────────────────────────┘
 ```
 
@@ -118,16 +118,24 @@ python assetops.py ──┬──▶│ Library/AssetOps/Queue/pending │─�
 - Queue states: `ready`, `busy`, `compiling`, `importing`, `playmode`, `reloading`, `starting`, `paused`. Tasks wait until the editor is `ready`.
 - Both routes return the same `RunResult` (exit code, summary, every log line, outputs), and the wrapper prints it the same way.
 
-Commands are plain classes: derive from `AssetOpsCommand`, name the class `<RunName>Command`, and it is registered — including from your own editor assemblies. The name picks the group: `*Export`, `*Import` / `Create*`, `Edit*`, `Audit*`, everything else Migrate.
+Commands are plain classes: derive from `DotAssetCommand`, name the class `<RunName>Command`, and it is registered — including from your own editor assemblies. The name picks the group: `*Export`, `*Import` / `Create*`, `Edit*`, `Audit*`, everything else Migrate.
 
 ## Status
 
-0.1.0 is a preview. It was written against Unity's C# reference source for 2022.3 and 6000.3. Every Unity API it calls was checked against both, and an independent review found no compile errors, but it has not yet been compiled and run inside Unity.
+0.1.0 is a preview. It compiles and passes the smoke test on Unity 6000.6, both with the editor closed and open. It was written against Unity's C# reference source for 2022.3 and 6000.3, but has not been compiled on 2022.3 or 6000.0-6000.3 yet.
 
 - `python -m unittest discover -s tests` covers the wrapper: both routes, startup wait, fallback, quoting, timeouts, exit codes.
-- `python tests/smoke/run_smoke.py --project <your project>` runs every group end to end in a real project, under `Assets/AssetOpsSmoke`, and cleans up (`--clean` removes leftovers of an interrupted run first). Run it once with the editor closed and once with it open.
+- `python tests/smoke/run_smoke.py --project <your project>` runs every group end to end in a real project, under `Assets/DotAssetSmoke`, and cleans up (`--clean` removes leftovers of an interrupted run first). Run it once with the editor closed and once with it open.
 
-The first run in Unity should confirm the behaviour that lives in Unity's native code and cannot be read from the C# source: `ArrayOps` `Append` (`InsertArrayElementAtIndex` at the end), undo coverage of `RemoveMissingScripts` in an open scene, and the undo revert of an `EditAnimatorController` dry run in batch mode (a failed or dry target is never saved either way). Please open issues with the Console output.
+Behaviour that lives in Unity's native code, and that the smoke test does not reach, is still to be confirmed: `ArrayOps` `Append` (`InsertArrayElementAtIndex` at the end), undo coverage of `RemoveMissingScripts` in an open scene, and the undo revert of an `EditAnimatorController` dry run in batch mode (a failed or dry target is never saved either way). Please open issues with the Console output.
+
+## Credits
+
+The design of the five groups, the closed loop and the dual pipeline comes from [uasset-workbench](https://github.com/hchia93/uasset-workbench) by [hchia93](https://github.com/hchia93). DotAsset for Unity is a separate project, written for Unity, and is not maintained by or affiliated with the uasset-workbench author.
+
+## Disclaimer
+
+DotAsset for Unity is an independent project. It is not affiliated with, endorsed by or sponsored by Unity Technologies. Unity is a trademark or registered trademark of Unity Technologies or its affiliates in the U.S. and elsewhere.
 
 ## License
 

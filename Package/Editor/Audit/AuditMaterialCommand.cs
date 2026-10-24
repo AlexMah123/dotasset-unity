@@ -6,7 +6,7 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace AssetOps
+namespace DotAsset
 {
     // Checks materials for what renders pink or carries dead weight.
     //   M1  no shader, or the error shader
@@ -16,9 +16,9 @@ namespace AssetOps
     //   M5  enabled keywords the shader does not declare
     // Fix spec: EditMaterial targets for M4 (RemoveStaleProperties) and M5 (DisableKeywords).
     // M1 to M3 need a shader choice, give one per material with EditMaterial's "Shader".
-    // Usage: assetops.py AuditMaterial [Assets/Materials] --args "-scandir=Assets"
+    // Usage: dotasset.py AuditMaterial [Assets/Materials] --args "-scandir=Assets"
     // Docs/Audit.md
-    public sealed class AuditMaterialCommand : AssetOpsCommand
+    public sealed class AuditMaterialCommand : DotAssetCommand
     {
         static readonly string[] BuiltinOnly = { "Standard", "Standard (Specular setup)", "Legacy Shaders/", "Mobile/", "Nature/", "Particles/Standard", "Autodesk Interactive" };
 

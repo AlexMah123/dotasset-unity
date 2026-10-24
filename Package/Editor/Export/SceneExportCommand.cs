@@ -6,12 +6,12 @@ using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-namespace AssetOps
+namespace DotAsset
 {
     // Scene hierarchy as JSON, in the same node format as PrefabExport. Prefab instances export as overrides.
-    // Usage: assetops.py SceneExport Assets/Scenes/Main.unity [--args "-expand -subtree=Environment"]
+    // Usage: dotasset.py SceneExport Assets/Scenes/Main.unity [--args "-expand -subtree=Environment"]
     // Docs/Export.md
-    public sealed class SceneExportCommand : AssetOpsCommand
+    public sealed class SceneExportCommand : DotAssetCommand
     {
         public override string Summary
         {

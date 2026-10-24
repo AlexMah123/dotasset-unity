@@ -3,15 +3,15 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
-namespace AssetOps
+namespace DotAsset
 {
     // Removes "Missing Script" components from prefabs and scenes. Ones inside a prefab instance belong to the
     // source prefab and are reported, not touched. Run RemapScript first if the script still exists under a new GUID.
-    // Usage: assetops.py RemoveMissingScripts Assets/Prefabs[,Assets/Scenes/Main.unity] --args "-apply"
-    //        assetops.py RemoveMissingScripts --args "-scandir=Assets -apply"
-    //        assetops.py RemoveMissingScripts --args '-spec="<AuditMissingReference fix spec>" -apply'
+    // Usage: dotasset.py RemoveMissingScripts Assets/Prefabs[,Assets/Scenes/Main.unity] --args "-apply"
+    //        dotasset.py RemoveMissingScripts --args "-scandir=Assets -apply"
+    //        dotasset.py RemoveMissingScripts --args '-spec="<AuditMissingReference fix spec>" -apply'
     // Docs/Migrate.md
-    public sealed class RemoveMissingScriptsCommand : AssetOpsCommand
+    public sealed class RemoveMissingScriptsCommand : DotAssetCommand
     {
         public override string Summary
         {
@@ -115,7 +115,7 @@ namespace AssetOps
                     {
                         // Added as an override on this instance: they belong to this file, but are not removed here.
                         ctx.Log.Warn(path + ": " + HierarchyPath.Of(go) + " has " + (missing - inherited) + " missing-script component(s) added on the prefab instance, left as they are. "
-                            + "AssetOps does not remove instance overrides, remove them in the Inspector, unpack the instance, or RemapScript their GUID");
+                            + "DotAsset does not remove instance overrides, remove them in the Inspector, unpack the instance, or RemapScript their GUID");
                     }
                     if (inherited > 0)
                     {

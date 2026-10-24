@@ -29,8 +29,8 @@ Asset-level moves and project-wide reference changes, the repairs after a rename
 ## MoveAsset
 
 ```bash
-python assetops.py MoveAsset --args '-from=Assets/Old/Gun.prefab -to=Assets/Weapons/Gun.prefab -apply'
-python assetops.py MoveAsset --args '-spec="C:/temp/moves.json" -apply'
+python dotasset.py MoveAsset --args '-from=Assets/Old/Gun.prefab -to=Assets/Weapons/Gun.prefab -apply'
+python dotasset.py MoveAsset --args '-spec="C:/temp/moves.json" -apply'
 ```
 
 ```json
@@ -46,7 +46,7 @@ Missing parent folders are created, and removed again when the move fails. `To` 
 ## DeleteAsset
 
 ```bash
-python assetops.py DeleteAsset "Assets/Old/Unused.mat,Assets/Old/Props" --args "-apply"
+python dotasset.py DeleteAsset "Assets/Old/Unused.mat,Assets/Old/Props" --args "-apply"
 ```
 
 | Argument | Effect |
@@ -60,8 +60,8 @@ A folder counts as referenced when something outside it uses something inside it
 ## ResaveAsset
 
 ```bash
-python assetops.py ResaveAsset --args "-dependson=Assets/Scripts/Inventory.cs -apply"
-python assetops.py ResaveAsset "Assets/Prefabs" --args "-type=GameObject -apply"
+python dotasset.py ResaveAsset --args "-dependson=Assets/Scripts/Inventory.cs -apply"
+python dotasset.py ResaveAsset "Assets/Prefabs" --args "-type=GameObject -apply"
 ```
 
 | Argument | Effect |
@@ -77,8 +77,8 @@ Uses `AssetDatabase.ForceReserializeAssets`. Scripts and folders are skipped.
 ## RemapReference
 
 ```bash
-python assetops.py RemapReference --args '-from=Assets/Materials/Old.mat -to=Assets/Materials/New.mat'
-python assetops.py RemapReference --args '-spec="C:/temp/remap.json" -apply'
+python dotasset.py RemapReference --args '-from=Assets/Materials/Old.mat -to=Assets/Materials/New.mat'
+python dotasset.py RemapReference --args '-spec="C:/temp/remap.json" -apply'
 ```
 
 ```json
@@ -104,7 +104,7 @@ python assetops.py RemapReference --args '-spec="C:/temp/remap.json" -apply'
 ## RemapScript
 
 ```bash
-python assetops.py RemapScript --args '-from=4f2c9a1e0b8d4c7e9f3a2b1c0d9e8f7a -to=Assets/Scripts/Inventory.cs -apply'
+python dotasset.py RemapScript --args '-from=4f2c9a1e0b8d4c7e9f3a2b1c0d9e8f7a -to=Assets/Scripts/Inventory.cs -apply'
 ```
 
 | Argument | Effect |
@@ -119,8 +119,8 @@ Rewrites `m_Script: {fileID: ..., guid: <old>, type: 3}` in every YAML asset (`.
 ## RemoveMissingScripts
 
 ```bash
-python assetops.py RemoveMissingScripts "Assets/Prefabs" --args "-apply"
-python assetops.py RemoveMissingScripts --args '-spec="Library/AssetOps/Audit/AuditMissingReference_20261023-201500.fix.json" -apply'
+python dotasset.py RemoveMissingScripts "Assets/Prefabs" --args "-apply"
+python dotasset.py RemoveMissingScripts --args '-spec="Library/DotAsset/Audit/AuditMissingReference_20261023-201500.fix.json" -apply'
 ```
 
 Give at least one of AssetList, `-scandir`, or `-spec` with `{"Files": [...]}` (the fix spec `AuditMissingReference` writes); with none the run is refused rather than sweeping the whole project. An empty `Files` list does nothing. Missing scripts on objects inside a prefab instance are left alone and reported: those inherited from the source prefab with the source path to clean, those added as overrides on the instance (every component a variant adds is one) with a warning to remove them in the Inspector, unpack the instance, or `RemapScript` the GUID.

@@ -3,12 +3,12 @@ using System.Text;
 using UnityEditor;
 using UnityEngine;
 
-namespace AssetOps
+namespace DotAsset
 {
     // Headless entry point. The wrapper launches:
-    //   Unity -batchmode -nographics -projectPath <dir> -executeMethod AssetOps.Cli.Run
-    //         -assetopsRun <RunName> [-assetopsAssetsB64 <base64 csv>] [-assetopsArgsB64 <base64 args>] [-assetopsResult <file>] -logFile <file>
-    // Plain -assetopsAssets / -assetopsArgs work too when calling by hand. Base64 keeps quoting intact across shells.
+    //   Unity -batchmode -nographics -projectPath <dir> -executeMethod DotAsset.Cli.Run
+    //         -dotassetRun <RunName> [-dotassetAssetsB64 <base64 csv>] [-dotassetArgsB64 <base64 args>] [-dotassetResult <file>] -logFile <file>
+    // Plain -dotassetAssets / -dotassetArgs work too when calling by hand. Base64 keeps quoting intact across shells.
     // The process exits with the run's ExitCode.
     public static class Cli
     {
@@ -19,10 +19,10 @@ namespace AssetOps
             try
             {
                 string[] argv = Environment.GetCommandLineArgs();
-                string run = Value(argv, "-assetopsRun");
-                string assets = Decode(Value(argv, "-assetopsAssetsB64")) ?? Value(argv, "-assetopsAssets") ?? string.Empty;
-                string extra = Decode(Value(argv, "-assetopsArgsB64")) ?? Value(argv, "-assetopsArgs") ?? string.Empty;
-                resultPath = Value(argv, "-assetopsResult");
+                string run = Value(argv, "-dotassetRun");
+                string assets = Decode(Value(argv, "-dotassetAssetsB64")) ?? Value(argv, "-dotassetAssets") ?? string.Empty;
+                string extra = Decode(Value(argv, "-dotassetArgsB64")) ?? Value(argv, "-dotassetArgs") ?? string.Empty;
+                resultPath = Value(argv, "-dotassetResult");
 
                 Application.SetStackTraceLogType(LogType.Log, StackTraceLogType.None);
                 Application.SetStackTraceLogType(LogType.Warning, StackTraceLogType.None);

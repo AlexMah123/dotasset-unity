@@ -1,6 +1,6 @@
 {
-    "name": "AssetOps.Editor",
-    "rootNamespace": "AssetOps",
+    "name": "DotAsset.Editor",
+    "rootNamespace": "DotAsset",
     "references": [],
     "includePlatforms": [
         "Editor"

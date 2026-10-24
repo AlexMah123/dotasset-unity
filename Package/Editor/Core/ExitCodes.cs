@@ -1,6 +1,6 @@
 using System;
 
-namespace AssetOps
+namespace DotAsset
 {
     // Process exit code of a run. The wrapper passes it straight through.
     public enum ExitCode
@@ -26,7 +26,7 @@ namespace AssetOps
 
     public static class Groups
     {
-        // Same rule as resolve_group() in Scripts~/assetops.py. Change both together.
+        // Same rule as resolve_group() in Scripts~/dotasset.py. Change both together.
         //   *Export          Export
         //   *Import, Create* Import
         //   Edit*            Edit

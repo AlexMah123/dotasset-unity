@@ -24,7 +24,7 @@ FOLDER = "folderAsset: yes\nDefaultImporter:\n  externalObjects: {}\n" + TAIL
 
 
 def guid(rel):
-    return hashlib.md5(("com.assetops.editor/" + rel).encode("utf-8")).hexdigest()
+    return hashlib.md5(("com.alexmah.dotasset/" + rel).encode("utf-8")).hexdigest()
 
 
 def wanted():

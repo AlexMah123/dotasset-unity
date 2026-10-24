@@ -14,8 +14,8 @@ Changes existing assets to match an intent. Creating is [Import](Import.md), mov
 | `EditAnimatorController` | parameters, layers, sub-state machines, states, blend trees, transitions | controller |
 
 ```bash
-python assetops.py EditPrefab --args '-spec="C:/temp/player.json"'           # dry run: every op runs, nothing is saved
-python assetops.py EditPrefab --args '-spec="C:/temp/player.json" -apply'    # write
+python dotasset.py EditPrefab --args '-spec="C:/temp/player.json"'           # dry run: every op runs, nothing is saved
+python dotasset.py EditPrefab --args '-spec="C:/temp/player.json" -apply'    # write
 ```
 
 Every Edit run takes `-spec=<path>` and `-apply`, nothing else. The spec is `{"Targets": [ ... ]}`. Unknown keys in a target are refused (exit 2) before anything runs.
@@ -53,7 +53,7 @@ The prefab loads into an isolated preview scene (`PrefabUtility.LoadPrefabConten
 Same spec and ops, `AssetPath` a `.unity`.
 
 - Not loaded: opens next to the user's scenes (headless: on its own) and closes again without saving unless the run writes.
-- Loaded in the editor: edited in place. Every change records undo on one group, so a failed or dry run reverts it, and an applied run is a single Ctrl+Z named `AssetOps: EditScene`.
+- Loaded in the editor: edited in place. Every change records undo on one group, so a failed or dry run reverts it, and an applied run is a single Ctrl+Z named `DotAsset: EditScene`.
 - Loaded with unsaved changes: refused, save or discard them first.
 
 A missing `Parent` in `AddGameObject` / `AddPrefabInstance` / `Reparent` means a scene root.

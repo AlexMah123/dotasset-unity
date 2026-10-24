@@ -3,13 +3,13 @@ using System.Linq;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
 
-namespace AssetOps
+namespace DotAsset
 {
     // What an asset uses and what uses it. Unity keeps the first direction only, the second comes from
     // indexing every asset under -scandir (default Assets), so a project-wide answer costs one pass.
-    // Usage: assetops.py AssetReferenceExport Assets/Materials/Red.mat[,more] [--args "-scandir=Assets -recursive"]
+    // Usage: dotasset.py AssetReferenceExport Assets/Materials/Red.mat[,more] [--args "-scandir=Assets -recursive"]
     // Docs/Export.md
-    public sealed class AssetReferenceExportCommand : AssetOpsCommand
+    public sealed class AssetReferenceExportCommand : DotAssetCommand
     {
         public override string Summary
         {

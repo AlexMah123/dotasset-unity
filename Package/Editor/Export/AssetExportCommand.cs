@@ -5,14 +5,14 @@ using UnityEditor;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
-namespace AssetOps
+namespace DotAsset
 {
     // Any asset file read through Unity's serializer: ScriptableObjects, and the main object plus sub-assets of
     // anything else. ScriptableObject properties are the delta from a fresh instance (-full for everything).
     // Prefabs and scenes go through PrefabExport and SceneExport, materials read better through MaterialExport.
-    // Usage: assetops.py AssetExport Assets/Data/Items[,Assets/Data/Loot.asset] [--args "-type=ItemDefinition -nosub"]
+    // Usage: dotasset.py AssetExport Assets/Data/Items[,Assets/Data/Loot.asset] [--args "-type=ItemDefinition -nosub"]
     // Docs/Export.md
-    public sealed class AssetExportCommand : AssetOpsCommand
+    public sealed class AssetExportCommand : DotAssetCommand
     {
         public override string Summary
         {

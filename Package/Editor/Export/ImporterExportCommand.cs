@@ -4,13 +4,13 @@ using Newtonsoft.Json.Linq;
 using UnityEditor;
 using UnityEngine;
 
-namespace AssetOps
+namespace DotAsset
 {
     // Import settings from the .meta file, read through the importer: textures, models, audio, anything with one.
     // Textures and models also get a Summary block with the settings agents ask about most, in EditImporter's terms.
-    // Usage: assetops.py ImporterExport Assets/Art/Textures[,Assets/Art/Hero.fbx] [--args "-full"]
+    // Usage: dotasset.py ImporterExport Assets/Art/Textures[,Assets/Art/Hero.fbx] [--args "-full"]
     // Docs/Export.md
-    public sealed class ImporterExportCommand : AssetOpsCommand
+    public sealed class ImporterExportCommand : DotAssetCommand
     {
         public override string Summary
         {

@@ -5,16 +5,16 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
-namespace AssetOps
+namespace DotAsset
 {
-    // Window > AssetOps: queue state, the runs of this session and earlier ones from their log files,
-    // each run's full log. The Message Log of uasset-workbench, for Unity.
-    public sealed class AssetOpsWindow : EditorWindow
+    // Window > DotAsset: queue state, the runs of this session and earlier ones from their log files,
+    // each run's full log.
+    public sealed class DotAssetWindow : EditorWindow
     {
-        [MenuItem("Window/AssetOps")]
+        [MenuItem("Window/DotAsset")]
         static void Open()
         {
-            GetWindow<AssetOpsWindow>("AssetOps");
+            GetWindow<DotAssetWindow>("DotAsset");
         }
 
         static readonly List<RunResult> session = new List<RunResult>();
@@ -33,7 +33,7 @@ namespace AssetOps
             {
                 session.RemoveAt(session.Count - 1);
             }
-            foreach (var w in Resources.FindObjectsOfTypeAll<AssetOpsWindow>())
+            foreach (var w in Resources.FindObjectsOfTypeAll<DotAssetWindow>())
             {
                 w.Repaint();
             }
@@ -65,8 +65,8 @@ namespace AssetOps
         {
             try
             {
-                logFiles = Directory.Exists(AssetOpsPaths.LogRoot)
-                    ? Directory.GetFiles(AssetOpsPaths.LogRoot, "*.log").OrderByDescending(f => Path.GetFileName(f)).Take(100).ToArray()
+                logFiles = Directory.Exists(DotAssetPaths.LogRoot)
+                    ? Directory.GetFiles(DotAssetPaths.LogRoot, "*.log").OrderByDescending(f => Path.GetFileName(f)).Take(100).ToArray()
                     : new string[0];
             }
             catch (Exception)
@@ -79,7 +79,7 @@ namespace AssetOps
         {
             using (new EditorGUILayout.HorizontalScope(EditorStyles.toolbar))
             {
-                GUILayout.Label("Queue: " + TaskQueue.State + "   pending: " + TaskQueue.PendingCount + "   v" + AssetOpsVersion.Version, EditorStyles.miniLabel);
+                GUILayout.Label("Queue: " + TaskQueue.State + "   pending: " + TaskQueue.PendingCount + "   v" + DotAssetVersion.Version, EditorStyles.miniLabel);
                 GUILayout.FlexibleSpace();
                 bool enabled = TaskQueue.Enabled;
                 bool toggled = GUILayout.Toggle(enabled, "Accept tasks", EditorStyles.toolbarButton);
@@ -92,14 +92,14 @@ namespace AssetOps
                 {
                     RefreshLogs();
                 }
-                if (GUILayout.Button(new GUIContent("Copy assetops.py", "Copy the wrapper to the project root, next to Assets/"), EditorStyles.toolbarButton))
+                if (GUILayout.Button(new GUIContent("Copy dotasset.py", "Copy the wrapper to the project root, next to Assets/"), EditorStyles.toolbarButton))
                 {
                     CopyWrapper();
                 }
                 if (GUILayout.Button("Open folder", EditorStyles.toolbarButton))
                 {
-                    Directory.CreateDirectory(AssetOpsPaths.Root);
-                    EditorUtility.RevealInFinder(AssetOpsPaths.Root);
+                    Directory.CreateDirectory(DotAssetPaths.Root);
+                    EditorUtility.RevealInFinder(DotAssetPaths.Root);
                 }
             }
 
@@ -139,7 +139,7 @@ namespace AssetOps
                     }
                     if (logFiles.Length == 0 && session.Count == 0)
                     {
-                        EditorGUILayout.HelpBox("No runs yet. Runs arrive from Scripts~/assetops.py while this editor is open.", MessageType.Info);
+                        EditorGUILayout.HelpBox("No runs yet. Runs arrive from Scripts~/dotasset.py while this editor is open.", MessageType.Info);
                     }
                 }
 
@@ -148,7 +148,7 @@ namespace AssetOps
                     logScroll = scroll.scrollPosition;
                     if (selectedText != null)
                     {
-                        GUILayout.Label(selectedLog != null ? AssetOpsPaths.ToProjectRelative(selectedLog) : "", EditorStyles.miniLabel);
+                        GUILayout.Label(selectedLog != null ? DotAssetPaths.ToProjectRelative(selectedLog) : "", EditorStyles.miniLabel);
                         string shown = warningsOnly
                             ? string.Join("\n", selectedText.Split('\n').Where(l => l.StartsWith("W ") || l.StartsWith("E ")))
                             : selectedText;
@@ -161,22 +161,22 @@ namespace AssetOps
         // The package may live in Library/PackageCache under a hashed folder, a copy at the root is easier to call.
         static void CopyWrapper()
         {
-            var info = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(AssetOpsWindow).Assembly);
+            var info = UnityEditor.PackageManager.PackageInfo.FindForAssembly(typeof(DotAssetWindow).Assembly);
             if (info == null)
             {
-                EditorUtility.DisplayDialog("AssetOps", "Could not locate the package folder.", "OK");
+                EditorUtility.DisplayDialog("DotAsset", "Could not locate the package folder.", "OK");
                 return;
             }
-            string source = Path.Combine(info.resolvedPath, "Scripts~", "assetops.py");
-            string target = Path.Combine(AssetOpsPaths.ProjectRoot, "assetops.py");
+            string source = Path.Combine(info.resolvedPath, "Scripts~", "dotasset.py");
+            string target = Path.Combine(DotAssetPaths.ProjectRoot, "dotasset.py");
             try
             {
                 File.Copy(source, target, true);
-                Debug.Log("[AssetOps] copied the wrapper to " + target);
+                Debug.Log("[DotAsset] copied the wrapper to " + target);
             }
             catch (Exception e)
             {
-                EditorUtility.DisplayDialog("AssetOps", "Could not copy " + source + ": " + e.Message, "OK");
+                EditorUtility.DisplayDialog("DotAsset", "Could not copy " + source + ": " + e.Message, "OK");
             }
         }
 

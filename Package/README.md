@@ -1,7 +1,7 @@
-# AssetOps
+# DotAsset for Unity
 
-Headless and in-editor asset operations for scripts and AI agents: export, create, edit, migrate and audit Unity assets through one command line, `Scripts~/assetops.py`.
+Headless and in-editor asset operations for scripts and AI agents: export, create, edit, migrate and audit Unity assets through one command line, `Scripts~/dotasset.py`.
 
-Open `Window > AssetOps` for the queue state and run logs, and its **Copy assetops.py** button to put the wrapper at the project root.
+Open `Window > DotAsset` for the queue state and run logs, and its **Copy dotasset.py** button to put the wrapper at the project root.
 
 Documentation: the `Docs/` folder of the repository, starting with `Docs/AI-Guide.md`.

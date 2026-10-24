@@ -1,8 +1,8 @@
-"""Tests for Scripts~/assetops.py and for the naming rules the C# side relies on.
+"""Tests for Scripts~/dotasset.py and for the naming rules the C# side relies on.
 
 Unity itself is replaced by two fakes:
   - a fake editor: a thread that serves the file queue the way TaskQueue.cs does
-  - a fake Unity executable: a script that answers -executeMethod AssetOps.Cli.Run the way Cli.cs does
+  - a fake Unity executable: a script that answers -executeMethod DotAsset.Cli.Run the way Cli.cs does
 Run: python -m unittest discover -s tests -v
 """
 
@@ -24,7 +24,7 @@ from io import StringIO
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PACKAGE = os.path.join(ROOT, "Package")
-SPEC = importlib.util.spec_from_file_location("assetops", os.path.join(PACKAGE, "Scripts~", "assetops.py"))
+SPEC = importlib.util.spec_from_file_location("dotasset", os.path.join(PACKAGE, "Scripts~", "dotasset.py"))
 ops = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(ops)
 
@@ -61,7 +61,7 @@ class FakeEditor(threading.Thread):
 
     def beat(self):
         with open(os.path.join(self.queue, ops.ALIVE), "w") as f:
-            json.dump({"Pid": os.getpid(), "State": self.state, "UnityVersion": "6000.0.40f1", "AssetOpsVersion": "test"}, f)
+            json.dump({"Pid": os.getpid(), "State": self.state, "UnityVersion": "6000.0.40f1", "DotAssetVersion": "test"}, f)
 
     def run(self):
         while not self.stop.is_set():
@@ -108,13 +108,13 @@ if mode == "compile_error":
 if mode == "hang":
     import time
     time.sleep(30)
-run = val("-assetopsRun")
-assets = base64.b64decode(val("-assetopsAssetsB64")).decode() if val("-assetopsAssetsB64") else ""
-extra = base64.b64decode(val("-assetopsArgsB64")).decode() if val("-assetopsArgsB64") else ""
+run = val("-dotassetRun")
+assets = base64.b64decode(val("-dotassetAssetsB64")).decode() if val("-dotassetAssetsB64") else ""
+extra = base64.b64decode(val("-dotassetArgsB64")).decode() if val("-dotassetArgsB64") else ""
 code = int(os.environ.get("FAKE_UNITY_EXIT", "0"))
 with open(log, "w") as f:
     f.write("fake unity log\n")
-with open(val("-assetopsResult"), "w") as f:
+with open(val("-dotassetResult"), "w") as f:
     json.dump({"RunName": run, "ExitCode": code, "Summary": run + " fake", "Lines": ["I assets=" + assets, "I extra=" + extra, "W careful"], "Outputs": []}, f)
 sys.exit(code)
 '''
@@ -138,7 +138,7 @@ class Base(unittest.TestCase):
             with open(self.fake_unity, "w") as f:
                 f.write(FAKE_UNITY)
             os.chmod(self.fake_unity, os.stat(self.fake_unity).st_mode | stat.S_IEXEC)
-        for k in ("FAKE_UNITY_MODE", "FAKE_UNITY_EXIT", "FAKE_UNITY_RECORD", "ASSETOPS_UNITY", "ASSETOPS_PROJECT"):
+        for k in ("FAKE_UNITY_MODE", "FAKE_UNITY_EXIT", "FAKE_UNITY_RECORD", "DOTASSET_UNITY", "DOTASSET_PROJECT"):
             os.environ.pop(k, None)
 
     def tearDown(self):
@@ -174,16 +174,16 @@ class GroupRule(unittest.TestCase):
     def test_every_command_class_is_sealed_and_named(self):
         for dirpath, _, files in os.walk(os.path.join(PACKAGE, "Editor")):
             for name in files:
-                if name.endswith("Command.cs") and name != "AssetOpsCommand.cs":
+                if name.endswith("Command.cs") and name != "DotAssetCommand.cs":
                     text = open(os.path.join(dirpath, name)).read()
                     cls = name[:-3]
-                    self.assertRegex(text, r"public sealed class %s : AssetOpsCommand" % cls, name)
+                    self.assertRegex(text, r"public sealed class %s : DotAssetCommand" % cls, name)
                     self.assertIn("Docs/", text, name + " header must point at its doc")
 
     def test_queue_constants_match(self):
         src = open(os.path.join(PACKAGE, "Editor", "Core", "TaskQueue.cs")).read()
-        self.assertIn('QueueRelative = "Library/AssetOps/Queue"', src)
-        self.assertEqual(ops.QUEUE_RELATIVE.replace(os.sep, "/"), "Library/AssetOps/Queue")
+        self.assertIn('QueueRelative = "Library/DotAsset/Queue"', src)
+        self.assertEqual(ops.QUEUE_RELATIVE.replace(os.sep, "/"), "Library/DotAsset/Queue")
         for const in ("pending", "processing", "done", ".alive"):
             self.assertIn('"%s"' % const, src)
 
@@ -339,10 +339,10 @@ class BatchRoute(Base):
         argv = json.load(open(record))
         self.assertIn("-batchmode", argv)
         self.assertIn("-nographics", argv)
-        self.assertEqual(argv[argv.index("-executeMethod") + 1], "AssetOps.Cli.Run")
+        self.assertEqual(argv[argv.index("-executeMethod") + 1], "DotAsset.Cli.Run")
         self.assertEqual(argv[argv.index("-projectPath") + 1], self.project)
-        self.assertEqual(base64.b64decode(argv[argv.index("-assetopsArgsB64") + 1]).decode(), extra)
-        self.assertNotIn("-assetopsAssetsB64", argv, "no AssetList, no flag")
+        self.assertEqual(base64.b64decode(argv[argv.index("-dotassetArgsB64") + 1]).decode(), extra)
+        self.assertNotIn("-dotassetAssetsB64", argv, "no AssetList, no flag")
 
     def test_assets_are_normalized(self):
         code, out = self.call("PrefabExport", r"Assets\Prefabs\A.prefab, Assets/B.prefab", "--unity", self.fake_unity)
@@ -487,7 +487,7 @@ class PackageFiles(unittest.TestCase):
 
     def test_versions_agree(self):
         pkg = json.load(open(os.path.join(PACKAGE, "package.json")))
-        cs = open(os.path.join(PACKAGE, "Editor", "Core", "AssetOpsVersion.cs")).read()
+        cs = open(os.path.join(PACKAGE, "Editor", "Core", "DotAssetVersion.cs")).read()
         self.assertIn('Version = "%s"' % pkg["version"], cs)
         self.assertIn("### " + pkg["version"], open(os.path.join(ROOT, "Version.md")).read())
 
@@ -504,7 +504,7 @@ class PackageFiles(unittest.TestCase):
         guide = open(os.path.join(ROOT, "Docs", "AI-Guide.md")).read()
         for dirpath, _, files in os.walk(os.path.join(PACKAGE, "Editor")):
             for name in files:
-                if name.endswith("Command.cs") and name != "AssetOpsCommand.cs":
+                if name.endswith("Command.cs") and name != "DotAssetCommand.cs":
                     run = name[:-len("Command.cs")]
                     self.assertIn("`%s`" % run, docs, run)
                     self.assertIn(run, guide, run + " missing from the AI-Guide decision table")

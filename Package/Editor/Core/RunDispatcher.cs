@@ -7,10 +7,10 @@ using System.Text;
 using Newtonsoft.Json.Linq;
 using UnityEngine;
 
-namespace AssetOps
+namespace DotAsset
 {
     // Outcome of one run, the same shape on both paths: the queue writes it to done/<id>.json,
-    // the headless entry writes it to the -assetopsResult file. The wrapper prints it.
+    // the headless entry writes it to the -dotassetResult file. The wrapper prints it.
     public sealed class RunResult
     {
         public string RunName;
@@ -30,7 +30,7 @@ namespace AssetOps
         {
             return new JObject
             {
-                ["AssetOpsVersion"] = AssetOpsVersion.Version,
+                ["DotAssetVersion"] = DotAssetVersion.Version,
                 ["RunName"] = RunName,
                 ["ExitCode"] = ExitCode,
                 ["DryRun"] = DryRun,
@@ -87,14 +87,14 @@ namespace AssetOps
             var ctx = new RunContext
             {
                 RunName = runName,
-                Assets = (assets ?? new List<string>()).Where(a => !string.IsNullOrWhiteSpace(a)).Select(a => AssetOpsPaths.Normalize(a.Trim())).ToList(),
+                Assets = (assets ?? new List<string>()).Where(a => !string.IsNullOrWhiteSpace(a)).Select(a => DotAssetPaths.Normalize(a.Trim())).ToList(),
                 Args = RunArgs.Parse(extraArgs),
                 Log = log,
                 InEditor = inEditor,
                 Group = Groups.Resolve(runName),
             };
 
-            log.Info("AssetOps " + AssetOpsVersion.Version + ", Unity " + Application.unityVersion + ", " + (inEditor ? "editor" : "batchmode"));
+            log.Info("DotAsset " + DotAssetVersion.Version + ", Unity " + Application.unityVersion + ", " + (inEditor ? "editor" : "batchmode"));
             ExitCode code;
             if (IsRunning)
             {
@@ -127,7 +127,7 @@ namespace AssetOps
 
             if (inEditor)
             {
-                string line = "[AssetOps] " + result.Summary + "  (log: " + AssetOpsPaths.ToProjectRelative(result.LogFile ?? "") + ")";
+                string line = "[DotAsset] " + result.Summary + "  (log: " + DotAssetPaths.ToProjectRelative(result.LogFile ?? "") + ")";
                 LogType type = failed ? LogType.Error : code == ExitCode.IssuesFound || log.Warnings > 0 ? LogType.Warning : LogType.Log;
                 UnityEngine.Debug.LogFormat(type, LogOption.NoStacktrace, null, "{0}", line);
             }
@@ -154,7 +154,7 @@ namespace AssetOps
                 return ExitCode.Refused;
             }
 
-            AssetOpsCommand cmd = CommandRegistry.Find(ctx.RunName);
+            DotAssetCommand cmd = CommandRegistry.Find(ctx.RunName);
             if (cmd == null)
             {
                 ctx.Log.Error("unknown run '" + ctx.RunName + "'. Known runs: " + string.Join(", ", CommandRegistry.All.Keys.OrderBy(k => k)));
@@ -204,7 +204,7 @@ namespace AssetOps
 
             Application.LogCallback hook = (message, stack, type) =>
             {
-                if (engineLogMuted > 0 || (message != null && message.StartsWith("[AssetOps]", StringComparison.Ordinal)))
+                if (engineLogMuted > 0 || (message != null && message.StartsWith("[DotAsset]", StringComparison.Ordinal)))
                 {
                     return;
                 }
@@ -304,10 +304,10 @@ namespace AssetOps
         {
             try
             {
-                Directory.CreateDirectory(AssetOpsPaths.LogRoot);
-                string path = AssetOpsPaths.Combine(AssetOpsPaths.LogRoot, AssetOpsPaths.Timestamp() + "_" + Sanitize(runName ?? "none") + "_" + Guid.NewGuid().ToString("N").Substring(0, 6) + ".log");
+                Directory.CreateDirectory(DotAssetPaths.LogRoot);
+                string path = DotAssetPaths.Combine(DotAssetPaths.LogRoot, DotAssetPaths.Timestamp() + "_" + Sanitize(runName ?? "none") + "_" + Guid.NewGuid().ToString("N").Substring(0, 6) + ".log");
                 File.WriteAllText(path, string.Join("\n", result.Lines) + "\n", new UTF8Encoding(false));
-                var old = new DirectoryInfo(AssetOpsPaths.LogRoot).GetFiles("*.log").OrderByDescending(f => f.Name).Skip(KeepLogs);
+                var old = new DirectoryInfo(DotAssetPaths.LogRoot).GetFiles("*.log").OrderByDescending(f => f.Name).Skip(KeepLogs);
                 foreach (var f in old)
                 {
                     f.Delete();

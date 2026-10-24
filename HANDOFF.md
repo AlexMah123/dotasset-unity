@@ -6,7 +6,7 @@ Status of DotAsset 0.1.0 for whoever picks it up next (a person or Claude Code).
 
 - The package compiles without errors on Unity 6000.6.7f1. Unity 2022.3 and 6000.0-6000.3 have not been compiled yet.
 - Seven review passes have been made, written and checked without a compiler against Unity's C# reference source (6000.3 and 2022.3). Their history is in `git log`.
-- The end-to-end smoke test passes on 6000.6.7f1 on Windows, both headless and with the editor open (all 31 steps each).
+- The end-to-end smoke test passes on 6000.6.7f1 on Windows, both headless and with the editor open (all 31 steps each), last run on commit 0e5681a on 2026-10-24. The editor-open run used `--launch` and `--quit` over remote control.
 
 ## Next step: compile and smoke test on Unity 2022.3 and 6000.0-6000.3
 

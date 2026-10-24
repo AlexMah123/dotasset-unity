@@ -259,11 +259,14 @@ Patches within a tested version are expected to work, Unity keeps the API stable
 
 Behaviour that lives in Unity's native code, and that the smoke test does not reach, is still to be confirmed: `ArrayOps` `Append` (`InsertArrayElementAtIndex` at the end), undo coverage of `RemoveMissingScripts` in an open scene, and the undo revert of an `EditAnimatorController` dry run in batch mode (a failed or dry target is never saved either way). Please open issues with the Console output.
 
+## Contributors
+
+- Alex Mah, maintainer
+- [Claude Code](https://claude.com/claude-code) (Anthropic), AI contributor, co-author on the commits it worked on
+
 ## Credits
 
 The design of the five groups, the closed loop and the dual pipeline comes from [uasset-workbench](https://github.com/hchia93/uasset-workbench) by [hchia93](https://github.com/hchia93). DotAsset for Unity is a separate project, written for Unity, and is not maintained by or affiliated with the uasset-workbench author.
-
-Developed with the help of [Claude Code](https://claude.com/claude-code) (Anthropic). Maintained by Alex Mah, and tested with the unit tests and the end-to-end smoke test on each Unity version listed under Status.
 
 ## Disclaimer
 

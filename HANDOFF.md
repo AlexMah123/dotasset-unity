@@ -4,11 +4,13 @@ Status of AssetOps 0.1.0 for whoever picks it up next (a person or Claude Code).
 
 ## Where it stands
 
-- The package compiles without errors on the owner's Unity 6 editor (6000.4 or newer). Unity 2022.3 and 6000.0-6000.3 have not been compiled yet.
+- The package compiles without errors on Unity 6000.6.7f1. Unity 2022.3 and 6000.0-6000.3 have not been compiled yet.
 - Seven review passes have been made, written and checked without a compiler against Unity's C# reference source (6000.3 and 2022.3). Their history is in `git log`.
-- The end-to-end smoke test has **not been run yet**. It is the next step.
+- The end-to-end smoke test passes on 6000.6.7f1 on Windows, both headless and with the editor open (all 31 steps each).
 
-## Next step: run the smoke test
+## Next step: compile and smoke test on Unity 2022.3 and 6000.0-6000.3
+
+## Running the smoke test
 
 From the repo root, against a Unity project that has this package installed (Package Manager > + > Install package from disk > `Package/package.json`):
 
@@ -21,6 +23,10 @@ Run it twice:
 1. With the Unity editor closed (headless route). Add `--unity "<path to Unity.exe>"` if the editor is not found.
 2. With the project open in the editor (queue route). The open scene must be saved, not Untitled. The editor should be idle.
 
+A headless run quits Unity with no saved scene loaded, so the next time the editor opens it may show an Untitled scene. Open a saved scene before the editor-open run, or `CreateAsset` cannot create its scene and four steps fail.
+
+On Windows, `python` may only be the Microsoft Store alias. Use a real interpreter (3.9 or newer works).
+
 Each step prints `ok` or `FAIL` with its exit code. For a failure, read the printed output, the Unity Console, and the `Unity log:` path the run prints. Fix the code, then rerun with `--clean`.
 
 ## Checks to run after any change
@@ -30,6 +36,8 @@ Each step prints `ok` or `FAIL` with its exit code. For a failure, read the prin
 - Unity itself is the only real compiler. Watch for CS0136 (a local redeclared inside a nested block), which slipped through once.
 
 ## Things only a run in Unity can confirm
+
+The smoke test does not reach these, so they are still open.
 
 - `EditorJsonUtility.FromJsonOverwrite` restores `[SerializeReference]` fields of a script ScriptableObject. `AssetSnapshot` relies on it.
 - `Undo.RegisterFullObjectHierarchyUndo` brings missing-script components back when an `EditScene` dry run or `RemoveMissingScripts` in an open scene reverts.

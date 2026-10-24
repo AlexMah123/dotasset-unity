@@ -123,9 +123,17 @@ class Base(unittest.TestCase):
         self._orig_is_unity = ops.is_unity_process
         ops.is_unity_process = lambda pid: pid == os.getpid() and getattr(self, "editor_alive", True)
         self.fake_unity = os.path.join(self.tmp, "Unity")
-        with open(self.fake_unity, "w") as f:
-            f.write(FAKE_UNITY)
-        os.chmod(self.fake_unity, os.stat(self.fake_unity).st_mode | stat.S_IEXEC)
+        if sys.platform == "win32":
+            # Windows cannot run a shebang script, so a .cmd shim hands it to this interpreter
+            with open(self.fake_unity + ".py", "w") as f:
+                f.write(FAKE_UNITY)
+            self.fake_unity += ".cmd"
+            with open(self.fake_unity, "w") as f:
+                f.write('@"%s" "%%~dp0Unity.py" %%*\r\n' % sys.executable)
+        else:
+            with open(self.fake_unity, "w") as f:
+                f.write(FAKE_UNITY)
+            os.chmod(self.fake_unity, os.stat(self.fake_unity).st_mode | stat.S_IEXEC)
         for k in ("FAKE_UNITY_MODE", "FAKE_UNITY_EXIT", "FAKE_UNITY_RECORD", "ASSETOPS_UNITY", "ASSETOPS_PROJECT"):
             os.environ.pop(k, None)
 

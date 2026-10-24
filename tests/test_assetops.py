@@ -97,6 +97,10 @@ if record:
         json.dump(argv, f)
 mode = os.environ.get("FAKE_UNITY_MODE", "ok")
 log = val("-logFile")
+setup = os.path.join(val("-projectPath"), "Library", "LastSceneManagerSetup.txt")
+if os.path.isdir(os.path.dirname(setup)):
+    with open(setup, "w") as f:
+        f.write("sceneSetups: []\n")
 if mode == "compile_error":
     with open(log, "w") as f:
         f.write("Assets/Foo.cs(3,1): error CS1002: ; expected\nScripts have compiler errors.\n")
@@ -349,6 +353,19 @@ class BatchRoute(Base):
         os.environ["FAKE_UNITY_EXIT"] = "3"
         code, _ = self.call("AuditMaterial", "--unity", self.fake_unity)
         self.assertEqual(code, 3)
+
+    def test_scene_setup_survives_batch_run(self):
+        # Batch Unity empties the scenes the editor reopens, the wrapper puts them back
+        setup = os.path.join(self.project, "Library", "LastSceneManagerSetup.txt")
+        os.makedirs(os.path.dirname(setup), exist_ok=True)
+        saved = "sceneSetups:\n- path: Assets/Scenes/Main.unity\n  isLoaded: 1\n"
+        with open(setup, "w") as f:
+            f.write(saved)
+        for mode in ("ok", "compile_error"):
+            os.environ["FAKE_UNITY_MODE"] = mode
+            self.call("AuditMaterial", "--unity", self.fake_unity)
+            with open(setup) as f:
+                self.assertEqual(f.read(), saved, mode)
 
     def test_compile_errors_are_explained(self):
         os.environ["FAKE_UNITY_MODE"] = "compile_error"

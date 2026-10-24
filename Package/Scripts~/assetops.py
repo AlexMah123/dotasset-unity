@@ -474,7 +474,39 @@ def b64(text):
     return base64.b64encode(text.encode("utf-8")).decode("ascii")
 
 
+def scene_setup_path(project):
+    return os.path.join(project, "Library", "LastSceneManagerSetup.txt")
+
+
+def read_scene_setup(project):
+    try:
+        with open(scene_setup_path(project), "rb") as f:
+            return f.read()
+    except OSError:
+        return None
+
+
+def restore_scene_setup(project, saved):
+    """Batch Unity rewrites the scenes the editor reopens with the ones it had loaded on quit, none,
+    so the next editor start would show an Untitled scene. Put the user's back."""
+    if saved is None or read_scene_setup(project) == saved:
+        return
+    try:
+        with open(scene_setup_path(project), "wb") as f:
+            f.write(saved)
+    except OSError as e:
+        log("warning: could not restore %s: %s" % (scene_setup_path(project), e))
+
+
 def run_batch(args, project, queue_root, run, assets, extra):
+    saved = read_scene_setup(project)
+    try:
+        return run_batch_unity(args, project, queue_root, run, assets, extra)
+    finally:
+        restore_scene_setup(project, saved)
+
+
+def run_batch_unity(args, project, queue_root, run, assets, extra):
     unity = find_unity(args.unity, project)
     if not unity:
         version = project_unity_version(project) or "?"

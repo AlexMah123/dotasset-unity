@@ -13,6 +13,13 @@
     "audit"
   ],
   "license": "MIT",
+  "author": {
+    "name": "Alex Mah",
+    "url": "https://github.com/AlexMah123"
+  },
+  "documentationUrl": "https://github.com/AlexMah123/dotasset-unity#readme",
+  "changelogUrl": "https://github.com/AlexMah123/dotasset-unity/blob/main/Version.md",
+  "licensesUrl": "https://github.com/AlexMah123/dotasset-unity/blob/main/Package/LICENSE.md",
   "dependencies": {
     "com.unity.nuget.newtonsoft-json": "3.2.1"
   }

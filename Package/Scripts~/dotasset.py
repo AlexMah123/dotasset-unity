@@ -253,6 +253,61 @@ def project_locked(project):
         os.close(fd)
 
 
+BATCH_LOCK = "batch.lock"
+
+
+class BatchLock:
+    """One headless run per project at a time. Held from before the scene setup is saved until after Unity exits,
+    released by the OS if this script dies, so it never goes stale. Without it two callers that both see the
+    project free start two Unity processes, and the second one fails on Unity's own lock."""
+
+    def __init__(self, queue_root):
+        self.path = os.path.join(queue_root, BATCH_LOCK)
+        self.fd = None
+
+    def try_acquire(self):
+        os.makedirs(os.path.dirname(self.path), exist_ok=True)
+        fd = os.open(self.path, os.O_RDWR | os.O_CREAT)
+        try:
+            if sys.platform == "win32":
+                import msvcrt
+                os.lseek(fd, 0, os.SEEK_SET)
+                msvcrt.locking(fd, msvcrt.LK_NBLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(fd, fcntl.LOCK_EX | fcntl.LOCK_NB)
+        except OSError:
+            os.close(fd)
+            return False
+        self.fd = fd
+        return True
+
+    def release(self):
+        if self.fd is None:
+            return
+        try:
+            if sys.platform == "win32":
+                import msvcrt
+                os.lseek(self.fd, 0, os.SEEK_SET)
+                msvcrt.locking(self.fd, msvcrt.LK_UNLCK, 1)
+            else:
+                import fcntl
+                fcntl.flock(self.fd, fcntl.LOCK_UN)
+        except OSError:
+            pass
+        os.close(self.fd)
+        self.fd = None
+
+
+def batch_run_active(queue_root):
+    """True while another DotAsset headless run has the project."""
+    lock = BatchLock(queue_root)
+    if lock.try_acquire():
+        lock.release()
+        return False
+    return True
+
+
 def read_alive(queue_root):
     path = os.path.join(queue_root, ALIVE)
     for _ in range(3):
@@ -504,11 +559,33 @@ def restore_scene_setup(project, saved):
 
 
 def run_batch(args, project, queue_root, run, assets, extra):
-    saved = read_scene_setup(project)
+    lock = BatchLock(queue_root)
+    if not lock.try_acquire():
+        log("another DotAsset headless run has the project, waiting for it to finish (up to %ds)" % args.timeout)
+        deadline = time.time() + args.timeout
+        while not lock.try_acquire():
+            if time.time() > deadline:
+                log("error: the other headless run did not finish within %ds" % args.timeout)
+                return EXIT_REFUSED
+            time.sleep(0.5)
     try:
-        return run_batch_unity(args, project, queue_root, run, assets, extra)
+        # The previous run's Unity may still be letting go of the project, or someone opened an editor meanwhile.
+        deadline = time.time() + 60
+        while project_locked(project) and live_editor(queue_root) is None and time.time() < deadline:
+            time.sleep(0.5)
+        if project_locked(project):
+            if live_editor(queue_root) is not None:
+                log("error: an editor opened the project while this run waited, run it again to use the editor")
+            else:
+                log("error: another Unity holds the project (Temp/UnityLockfile) and it is not a DotAsset run. Close it and retry")
+            return EXIT_REFUSED
+        saved = read_scene_setup(project)
+        try:
+            return run_batch_unity(args, project, queue_root, run, assets, extra)
+        finally:
+            restore_scene_setup(project, saved)
     finally:
-        restore_scene_setup(project, saved)
+        lock.release()
 
 
 def run_batch_unity(args, project, queue_root, run, assets, extra):
@@ -641,6 +718,12 @@ def route(args, project, run, assets, extra):
     queue_root = os.path.join(project, QUEUE_RELATIVE)
     if args.route in ("auto", "editor"):
         alive = live_editor(queue_root)
+        if alive is None and project_locked(project) and batch_run_active(queue_root):
+            # A headless DotAsset run holds the project, not a starting editor. run_batch waits its turn.
+            if args.route == "editor":
+                log("error: --route editor, but the project is held by a headless DotAsset run, not an editor")
+                return EXIT_REFUSED
+            return run_batch(args, project, queue_root, run, assets, extra)
         if alive is None and project_locked(project):
             log("Unity has the project open but its task queue is not up yet, waiting up to %ds" % args.startup_wait)
             deadline = time.time() + args.startup_wait
@@ -691,8 +774,29 @@ def start_detached(cmd):
 
 
 def launch(args, project):
-    """Opens the project in the editor, or finds it already open, and waits until its queue is ready."""
+    """Opens the project in the editor, or finds it already open, and waits until its queue is ready. Holds the
+    headless lock meanwhile: a headless run waiting its turn must not start between the launch and the heartbeat."""
     queue_root = os.path.join(project, QUEUE_RELATIVE)
+    lock = BatchLock(queue_root)
+    if not lock.try_acquire():
+        log("a DotAsset headless run has the project, waiting for it to finish (up to %ds)" % args.timeout)
+        deadline = time.time() + args.timeout
+        while not lock.try_acquire():
+            if time.time() > deadline:
+                log("error: the headless run did not finish within %ds" % args.timeout)
+                return EXIT_REFUSED
+            time.sleep(0.5)
+        # Its Unity may still be letting go of the project.
+        deadline = time.time() + 60
+        while project_locked(project) and live_editor(queue_root) is None and time.time() < deadline:
+            time.sleep(0.5)
+    try:
+        return launch_locked(args, project, queue_root)
+    finally:
+        lock.release()
+
+
+def launch_locked(args, project, queue_root):
     proc = None
     if live_editor(queue_root) is None and not project_locked(project):
         unity = find_unity(args.unity, project)

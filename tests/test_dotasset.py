@@ -510,6 +510,56 @@ class BatchRoute(Base):
         self.assertEqual(code, 2)
 
 
+class HeadlessLock(Base):
+    def queue_root(self):
+        return os.path.join(self.project, ops.QUEUE_RELATIVE)
+
+    def test_lock_is_exclusive(self):
+        first, second = ops.BatchLock(self.queue_root()), ops.BatchLock(self.queue_root())
+        self.assertTrue(first.try_acquire())
+        self.assertTrue(ops.batch_run_active(self.queue_root()))
+        self.assertFalse(second.try_acquire())
+        first.release()
+        self.assertFalse(ops.batch_run_active(self.queue_root()))
+        self.assertTrue(second.try_acquire())
+        second.release()
+
+    def test_headless_run_waits_its_turn(self):
+        held = ops.BatchLock(self.queue_root())
+        self.assertTrue(held.try_acquire())
+        threading.Timer(1.5, held.release).start()
+        started = time.time()
+        code, out = self.call("PrefabExport", "Assets/A.prefab", "--unity", self.fake_unity)
+        self.assertEqual(code, 0, out)
+        self.assertIn("another DotAsset headless run has the project", out)
+        self.assertGreaterEqual(time.time() - started, 1.4)
+
+    def test_headless_run_gives_up_after_timeout(self):
+        held = ops.BatchLock(self.queue_root())
+        self.assertTrue(held.try_acquire())
+        try:
+            code, out = self.call("PrefabExport", "Assets/A.prefab", "--unity", self.fake_unity, "--timeout", "1")
+        finally:
+            held.release()
+        self.assertEqual(code, 2, out)
+        self.assertIn("did not finish within 1s", out)
+
+    def test_parallel_runs_all_succeed(self):
+        codes = []
+
+        def one():
+            r = subprocess.run([sys.executable, os.path.join(PACKAGE, "Scripts~", "dotasset.py"), "--project", self.project,
+                                "--unity", self.fake_unity, "PrefabExport", "Assets/A.prefab"], capture_output=True, text=True)
+            codes.append(r.returncode)
+
+        threads = [threading.Thread(target=one) for _ in range(4)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        self.assertEqual(codes, [0, 0, 0, 0])
+
+
 class LogSweep(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.mkdtemp()

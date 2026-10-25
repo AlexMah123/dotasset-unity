@@ -223,6 +223,7 @@ They combine well: an agent can drive the editor through UniCli, an MCP server o
 | `--launch` times out | Compile errors, a Safe Mode prompt or a license dialog hold the editor. The error names the Editor.log to check |
 | `no Unity <version> found` | Pass `--unity <path to the editor>` or set `DOTASSET_UNITY` |
 | `--quit` is refused | A scene or Prefab Mode has unsaved changes. Save them, or `--quit --force` to discard them |
+| `another DotAsset headless run has the project, waiting` | Headless runs of one project take turns, each waits up to `--timeout` for the one before. For many runs in a row, `--launch` the editor once: queued runs skip Unity's start-up |
 
 ## Development
 

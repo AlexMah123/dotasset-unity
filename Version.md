@@ -4,6 +4,18 @@ Defined in `Package/Editor/Core/DotAssetVersion.cs` and `Package/package.json`, 
 
 ## 0.x
 
+### 0.1.2
+
+Stability for general and heavy use. Smoke test passed three times in a row on Unity 6.6, 6.3, 6.0 and 2022.3 and on a 2,000-asset project, headless and with the editor open.
+
+- Fix: headless runs of one project now take turns. Two callers that both saw the project free started two Unity processes and one failed on Unity's lock (1 of 4 parallel calls). The wrapper holds `Library/DotAsset/Queue/batch.lock` for the whole run, later callers wait up to `--timeout` with a message that names a headless run, and `--launch` takes the same lock
+- Fix: a scene open in the editor was left dirty after DotAsset added a Light to it, because Unity gives the new Light its baking state on a later frame. The next `EditScene` on that scene was refused. The editor queue now saves such a scene again once Unity settles, before it reports the run
+- Exports keep the newest 10 per asset and audit reports the newest 20 per audit, older ones are deleted (one prefab had 436 exports). Files under `-outdir` or at a `-report` path are never deleted
+- `--open-scene A.unity[,B.unity]` opens scenes in the editor without anyone at the machine, refused like `--quit` while a scene has unsaved changes, and prints the scenes that were open before
+- Smoke test: edits a scene open in the editor, paths with spaces and non-ASCII letters, a refused write to a registry package, `-outdir` and `-report`, a Missing Script seeded into a prefab for `AuditMissingReference` R2 and `RemoveMissingScripts`, `ResaveAsset` keeping content, every export's header and version, and the export caps. No step passes on its exit code alone
+- Wrapper tests run on Python 3.8, 3.9 and 3.15, and the two lock tests now run on Windows
+- Windows is the tested platform. macOS and Linux are not tested
+
 ### 0.1.1
 
 - Fix: `MaterialExport` left the material changed in memory. Reading a shader property lets Unity validate the material, which on Standard and URP Lit resets a custom render queue; headless Unity then saved it on quit, and in the open editor the next Save Project would have. Values are now read from a temporary copy, so the asset is left as found

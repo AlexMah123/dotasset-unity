@@ -9,12 +9,13 @@ Creates everything under Assets/DotAssetSmoke and deletes it at the end. Run it 
 With the editor open, save or close any Untitled scene first: Unity cannot open a scene next to one.
 Steps that change assets read the result back through an export, dry runs and failed targets must leave files as
 they were, and the audits get seeded issues to find and fix. Prints one line per step and exits 1 if any step
-failed. The importer steps need a texture file imported, which only a Unity start does, so with the editor open
-they print "skip".
+failed. The texture and Missing Script steps need a new or edited file read, which only a Unity start does, so with
+the editor open they print "skip".
 """
 import argparse
 import json
 import os
+import re
 import shutil
 import struct
 import subprocess
@@ -24,7 +25,13 @@ import time
 import zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
-WRAPPER = os.path.join(HERE, "..", "..", "Package", "Scripts~", "dotasset.py")
+PACKAGE = os.path.join(HERE, "..", "..", "Package")
+WRAPPER = os.path.join(PACKAGE, "Scripts~", "dotasset.py")
+with open(os.path.join(PACKAGE, "package.json"), encoding="utf-8") as _f:
+    VERSION = json.load(_f)["version"]
+# Every run this repo defines, from the class files: <Group>/<RunName>Command.cs
+RUNS = sorted(n[:-len("Command.cs")] for g in ("Export", "Import", "Edit", "Migrate", "Audit")
+              for n in os.listdir(os.path.join(PACKAGE, "Editor", g)) if n.endswith("Command.cs"))
 ROOT = "Assets/DotAssetSmoke"
 BASE = []   # the wrapper command line, set by main
 SPECS = {}  # spec files shared between steps, set by main
@@ -43,16 +50,22 @@ def result_json(stdout):
     return json.loads(stdout[start + 1:] if start >= 0 else stdout)
 
 
-def export_of(run, base, asset):
-    """Runs an export and returns the parsed export file, or raises with the run's output."""
-    r = subprocess.run(base + ["--json", run, asset], capture_output=True, text=True)
+def export_of(run, base, asset=None, args=None):
+    """Runs an export and returns the parsed export file, or raises with the run's output. The header must name
+    the run and this repo's version: an older DotAsset installed in the project would test the wrong code."""
+    argv = [run] + ([asset] if asset else []) + (["--args", args] if args else [])
+    r = subprocess.run(base + ["--json"] + argv, capture_output=True, text=True)
     if r.returncode != 0:
         raise RuntimeError("%s exit %s\n%s" % (run, r.returncode, r.stdout + r.stderr))
     outputs = result_json(r.stdout).get("Outputs") or []
     if not outputs:
         raise RuntimeError(run + " wrote no output")
     with open(outputs[-1], encoding="utf-8") as f:
-        return json.load(f)
+        export = json.load(f)
+    if export.get("ExportType") != run or export.get("ExporterVersion") != VERSION:
+        raise RuntimeError("%s wrote ExportType %s, ExporterVersion %s, expected %s %s" % (
+            run, export.get("ExportType"), export.get("ExporterVersion"), run, VERSION))
+    return export
 
 
 def node(export, path):
@@ -118,6 +131,104 @@ def crate():
 
 def crate_materials():
     return ((component(crate(), "Crate/Mesh", "MeshRenderer") or {}).get("Properties") or {}).get("m_Materials")
+
+
+def check_catalog(base, tmp):
+    # The project must run this repo's DotAsset (export_of checks the version), with every run registered.
+    commands = export_of("CommandCatalogExport", base).get("Commands", [])
+    registered = {c.get("RunName"): c.get("Group") for c in commands}
+    missing = [r for r in RUNS if r not in registered]
+    if missing:
+        return "runs not registered: %s" % ", ".join(missing)
+    wrong = ["%s is in %s" % (r, registered[r]) for r in RUNS if not group_folder_has(registered[r], r)]
+    if wrong:
+        return "runs in the wrong group: %s" % ", ".join(wrong)
+    return None
+
+
+def group_folder_has(group, run):
+    return os.path.isfile(os.path.join(PACKAGE, "Editor", group or "?", run + "Command.cs"))
+
+
+def check_type_catalog(base, tmp):
+    exp = export_of("TypeCatalogExport", base, args="-filter=Rigidbody")
+    rigidbody = next((t for t in exp.get("Types", []) if t.get("FullName") == "UnityEngine.Rigidbody"), None)
+    mass = next((p for p in (rigidbody or {}).get("Properties", []) if p.get("Path") == "m_Mass"), None)
+    if mass is None or mass.get("Default") != 1:
+        return "TypeCatalogExport does not list Rigidbody.m_Mass with default 1"
+    return None
+
+
+def check_resave(base, tmp):
+    # A resave rewrites the files but must not change what they hold. The dry run must not write at all.
+    before = fingerprint(base)
+    exports = lambda: (crate().get("Hierarchy"), export_of("SceneExport", base, ROOT + "/Smoke.unity").get("Hierarchy"))
+    content = exports()
+    problem = expect(base, "ResaveAsset dry run", ["ResaveAsset", ROOT], 0)
+    if problem:
+        return problem
+    after = fingerprint(base)
+    changed = sorted(k for k in set(before) | set(after) if before.get(k) != after.get(k))
+    if changed:
+        return "the ResaveAsset dry run changed %s" % ", ".join(changed)
+    problem = expect(base, "ResaveAsset -apply", ["ResaveAsset", ROOT, "--args", "-apply"], 0)
+    if problem:
+        return problem
+    if exports() != content:
+        return "ResaveAsset changed what Crate.prefab or Smoke.unity hold"
+    return None
+
+
+GHOST_GUID = "d07a55e7d07a55e7d07a55e7d07a55e7"
+
+
+def check_missing_script(base, tmp):
+    # Seed an R2: a component whose script GUID no script has, written into a prefab's YAML. Unity only reads the
+    # edited file when it starts, so like the texture this needs the headless route.
+    if editor_open(base):
+        return "skip: needs the editor closed, an edited prefab file is only reimported when Unity starts"
+    ghost = ROOT + "/Ghost.prefab"
+    seed = spec("seed_r2", {"Assets": [{"Kind": "Prefab", "Path": ghost, "Root": "Ghost", "Components": ["BoxCollider"]}]}, tmp)
+    problem = expect(base, "CreateAsset Ghost.prefab", ["CreateAsset", "--args", '-spec="%s"' % seed], 0)
+    if problem:
+        return problem
+    path = os.path.join(project_of(base), *ghost.split("/"))
+    with open(path, encoding="utf-8", newline="") as f:
+        text = f.read()
+    nl = "\r\n" if "\r\n" in text else "\n"
+    root_id = re.search(r"--- !u!1 &(-?\d+)", text).group(1)
+    anchor = "m_Component:" + nl
+    if anchor not in text:
+        return "Ghost.prefab has no m_Component list to add the component to"
+    text = text.replace(anchor, anchor + "  - component: {fileID: 7373737373}" + nl, 1)
+    text += nl.join([
+        "--- !u!114 &7373737373", "MonoBehaviour:", "  m_ObjectHideFlags: 0", "  m_CorrespondingSourceObject: {fileID: 0}",
+        "  m_PrefabInstance: {fileID: 0}", "  m_PrefabAsset: {fileID: 0}", "  m_GameObject: {fileID: %s}" % root_id,
+        "  m_Enabled: 1", "  m_EditorHideFlags: 0", "  m_Script: {fileID: 11500000, guid: %s, type: 3}" % GHOST_GUID,
+        "  m_Name: ", "  m_EditorClassIdentifier: ", ""])
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        f.write(text)
+    code, report, fix = audit(base, "AuditMissingReference", ROOT)
+    if code != 3 or not issues(report, "R2", ghost) or not fix:
+        return "AuditMissingReference exit %s did not report R2 on Ghost.prefab with a fix spec: %s" % (code, report.get("Counts"))
+    if report.get("FixRun") != "RemoveMissingScripts":
+        return "the R2 fix spec is for %s, expected RemoveMissingScripts" % report.get("FixRun")
+    problem = expect(base, "RemoveMissingScripts dry run", ["RemoveMissingScripts", "--args", '-spec="%s"' % fix], 0)
+    if problem:
+        return problem
+    if GHOST_GUID not in open(path, encoding="utf-8").read():
+        return "the RemoveMissingScripts dry run removed the component"
+    problem = expect(base, "RemoveMissingScripts -apply", ["RemoveMissingScripts", "--args", '-spec="%s" -apply' % fix], 0)
+    if problem:
+        return problem
+    if GHOST_GUID in open(path, encoding="utf-8").read():
+        return "RemoveMissingScripts left the Missing Script in Ghost.prefab"
+    if component(export_of("PrefabExport", base, ghost), "Ghost", "BoxCollider") is None:
+        return "RemoveMissingScripts took the BoxCollider along"
+    code, report, _ = audit(base, "AuditMissingReference", ROOT)
+    if code != 0:
+        return "AuditMissingReference still reports %s after the fix" % report.get("Counts")
+    return None
 
 
 def check_create(base, tmp):
@@ -627,7 +738,7 @@ def run(args, tmp):
 
     # Steps that change assets read the result back through an export, the exit code alone is not enough.
     steps = [
-        ("catalog", ["--list"], 0),
+        ("catalog: every run, this repo", check_catalog, None),
         ("create", ["CreateAsset", "--args", '-spec="%s"' % create], 0),
         ("create wrote the assets", check_create, None),
         ("create again skips", check_create_again, None),
@@ -637,7 +748,7 @@ def run(args, tmp):
         ("controller export", ["AnimatorControllerExport", ROOT + "/Door.controller"], 0),
         ("asset export", ["AssetExport", ROOT + "/Red.mat"], 0),
         ("reference export", check_reference_export, None),
-        ("type catalog", ["TypeCatalogExport", "--args", "-filter=Rigidbody"], 0),
+        ("type catalog", check_type_catalog, None),
         ("unknown arg refused", ["EditPrefab", "--args", '-spec="%s" -aply' % edit_prefab], 2),
         ("edit prefab dry", ["EditPrefab", "--args", '-spec="%s"' % edit_prefab], 0),
         ("dry run left it unchanged", check_dry_run_left_prefab, None),
@@ -653,12 +764,12 @@ def run(args, tmp):
         ("duplicate", check_duplicate, None),
         ("remap dry and apply", check_remap, None),
         ("move keeps references", check_move, None),
-        ("resave", ["ResaveAsset", ROOT, "--args", "-apply"], 0),
+        ("resave keeps content", check_resave, None),
         ("delete, refused if used", check_delete, None),
         ("audit missing refs clean", ["AuditMissingReference", ROOT], 0),
         ("audit missing refs seeded", check_audit_missing_reference, None),
         ("audit material and fix", check_audit_material, None),
-        ("remove missing scripts", ["RemoveMissingScripts", ROOT, "--args", "-apply"], 0),
+        ("missing script, audit, fix", check_missing_script, None),
         ("texture audit, export, fix", check_importer, None),
     ]
     base = [sys.executable, WRAPPER, "--project", args.project, "--quiet", "--timeout", str(args.timeout)]

@@ -43,6 +43,10 @@ namespace DotAsset
                 : DotAssetPaths.ExportFileNamed(ctx.RunName, ctx.Args.Get("outdir"));
             Json.WriteFile(file, json);
             ctx.AddOutput(file);
+            if (string.IsNullOrEmpty(ctx.Args.Get("outdir")))
+            {
+                DotAssetPaths.PruneOlder(file, DotAssetPaths.KeepExportsPerAsset);
+            }
             return file;
         }
 

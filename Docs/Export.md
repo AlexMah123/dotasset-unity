@@ -48,7 +48,7 @@ Per run:
 
 ## Output
 
-`Library/DotAsset/Export/<AssetPath>_<YYYYMMDD-HHMMSS>.json`, for example `Library/DotAsset/Export/Assets/Prefabs/Player.prefab_20261023-201500.json`. Exports not tied to one asset: `Export/<RunName>_<timestamp>.json`. Repeated exports never overwrite each other; read the newest.
+`Library/DotAsset/Export/<AssetPath>_<YYYYMMDD-HHMMSS>.json`, for example `Library/DotAsset/Export/Assets/Prefabs/Player.prefab_20261023-201500.json`. Exports not tied to one asset: `Export/<RunName>_<timestamp>.json`. Repeated exports never overwrite each other; read the newest. The newest 10 per asset are kept and older ones deleted, except under a folder given with `-outdir`, which is left alone.
 
 The files are indented one property per line. Grep for what you need, then read that line range.
 

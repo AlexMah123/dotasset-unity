@@ -1,6 +1,8 @@
 using System;
 using System.Globalization;
 using System.IO;
+using System.Linq;
+using System.Text.RegularExpressions;
 using UnityEngine;
 
 namespace DotAsset
@@ -84,6 +86,49 @@ namespace DotAsset
                 return Absolute(explicitPath);
             }
             return Unique(Combine(AuditRoot, runName + "_" + Timestamp()), ".json");
+        }
+
+        // Every run writes a new timestamped file, so a busy project would collect them without end. Default-location
+        // exports keep the newest KeepExportsPerAsset per asset, audit reports the newest KeepReportsPerAudit per audit
+        // (with their fix specs). A folder given with -outdir or a path given with -report is the caller's, never pruned.
+        public const int KeepExportsPerAsset = 10;
+        public const int KeepReportsPerAudit = 20;
+
+        // Deletes older files that differ from newFile only by timestamp, keeping the newest keep of them.
+        public static void PruneOlder(string newFile, int keep)
+        {
+            try
+            {
+                string dir = Path.GetDirectoryName(newFile);
+                string name = Path.GetFileName(newFile);
+                var stamped = new Regex(@"^(.*)_\d{8}-\d{6}(-\d+)?\.json$");
+                Match m = stamped.Match(name);
+                if (string.IsNullOrEmpty(dir) || !m.Success || !Directory.Exists(dir))
+                {
+                    return;
+                }
+                var sibling = new Regex("^" + Regex.Escape(m.Groups[1].Value) + @"_\d{8}-\d{6}(-\d+)?\.json$");
+                var old = new DirectoryInfo(dir).GetFiles("*.json")
+                    .Where(f => sibling.IsMatch(f.Name))
+                    .OrderByDescending(f => f.LastWriteTimeUtc).ThenByDescending(f => f.Name, StringComparer.Ordinal)
+                    .Skip(keep);
+                foreach (FileInfo f in old)
+                {
+                    f.Delete();
+                    // An audit report's fix spec goes with it.
+                    string fix = Path.ChangeExtension(f.FullName, null) + ".fix.json";
+                    if (File.Exists(fix))
+                    {
+                        File.Delete(fix);
+                    }
+                }
+            }
+            catch (IOException)
+            {
+            }
+            catch (UnauthorizedAccessException)
+            {
+            }
         }
 
         static string Unique(string stem, string extension)

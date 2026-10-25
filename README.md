@@ -94,7 +94,7 @@ python dotasset.py PrefabExport Assets/Prefabs
 python dotasset.py --quit        # close it, the project is free for headless runs again
 ```
 
-Output: `Library/DotAsset/Export/<AssetPath>_<timestamp>.json`. Logs: `Library/DotAsset/Logs/`, and `Window > DotAsset` in the editor.
+Output: `Library/DotAsset/Export/<AssetPath>_<timestamp>.json`, the newest 10 per asset kept. Logs: `Library/DotAsset/Logs/`, the newest 200 kept, and `Window > DotAsset` in the editor.
 
 **Requirements:** Unity 2022.3 or 6000.x, Python 3.8 or newer (standard library only) for the wrapper, Windows, macOS or Linux. Apart from the assets a run is asked to change, everything DotAsset writes (exports, reports, logs, the task queue) stays under `Library/DotAsset/`, which version control ignores.
 

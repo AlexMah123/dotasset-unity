@@ -15,7 +15,7 @@ python dotasset.py AuditTexture --args "-scandir=Assets"
 python dotasset.py AuditMaterial "Assets/Materials/Characters"
 ```
 
-Entry assets in AssetList (folders expand), or `-scandir` (default `Assets`). `-report=<path>` picks the report path, default `Library/DotAsset/Audit/<RunName>_<timestamp>.json`.
+Entry assets in AssetList (folders expand), or `-scandir` (default `Assets`). `-report=<path>` picks the report path, default `Library/DotAsset/Audit/<RunName>_<timestamp>.json`. The newest 20 default reports of each audit are kept, older ones are deleted with their fix specs. A report written to `-report` is never deleted.
 
 ## Exit codes
 

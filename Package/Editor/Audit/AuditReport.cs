@@ -113,6 +113,10 @@ namespace DotAsset
             }
             Json.WriteFile(reportPath, json);
             ctx.AddOutput(reportPath);
+            if (string.IsNullOrEmpty(ctx.Args.Get("report")))
+            {
+                DotAssetPaths.PruneOlder(reportPath, DotAssetPaths.KeepReportsPerAudit);
+            }
 
             foreach (var kv in counts.OrderBy(kv => kv.Key, StringComparer.Ordinal))
             {

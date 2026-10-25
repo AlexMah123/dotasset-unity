@@ -6,6 +6,11 @@ Defined in `Package/Editor/Core/DotAssetVersion.cs` and `Package/package.json`, 
 
 Versions follow one rule. A patch (0.1.x) holds fixes, test upgrades and docs. A minor version (0.x.0) adds something new to call: a run, an op, a spec key, an argument or a wrapper option. While on 0.x, a change that breaks existing calls is also a minor version, marked breaking here. 1.0.0 comes when runs, specs and export JSON are promised to stay stable.
 
+### 0.2.1
+
+- Fix: `DeleteAsset` deleted a scene open in the editor with unsaved changes, or the prefab in Prefab Mode with unsaved changes, along with those changes, also inside a deleted folder and with `-force`. It now fails that target with the reason
+- Fix: `ResaveAsset` rewrote such a file from disk, leaving the editor and the file disagreeing. It now refuses that target and resaves the rest, and exits 1 when a target was refused instead of always 0
+
 ### 0.2.0
 
 Same code as 0.1.2, renumbered by the rule above: 0.1.2 added a wrapper option, `--open-scene`, which makes it a minor release. The `v0.1.2` tag stays for anyone pinned to it. Nothing breaks.

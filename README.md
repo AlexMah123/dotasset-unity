@@ -2,7 +2,7 @@
 
 ![Unity](https://img.shields.io/badge/Unity-2022.3%20%7C%206000.x-black?logo=unity)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-![Status](https://img.shields.io/badge/status-0.2.0%20preview-orange)
+![Status](https://img.shields.io/badge/status-0.2.1%20preview-orange)
 
 An editor package that lets scripts and AI agents read, write, edit and audit Unity assets — with the editor open or closed, through one command line.
 
@@ -59,7 +59,7 @@ Window > Package Manager > + > Add package from git URL:
 https://github.com/AlexMah123/dotasset-unity.git?path=/Package
 ```
 
-Pin a version by adding a release tag to the URL, such as `#v0.2.0`, or `#<commit>`. Or copy `Package/` into your project as `Packages/com.alexmah.dotasset/`. It pulls in `com.unity.nuget.newtonsoft-json`.
+Pin a version by adding a release tag to the URL, such as `#v0.2.1`, or `#<commit>`. Or copy `Package/` into your project as `Packages/com.alexmah.dotasset/`. It pulls in `com.unity.nuget.newtonsoft-json`.
 
 **2. Get the wrapper**
 
@@ -147,7 +147,7 @@ Run it without `-apply` first. The dry run does everything a real run does, chec
 ```
 $ python dotasset.py EditPrefab --args '-spec="C:/temp/player.edit.json"'
 [dotasset] route: batchmode (C:/Program Files/Unity/Hub/Editor/6000.6.7f1/Editor/Unity.exe)
-DotAsset 0.2.0, Unity 6000.6.7f1, batchmode
+DotAsset 0.2.1, Unity 6000.6.7f1, batchmode
 dry run, nothing is written. Add -apply to write.
 Assets/Prefabs/Player.prefab: 2 op(s) would apply
 [dotasset] EditPrefab dry run passed, 0 warning(s), 0 error(s), 0.4s
@@ -268,7 +268,7 @@ tools/gen_meta.py         writes missing .meta files
 
 ## Status
 
-0.2.0 is a preview. Tested Unity versions, each with the smoke test both with the editor closed and open:
+0.2.1 is a preview. Tested Unity versions, each with the smoke test both with the editor closed and open:
 
 | Unity | Version tested | Result | Date |
 | :-- | :-- | :-- | :-- |

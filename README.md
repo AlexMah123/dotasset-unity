@@ -59,7 +59,7 @@ Window > Package Manager > + > Add package from git URL:
 https://github.com/AlexMah123/dotasset-unity.git?path=/Package
 ```
 
-Pin a version by adding `#<commit or tag>` to the URL. Or copy `Package/` into your project as `Packages/com.alexmah.dotasset/`. It pulls in `com.unity.nuget.newtonsoft-json`.
+Pin a version by adding a release tag to the URL, such as `#v0.1.1`, or `#<commit>`. Or copy `Package/` into your project as `Packages/com.alexmah.dotasset/`. It pulls in `com.unity.nuget.newtonsoft-json`.
 
 **2. Get the wrapper**
 
@@ -243,7 +243,7 @@ tools/gen_meta.py         writes missing .meta files
 
 ## Status
 
-0.1.0 is a preview. Tested Unity versions, each with the smoke test both with the editor closed and open:
+0.1.1 is a preview. Tested Unity versions, each with the smoke test both with the editor closed and open:
 
 | Unity | Version tested | Result | Date |
 | :-- | :-- | :-- | :-- |

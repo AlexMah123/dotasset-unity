@@ -4,6 +4,15 @@ Defined in `Package/Editor/Core/DotAssetVersion.cs` and `Package/package.json`, 
 
 ## 0.x
 
+### 0.1.1
+
+- Fix: `MaterialExport` left the material changed in memory. Reading a shader property lets Unity validate the material, which on Standard and URP Lit resets a custom render queue; headless Unity then saved it on quit, and in the open editor the next Save Project would have. Values are now read from a temporary copy, so the asset is left as found
+- Fix: `AuditMissingReference` missed references to an asset deleted earlier in the same editor session, Unity still answers its GUID with the old path. R1 now checks an asset is at that path
+- Smoke test: every change is read back through an export, dry runs and failed targets are checked to leave files untouched, exports are checked to change nothing on disk, `ArrayOps` Append, Insert and Remove are covered, and the audits are given a seeded missing reference, stray keyword and misnamed normal map to find and fix through their fix specs. It fails if anything in `Assets/` outside its folder changed, stops at the first failure (`--keep-going` runs the rest), always cleans up, and drops the Unity logs of failures it expected
+- Fix: headless runs on Windows left their Unity log in `Library/DotAsset/Queue/batch`, Unity's licensing client holds it open after Unity exits. A held log is now listed and swept by the next headless run, and logs of failed runs are pruned after 7 days
+- `package.json` carries author, documentation, changelog and license links for the Package Manager
+- Releases are tagged, pin one with `#v0.1.1` on the git URL
+
 ### 0.1.0
 
 First release. The design follows uasset-workbench 2.6, a tool for Unreal Engine `.uasset` files.

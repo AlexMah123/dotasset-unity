@@ -29,6 +29,11 @@ ops = importlib.util.module_from_spec(SPEC)
 SPEC.loader.exec_module(ops)
 
 
+def read(path):
+    with open(path, encoding="utf-8") as f:
+        return f.read()
+
+
 def make_project(root, version="6000.0.40f1"):
     os.makedirs(os.path.join(root, "Assets"))
     os.makedirs(os.path.join(root, "ProjectSettings"))
@@ -202,7 +207,7 @@ class GroupRule(unittest.TestCase):
         self.assertGreaterEqual(seen, 25)
 
     def test_csharp_rule_text_matches_python(self):
-        src = open(os.path.join(PACKAGE, "Editor", "Core", "ExitCodes.cs")).read()
+        src = read(os.path.join(PACKAGE, "Editor", "Core", "ExitCodes.cs"))
         for needle in ('EndsWith("Export"', 'EndsWith("Import"', 'StartsWith("Create"', 'StartsWith("Edit"', 'StartsWith("Audit"'):
             self.assertIn(needle, src)
 
@@ -210,13 +215,13 @@ class GroupRule(unittest.TestCase):
         for dirpath, _, files in os.walk(os.path.join(PACKAGE, "Editor")):
             for name in files:
                 if name.endswith("Command.cs") and name != "DotAssetCommand.cs":
-                    text = open(os.path.join(dirpath, name)).read()
+                    text = read(os.path.join(dirpath, name))
                     cls = name[:-3]
                     self.assertRegex(text, r"public sealed class %s : DotAssetCommand" % cls, name)
                     self.assertIn("Docs/", text, name + " header must point at its doc")
 
     def test_queue_constants_match(self):
-        src = open(os.path.join(PACKAGE, "Editor", "Core", "TaskQueue.cs")).read()
+        src = read(os.path.join(PACKAGE, "Editor", "Core", "TaskQueue.cs"))
         self.assertIn('QueueRelative = "Library/DotAsset/Queue"', src)
         self.assertEqual(ops.QUEUE_RELATIVE.replace(os.sep, "/"), "Library/DotAsset/Queue")
         for const in ("pending", "processing", "done", ".alive", "quit.json", "quit.result.json"):
@@ -435,7 +440,7 @@ class BatchRoute(Base):
         code, out = self.call("EditPrefab", "--args", extra, "--unity", self.fake_unity)
         self.assertEqual(code, 0)
         self.assertIn("extra=" + extra, out)
-        argv = json.load(open(record))
+        argv = json.loads(read(record))
         self.assertIn("-batchmode", argv)
         self.assertIn("-nographics", argv)
         self.assertEqual(argv[argv.index("-executeMethod") + 1], "DotAsset.Cli.Run")
@@ -605,14 +610,29 @@ class LogSweep(unittest.TestCase):
         self.assertEqual(os.listdir(self.dir), [])
 
 
+# Holds Temp/UnityLockfile the way Unity does: flock on macOS and Linux, an open handle that shares nothing on Windows.
+HOLD_LOCK_POSIX = "import fcntl,sys,time;f=open(sys.argv[1],'w');fcntl.flock(f,fcntl.LOCK_EX);time.sleep(30)"
+HOLD_LOCK_WIN = ("import ctypes,sys,time;k=ctypes.windll.kernel32;k.CreateFileW.restype=ctypes.c_void_p;"
+                 "h=k.CreateFileW(sys.argv[1],0x40000000,0,None,4,0x80,None);"
+                 "sys.exit(3) if h in (None,ctypes.c_void_p(-1).value) else time.sleep(30)")
+
+
+def hold_unity_lock(path):
+    holder = subprocess.Popen([sys.executable, "-c", HOLD_LOCK_WIN if sys.platform == "win32" else HOLD_LOCK_POSIX, path])
+    deadline = time.time() + 10
+    while not ops.project_locked(os.path.dirname(os.path.dirname(path))) and time.time() < deadline:
+        if holder.poll() is not None:
+            raise RuntimeError("the lock holder exited with %s" % holder.returncode)
+        time.sleep(0.1)
+    return holder
+
+
 class StartupWait(Base):
-    @unittest.skipIf(sys.platform == "win32", "fcntl lock")
     def test_locked_project_waits_for_heartbeat(self):
         lock = os.path.join(self.project, "Temp", "UnityLockfile")
         os.makedirs(os.path.dirname(lock))
         open(lock, "w").close()
-        holder = subprocess.Popen([sys.executable, "-c",
-                                   "import fcntl,sys,time;f=open(sys.argv[1],'w');fcntl.flock(f,fcntl.LOCK_EX);time.sleep(30)", lock])
+        holder = hold_unity_lock(lock)
         try:
             time.sleep(0.5)
             self.assertTrue(ops.project_locked(self.project))
@@ -633,13 +653,11 @@ class StartupWait(Base):
             holder.wait()
         self.assertFalse(ops.project_locked(self.project))
 
-    @unittest.skipIf(sys.platform == "win32", "fcntl lock")
     def test_locked_project_without_queue_refuses(self):
         lock = os.path.join(self.project, "Temp", "UnityLockfile")
         os.makedirs(os.path.dirname(lock))
         open(lock, "w").close()
-        holder = subprocess.Popen([sys.executable, "-c",
-                                   "import fcntl,sys,time;f=open(sys.argv[1],'w');fcntl.flock(f,fcntl.LOCK_EX);time.sleep(30)", lock])
+        holder = hold_unity_lock(lock)
         try:
             time.sleep(0.5)
             code, out = self.call("PrefabExport", "Assets/A.prefab", "--startup-wait", "1")
@@ -680,22 +698,22 @@ class PackageFiles(unittest.TestCase):
         self.assertEqual(r.returncode, 0, r.stdout)
 
     def test_versions_agree(self):
-        pkg = json.load(open(os.path.join(PACKAGE, "package.json")))
-        cs = open(os.path.join(PACKAGE, "Editor", "Core", "DotAssetVersion.cs")).read()
+        pkg = json.loads(read(os.path.join(PACKAGE, "package.json")))
+        cs = read(os.path.join(PACKAGE, "Editor", "Core", "DotAssetVersion.cs"))
         self.assertIn('Version = "%s"' % pkg["version"], cs)
-        self.assertIn("### " + pkg["version"], open(os.path.join(ROOT, "Version.md")).read())
+        self.assertIn("### " + pkg["version"], read(os.path.join(ROOT, "Version.md")))
 
     def test_no_char_contains(self):
         """string.Contains(char) is missing from .NET Framework 4.8."""
         for dirpath, _, files in os.walk(os.path.join(PACKAGE, "Editor")):
             for name in files:
                 if name.endswith(".cs"):
-                    text = open(os.path.join(dirpath, name)).read()
+                    text = read(os.path.join(dirpath, name))
                     self.assertIsNone(re.search(r"\.Contains\('.'\)", text), name)
 
     def test_docs_mention_every_run(self):
-        docs = "".join(open(os.path.join(ROOT, "Docs", f)).read() for f in os.listdir(os.path.join(ROOT, "Docs")))
-        guide = open(os.path.join(ROOT, "Docs", "AI-Guide.md")).read()
+        docs = "".join(read(os.path.join(ROOT, "Docs", f)) for f in os.listdir(os.path.join(ROOT, "Docs")))
+        guide = read(os.path.join(ROOT, "Docs", "AI-Guide.md"))
         for dirpath, _, files in os.walk(os.path.join(PACKAGE, "Editor")):
             for name in files:
                 if name.endswith("Command.cs") and name != "DotAssetCommand.cs":
@@ -705,7 +723,7 @@ class PackageFiles(unittest.TestCase):
 
     def test_doc_json_examples_parse(self):
         for name in os.listdir(os.path.join(ROOT, "Docs")):
-            text = open(os.path.join(ROOT, "Docs", name)).read()
+            text = read(os.path.join(ROOT, "Docs", name))
             for m in re.finditer(r"```json\n(.*?)```", text, re.S):
                 body = m.group(1)
                 try:

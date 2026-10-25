@@ -836,6 +836,11 @@ def run(args, tmp):
     if stray:
         failed += 1
         print(indent("\n".join(stray)))
+    capped = over_cap(args.project)
+    print("%-4s %-28s" % ("FAIL" if capped else "ok", "exports and reports capped"), flush=True)
+    if capped:
+        failed += 1
+        print(indent("\n".join(capped)))
 
     summary = "all steps passed" if not failed else "%d step(s) failed" % failed
     if not_run:
@@ -889,6 +894,25 @@ def outside_changes(before, after):
     changed = sorted(k for k in set(before) & set(after) if before[k] != after[k])
     lines = ["%s %s" % (what, p) for what, paths in (("added", added), ("removed", removed), ("changed", changed)) for p in paths]
     return "\n".join(lines[:20] + (["... %d more" % (len(lines) - 20)] if len(lines) > 20 else []))
+
+
+KEEP_EXPORTS, KEEP_REPORTS = 10, 20  # DotAssetPaths.KeepExportsPerAsset, KeepReportsPerAudit
+
+
+def over_cap(project):
+    """Exports and audit reports beyond what DotAssetPaths keeps. The run exports Crate.prefab about 20 times,
+    so pruning that stopped working shows up here."""
+    stamped = re.compile(r"^(.*)_\d{8}-\d{6}(-\d+)?\.json$")
+    problems = []
+    for folder, keep in ((os.path.join(project, "Library", "DotAsset", "Export", *ROOT.split("/")), KEEP_EXPORTS),
+                         (os.path.join(project, "Library", "DotAsset", "Audit"), KEEP_REPORTS)):
+        counts = {}
+        for name in os.listdir(folder) if os.path.isdir(folder) else []:
+            m = stamped.match(name)
+            if m:
+                counts[m.group(1)] = counts.get(m.group(1), 0) + 1
+        problems += ["%s: %d files, keeps %d" % (stem, n, keep) for stem, n in sorted(counts.items()) if n > keep]
+    return problems
 
 
 def stray_logs(project, since):

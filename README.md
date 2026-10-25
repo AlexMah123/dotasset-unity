@@ -161,6 +161,26 @@ error: EditPrefab failed for Assets/Prefabs/Player.prefab. Reason: Ops[1] Set: n
 
 Audits close the loop the other way: `AuditTexture` and the other audits write a `.fix.json` next to their report, a ready spec for the Edit or Migrate run that fixes what they found.
 
+## With an agent: possible without it, reliable with it
+
+An AI agent such as Claude can do most of this without DotAsset, by editing the YAML or by writing a one-off editor script and running Unity itself. We tried a small, typical task to see where the difference lies:
+
+1. Make an NPC prefab: an empty root with a nested cube
+2. Change the cube to a cylinder and its material to green
+3. Write a script that wanders inside a sphere and idles, and attach it to the root
+4. Place 100 NPCs in a 10 x 10 square, 10 units apart
+5. Make a second prefab, a plain cube
+6. Find the NPCs in the scene and swap them for cubes in a checkerboard
+7. Save and check the result
+
+| Approach | What happens |
+| :-- | :-- |
+| Edit the YAML | Fine for the first steps. The swap means pointing 50 prefab instances at another prefab and rewriting every override that targets the old prefab's objects. A wrong fileID does not fail, it leaves a broken asset that nothing reports until someone opens Unity |
+| One-off editor script | Works, and Claude can write it. But each task rebuilds part of what DotAsset already is, without a dry run, without all-or-nothing writes, and without a way to read the result back. Running Unity by hand has its own traps: a batch run started directly empties the scene setup the editor reopens |
+| DotAsset | Every step is a known run with a known result. The swap is proved by a dry run before it is written, and every step is read back through an export: 50 NPCs and 50 cubes, rows alternating `P N P N` and `N P N P`, every position kept, no broken reference |
+
+[`examples/npc_scenario.py`](examples/npc_scenario.py) is that task as an agent would run it, with every check. It passes on Unity 6.6 (URP), 6.0 (Built-in) and inside a 2,071-asset project, in about 80 seconds headless. Changing one value in one file is just as safe as a plain edit. DotAsset pays off as the change grows and as it touches prefabs, scenes and references.
+
 ## Exit codes
 
 | Code | Meaning |
@@ -237,6 +257,7 @@ Package/                  the UPM package (com.alexmah.dotasset)
   Scripts~/dotasset.py    the wrapper
 Docs/                     agent-facing docs, one per group plus AI-Guide.md
 tests/                    wrapper tests and naming-rule checks, tests/smoke/ the end-to-end test
+examples/                 agent tasks done with DotAsset, e.g. npc_scenario.py
 tools/gen_meta.py         writes missing .meta files
 ```
 

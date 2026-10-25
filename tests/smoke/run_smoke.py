@@ -90,7 +90,12 @@ def drop_kept_log(r):
                 try:
                     os.remove(path)
                 except OSError:
-                    pass
+                    # Still held by Unity's licensing client: the wrapper's next headless run sweeps what is listed.
+                    try:
+                        with open(os.path.join(os.path.dirname(path), "logs-to-delete.txt"), "a", encoding="utf-8") as f:
+                            f.write(os.path.basename(path) + "\n")
+                    except OSError:
+                        pass
 
 
 def expect(base, label, argv, code):
@@ -713,7 +718,15 @@ def run(args, tmp):
         failed += 1
         print(indent(leaks))
 
-    summary ="all steps passed" if not failed else "%d step(s) failed" % failed
+    # Every headless run leaves a Unity log. The wrapper deletes it, or lists it while Unity's licensing client still
+    # holds it, and the smoke test does the same for failures it expected. A log that is neither piles up for good.
+    stray = stray_logs(args.project, started)
+    print("%-4s %-28s" % ("FAIL" if stray else "ok", "no Unity logs left behind"), flush=True)
+    if stray:
+        failed += 1
+        print(indent("\n".join(stray)))
+
+    summary = "all steps passed" if not failed else "%d step(s) failed" % failed
     if not_run:
         summary += ", %d not run after the first failure (--keep-going runs them)" % not_run
     if skipped:
@@ -765,6 +778,21 @@ def outside_changes(before, after):
     changed = sorted(k for k in set(before) & set(after) if before[k] != after[k])
     lines = ["%s %s" % (what, p) for what, paths in (("added", added), ("removed", removed), ("changed", changed)) for p in paths]
     return "\n".join(lines[:20] + (["... %d more" % (len(lines) - 20)] if len(lines) > 20 else []))
+
+
+def stray_logs(project, since):
+    batch = os.path.join(project, "Library", "DotAsset", "Queue", "batch")
+    try:
+        with open(os.path.join(batch, "logs-to-delete.txt"), encoding="utf-8") as f:
+            listed = {n.strip() for n in f}
+    except OSError:
+        listed = set()
+    try:
+        names = os.listdir(batch)
+    except OSError:
+        return []
+    return sorted(n for n in names if n.endswith(".unity.log") and n not in listed
+                  and os.path.getmtime(os.path.join(batch, n)) >= since)
 
 
 def indent(problem):

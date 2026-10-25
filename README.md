@@ -2,7 +2,7 @@
 
 ![Unity](https://img.shields.io/badge/Unity-2022.3%20%7C%206000.x-black?logo=unity)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-![Status](https://img.shields.io/badge/status-0.1.0%20preview-orange)
+![Status](https://img.shields.io/badge/status-0.1.1%20preview-orange)
 
 An editor package that lets scripts and AI agents read, write, edit and audit Unity assets — with the editor open or closed, through one command line.
 
@@ -96,7 +96,7 @@ python dotasset.py --quit        # close it, the project is free for headless ru
 
 Output: `Library/DotAsset/Export/<AssetPath>_<timestamp>.json`. Logs: `Library/DotAsset/Logs/`, and `Window > DotAsset` in the editor.
 
-**Requirements:** Unity 2022.3 or 6000.x, Python 3.8 or newer (standard library only) for the wrapper, Windows, macOS or Linux. Everything DotAsset writes stays under `Library/DotAsset/`, which version control ignores.
+**Requirements:** Unity 2022.3 or 6000.x, Python 3.8 or newer (standard library only) for the wrapper, Windows, macOS or Linux. Apart from the assets a run is asked to change, everything DotAsset writes (exports, reports, logs, the task queue) stays under `Library/DotAsset/`, which version control ignores.
 
 ## A round trip, end to end
 
@@ -144,7 +144,7 @@ Run it without `-apply` first. The dry run does everything a real run does, chec
 ```
 $ python dotasset.py EditPrefab --args '-spec="C:/temp/player.edit.json"'
 [dotasset] route: batchmode (C:/Program Files/Unity/Hub/Editor/6000.6.7f1/Editor/Unity.exe)
-DotAsset 0.1.0, Unity 6000.6.7f1, batchmode
+DotAsset 0.1.1, Unity 6000.6.7f1, batchmode
 dry run, nothing is written. Add -apply to write.
 Assets/Prefabs/Player.prefab: 2 op(s) would apply
 [dotasset] EditPrefab dry run passed, 0 warning(s), 0 error(s), 0.4s
@@ -237,7 +237,7 @@ tools/gen_meta.py         writes missing .meta files
 ```
 
 - `python -m unittest discover -s tests` runs the wrapper tests against a fake editor and a fake Unity
-- `python tests/smoke/run_smoke.py --project <project> --clean` runs every group end to end in a real project. Run it headless, then again after `--launch`
+- `python tests/smoke/run_smoke.py --project <project> --clean` runs every group end to end in a real project, under `Assets/DotAssetSmoke`. Run it with the editor closed, then again after `--launch`. What it checks is under [Status](#what-the-smoke-test-checks)
 - `python tools/gen_meta.py` after adding a file (a git-installed package ignores files without a `.meta`)
 - A new run is one class: derive from `DotAssetCommand`, name it `<RunName>Command`, put it in the folder its name's group resolves to. The code rules are in [.claude/CLAUDE.md](.claude/CLAUDE.md)
 
@@ -252,10 +252,7 @@ tools/gen_meta.py         writes missing .meta files
 | 6.0 LTS | 6000.0.85f1 | passes | 2026-10-25 |
 | 2022.3 LTS | 2022.3.18f1 | passes | 2026-10-25 |
 
-Patches within a tested version are expected to work, Unity keeps the API stable within a version. Rerun the smoke test when moving to a new Unity version.
-
-- `python -m unittest discover -s tests` covers the wrapper: both routes, startup wait, fallback, quoting, timeouts, exit codes.
-- `python tests/smoke/run_smoke.py --project <your project>` runs every group end to end in a real project, under `Assets/DotAssetSmoke`, and cleans up (`--clean` removes leftovers of an interrupted run first). Run it once with the editor closed and once with it open.
+Patches within a tested version are expected to work, Unity keeps the API stable within a version. Rerun the smoke test when moving to a new Unity version. The wrapper has its own unit tests (both routes, startup wait, fallback, quoting, timeouts, exit codes, log clean-up), see [Development](#development).
 
 ### What the smoke test checks
 
@@ -263,19 +260,20 @@ Every write is read back through an export. An exit code alone never counts as a
 
 | Area | Checked |
 | :-- | :-- |
+| Setup | The project runs this repository's DotAsset version, with every run registered in the group its name gives |
 | Import | `CreateAsset` builds a material, a prefab with components, a prefab variant with an override, an Animator Controller with states and a transition, and a scene with a prefab instance. Running the same spec again skips what exists and changes nothing |
-| Export | Prefab, scene, material, controller, asset, reference and type catalog exports run. `AssetReferenceExport` lists the prefab as a user of its material. Writing an export's properties back leaves the export identical |
+| Export | Every export names its type and version in its header. `AssetReferenceExport` lists the prefab as a user of its material, and `TypeCatalogExport` lists `Rigidbody.m_Mass` with its default. Writing an export's properties back leaves the export identical |
 | Edit | `EditPrefab` adds, sets and removes. `EditScene` adds a Light and overrides an instance. `EditMaterial` and `EditAsset` set a render queue. `EditAnimatorController` adds a transition and renames a parameter, along with every condition that reads it. `ArrayOps` Append, Insert and Remove land where they should |
 | Dry runs | Every Edit and Migrate run without `-apply` leaves the files as they were. A dry run in the open editor leaves nothing behind for the next run to save |
 | All or nothing | An edit with one bad op fails the target and saves none of it. A misspelt argument (`-aply`) is refused |
-| Migrate | `DuplicateAsset` copies, `RemapReference` swaps the reference, `MoveAsset` keeps it working, `ResaveAsset` runs, and `DeleteAsset` deletes an unused asset but refuses one still in use |
-| Audit | Each audit gets a seeded issue to find: a reference to a deleted material (R1), a keyword the shader does not declare (M5), and a texture named like a normal map but not imported as one (T1). The audit's own fix spec, run dry and then with `-apply`, must clear it |
+| Migrate | `DuplicateAsset` copies, `RemapReference` swaps the reference, `MoveAsset` keeps it working, `ResaveAsset` rewrites the files without changing what they hold, and `DeleteAsset` deletes an unused asset but refuses one still in use |
+| Audit | Each audit gets a seeded issue to find: a reference to a deleted material (R1), a Missing Script written into a prefab (R2), a keyword the shader does not declare (M5), and a texture named like a normal map but not imported as one (T1). The audit's own fix spec, run dry and then with `-apply`, must clear it, and `RemoveMissingScripts` must leave the prefab's other components alone |
 | Read only | A full set of exports over the edited assets changes no byte on disk |
 | Your project | The run fails if anything in `Assets/` outside `Assets/DotAssetSmoke` changed, or if it leaves a Unity log behind. It stops at the first failure (`--keep-going` runs the rest) and removes its folder however the run ends, Ctrl+C included |
 
-With the editor open, the texture step is skipped: Unity only imports a new file when it starts. The run with the editor closed covers it.
+With the editor open, the texture and Missing Script steps are skipped: Unity only reads a new or edited file when it starts. The run with the editor closed covers them.
 
-Still to be confirmed, because the smoke test cannot set it up: undo coverage of `RemoveMissingScripts` in a scene open in the editor (it needs a Missing Script, which needs a script deleted and a recompile). Please open issues with the Console output.
+Still to be confirmed, because the smoke test cannot set it up: edits to a scene that is open in the editor, which go through one undo group, `RemoveMissingScripts` included. The smoke test never opens a scene in your editor. Please open issues with the Console output.
 
 ## Contributors
 

@@ -122,6 +122,11 @@ namespace DotAsset
         bool wasListed;
         Scene previousActive;
 
+        // Scenes open in the editor that the current run saved. Unity can still change some of what was just added
+        // on a later frame (a new Light gets its baking state), which marks the scene dirty again after the save. The
+        // editor queue saves these again once Unity settles, before it reports the run as done (TaskQueue.Settle).
+        public static readonly System.Collections.Generic.List<string> SavedOpenScenes = new System.Collections.Generic.List<string>();
+
         SceneSession()
         {
         }
@@ -188,6 +193,10 @@ namespace DotAsset
             if (!OpenedByUs)
             {
                 Undo.CollapseUndoOperations(undoGroup);
+                if (!SavedOpenScenes.Contains(Scene.path))
+                {
+                    SavedOpenScenes.Add(Scene.path);
+                }
             }
             return true;
         }

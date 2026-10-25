@@ -17,6 +17,8 @@ namespace DotAsset
     //   done/<id>.json         the editor writes the RunResult here, the wrapper reads and deletes it
     //   quit.json              the wrapper asks the editor to close {Force}, taken once no task is pending
     //   quit.result.json       the editor's answer {Quit, Error}, written before it exits
+    //   openscene.json         the wrapper asks the editor to open scenes {Scenes[], Force}
+    //   openscene.result.json  the editor's answer {Opened, Previous[], PreviousActive, Error}
     // Scripts~/dotasset.py holds the same constants. Change both together.
     public static class TaskQueueProtocol
     {
@@ -27,6 +29,8 @@ namespace DotAsset
         public const string AliveFile = ".alive";
         public const string QuitRequest = "quit.json";
         public const string QuitResult = "quit.result.json";
+        public const string OpenSceneRequest = "openscene.json";
+        public const string OpenSceneResult = "openscene.result.json";
         public const double HeartbeatSeconds = 2.0;
         public const double FreshnessSeconds = 15.0;
     }
@@ -136,7 +140,7 @@ namespace DotAsset
             {
                 return "playmode";
             }
-            if (processing || RunDispatcher.IsRunning)
+            if (processing || settling != null || RunDispatcher.IsRunning)
             {
                 return "busy";
             }
@@ -153,6 +157,10 @@ namespace DotAsset
                 Start();
             }
             double now = EditorApplication.timeSinceStartup;
+            if (settling != null)
+            {
+                Settle(now);
+            }
             string state = CurrentState();
             if (now >= nextHeartbeat || state != lastState)
             {
@@ -182,7 +190,95 @@ namespace DotAsset
                 WriteHeartbeat();
                 return;
             }
+            HandleOpenSceneRequest();
             HandleQuitRequest();
+        }
+
+        // dotasset.py --open-scene, for whoever is not at the machine. The first scene replaces what is open, the
+        // rest are added. Refused while an open scene has unsaved changes, unless forced. The answer lists what was
+        // open before, so the caller can put it back.
+        static void HandleOpenSceneRequest()
+        {
+            string requestPath = DotAssetPaths.Combine(QueueRoot, TaskQueueProtocol.OpenSceneRequest);
+            if (!File.Exists(requestPath))
+            {
+                return;
+            }
+            JObject request;
+            string refusal;
+            bool read = Json.TryReadFile(requestPath, out request, out refusal);
+            TryDelete(requestPath);
+
+            var previous = new JArray();
+            UnityEngine.SceneManagement.Scene active = UnityEngine.SceneManagement.SceneManager.GetActiveScene();
+            for (int i = 0; i < UnityEngine.SceneManagement.SceneManager.sceneCount; i++)
+            {
+                UnityEngine.SceneManagement.Scene scene = UnityEngine.SceneManagement.SceneManager.GetSceneAt(i);
+                if (scene.isLoaded && !string.IsNullOrEmpty(scene.path))
+                {
+                    previous.Add(scene.path);
+                }
+            }
+
+            var scenes = new List<string>();
+            if (read)
+            {
+                var list = Json.Get(request, "Scenes") as JArray;
+                if (list == null || list.Count == 0 || list.Any(s => s.Type != JTokenType.String))
+                {
+                    refusal = "\"Scenes\" must be a list of scene paths";
+                }
+                else
+                {
+                    scenes.AddRange(list.Select(s => DotAssetPaths.Normalize((string)s)));
+                    string missing = scenes.FirstOrDefault(s => AssetDatabase.GetMainAssetTypeAtPath(s) != typeof(SceneAsset));
+                    if (missing != null)
+                    {
+                        refusal = "no scene at " + missing;
+                    }
+                }
+            }
+            if (refusal == null && !Json.Bool(request, "Force", false))
+            {
+                refusal = UnsavedWork("open the scene");
+            }
+            if (refusal == null)
+            {
+                try
+                {
+                    if (UnityEditor.SceneManagement.PrefabStageUtility.GetCurrentPrefabStage() != null)
+                    {
+                        UnityEditor.SceneManagement.StageUtility.GoToMainStage();
+                    }
+                    for (int i = 0; i < scenes.Count; i++)
+                    {
+                        UnityEditor.SceneManagement.EditorSceneManager.OpenScene(scenes[i],
+                            i == 0 ? UnityEditor.SceneManagement.OpenSceneMode.Single : UnityEditor.SceneManagement.OpenSceneMode.Additive);
+                    }
+                }
+                catch (Exception e)
+                {
+                    refusal = "Unity could not open " + string.Join(", ", scenes) + ": " + e.Message;
+                }
+            }
+            try
+            {
+                Json.WriteFile(DotAssetPaths.Combine(QueueRoot, TaskQueueProtocol.OpenSceneResult), new JObject
+                {
+                    ["Opened"] = refusal == null,
+                    ["Previous"] = previous,
+                    ["PreviousActive"] = string.IsNullOrEmpty(active.path) ? null : active.path,
+                    ["Error"] = refusal,
+                });
+            }
+            catch (Exception e)
+            {
+                UnityEngine.Debug.LogWarning("[DotAsset] could not answer the open scene request: " + e.Message);
+            }
+            if (refusal != null)
+            {
+                UnityEngine.Debug.LogWarning("[DotAsset] open scene request refused: " + refusal);
+            }
         }
 
         // dotasset.py --quit. Refused while a scene or Prefab Mode has unsaved changes, unless forced, because
@@ -198,7 +294,7 @@ namespace DotAsset
             string error;
             bool force = Json.TryReadFile(requestPath, out request, out error) && Json.Bool(request, "Force", false);
             TryDelete(requestPath);
-            string refusal = force ? null : UnsavedWork();
+            string refusal = force ? null : UnsavedWork("quit");
             try
             {
                 Json.WriteFile(DotAssetPaths.Combine(QueueRoot, TaskQueueProtocol.QuitResult), new JObject
@@ -222,7 +318,7 @@ namespace DotAsset
             EditorApplication.Exit(0);
         }
 
-        static string UnsavedWork()
+        static string UnsavedWork(string action)
         {
             var dirty = new List<string>();
             for (int i = 0; i < UnityEngine.SceneManagement.SceneManager.sceneCount; i++)
@@ -242,7 +338,7 @@ namespace DotAsset
             {
                 return null;
             }
-            return "unsaved changes in " + string.Join(", ", dirty) + ". Save them first, or quit with --force to discard them";
+            return "unsaved changes in " + string.Join(", ", dirty) + ". Save them first, or " + action + " with --force to discard them";
         }
 
         static string NextPending()
@@ -299,6 +395,7 @@ namespace DotAsset
             string extra = Json.Str(task, "ExtraArgs", string.Empty);
 
             RunResult result;
+            SceneSession.SavedOpenScenes.Clear();
             try
             {
                 result = RunDispatcher.Run(runName, assets, extra, true);
@@ -308,8 +405,69 @@ namespace DotAsset
                 result = Refusal(runName, "the run threw before it could report: " + e.Message);
                 result.ExitCode = (int)ExitCode.Failed;
             }
+            if (SceneSession.SavedOpenScenes.Count > 0)
+            {
+                // Report the run only after Unity's own follow-up on those scenes, see Settle.
+                settling = new Settling
+                {
+                    Result = result,
+                    DonePath = donePath,
+                    ProcessingPath = processingPath,
+                    Scenes = new List<string>(SceneSession.SavedOpenScenes),
+                    Started = EditorApplication.timeSinceStartup,
+                    LastDirty = EditorApplication.timeSinceStartup,
+                };
+                SceneSession.SavedOpenScenes.Clear();
+                return;
+            }
             WriteDone(donePath, result);
             TryDelete(processingPath);
+        }
+
+        sealed class Settling
+        {
+            public RunResult Result;
+            public string DonePath;
+            public string ProcessingPath;
+            public List<string> Scenes;
+            public double Started;
+            public double LastDirty;
+            public readonly List<string> SavedAgain = new List<string>();
+        }
+
+        // A run that saved a scene open in the editor is reported once Unity has settled: some of what was just added
+        // is completed by Unity on a later frame (a new Light gets its baking state) and that marks the scene dirty
+        // again. Each update saves such a scene again. The run is done after SettleQuietSeconds without a change,
+        // at most SettleMaxSeconds after it ended. The next task waits, so it never finds the scene dirty.
+        const double SettleQuietSeconds = 0.4;
+        const double SettleMaxSeconds = 3.0;
+        static Settling settling;
+
+        static void Settle(double now)
+        {
+            foreach (string path in settling.Scenes)
+            {
+                UnityEngine.SceneManagement.Scene scene = UnityEngine.SceneManagement.SceneManager.GetSceneByPath(path);
+                if (scene.IsValid() && scene.isLoaded && scene.isDirty)
+                {
+                    settling.LastDirty = now;
+                    if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene) && !settling.SavedAgain.Contains(path))
+                    {
+                        settling.SavedAgain.Add(path);
+                    }
+                }
+            }
+            if (now - settling.LastDirty < SettleQuietSeconds && now - settling.Started < SettleMaxSeconds)
+            {
+                return;
+            }
+            foreach (string path in settling.SavedAgain)
+            {
+                settling.Result.Lines.Add("I saved " + path + " again after Unity updated it");
+            }
+            WriteDone(settling.DonePath, settling.Result);
+            TryDelete(settling.ProcessingPath);
+            settling = null;
         }
 
         static RunResult Refusal(string runName, string error)

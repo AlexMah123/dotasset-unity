@@ -57,6 +57,7 @@ The wrapper is `dotasset.py` (in the package's `Scripts~/`, or copied to the pro
 | `--list`, `--status` | every run with its summary; what the editor's queue is doing |
 | `--launch` | open the project in the editor (no window interaction needed) and wait until its queue is `ready`. Exit 0 when ready, also when an editor was already open |
 | `--quit [--force]` | close the editor that has the project open, once it is idle. Refused (exit 2) while a scene or Prefab Mode has unsaved changes, `--force` discards them |
+| `--open-scene A.unity[,B.unity] [--force]` | open scenes in that editor: the first replaces what is open, the rest are added. Refused like `--quit`. The last line is `previously open: <paths>`, pass them back to `--open-scene` to restore the user's layout |
 
 Ctrl+C withdraws a task the editor has not taken, and stops a headless Unity.
 

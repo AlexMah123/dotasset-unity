@@ -16,6 +16,8 @@ Usage:
   python dotasset.py --launch        open the project in the editor and wait until it takes tasks
   python dotasset.py --quit [--force]  close the editor that has the project open, refused while a scene has
                                        unsaved changes unless --force
+  python dotasset.py --open-scene A.unity[,B.unity] [--force]  open scenes in that editor, refused the same way.
+                                       The last line names what was open before: "previously open: ..."
 
   AssetList   comma-separated asset paths or folders, e.g. "Assets/Prefabs/A.prefab,Assets/Prefabs/B.prefab".
               Spec-driven runs (Edit*, Create*, most Migrate runs) name targets in the spec, leave it out.
@@ -48,6 +50,8 @@ DONE = "done"
 ALIVE = ".alive"
 QUIT_REQUEST = "quit.json"
 QUIT_RESULT = "quit.result.json"
+OPEN_SCENE_REQUEST = "openscene.json"
+OPEN_SCENE_RESULT = "openscene.result.json"
 HEARTBEAT_FRESHNESS_SEC = 15.0
 # Beyond this an idle heartbeat counts as dead for routing. Generous, an unfocused editor can tick slowly.
 STALE_HEARTBEAT_SEC = 120.0
@@ -842,6 +846,68 @@ def editor_log_hint():
     return os.path.expanduser("~/.config/unity3d/Editor.log")
 
 
+def open_scene(args, project):
+    """Asks the editor that has the project open to open scenes: the first replaces what is open, the rest are
+    added. Prints the scenes that were open before as a last line, 'previously open: a.unity,b.unity'."""
+    queue_root = os.path.join(project, QUEUE_RELATIVE)
+    scenes = [s.strip().replace("\\", "/") for s in args.open_scene.split(",") if s.strip()]
+    if not scenes:
+        log("error: --open-scene needs scene paths, e.g. --open-scene Assets/Scenes/Main.unity")
+        return EXIT_REFUSED
+    alive = live_editor(queue_root)
+    if alive is None:
+        log("error: no editor has this project open, --launch it first")
+        return EXIT_REFUSED
+    if alive.get("State") == "paused":
+        log("error: the editor's queue is paused (Window > DotAsset > Accept tasks), it cannot take the request")
+        return EXIT_REFUSED
+    request = os.path.join(queue_root, OPEN_SCENE_REQUEST)
+    answer = os.path.join(queue_root, OPEN_SCENE_RESULT)
+    try:
+        os.remove(answer)
+    except FileNotFoundError:
+        pass
+    with open(request + ".tmp", "w", encoding="utf-8") as f:
+        json.dump({"Scenes": scenes, "Force": bool(args.force)}, f)
+    os.replace(request + ".tmp", request)
+    log("asked the editor to open %s%s" % (", ".join(scenes), ", discarding unsaved changes" if args.force else ""))
+    deadline = time.time() + args.timeout
+    result = None
+    pid = int(alive.get("Pid", 0))
+    while time.time() < deadline and result is None:
+        if os.path.exists(answer):
+            try:
+                with open(answer, encoding="utf-8") as f:
+                    result = json.load(f)
+            except (OSError, ValueError):
+                time.sleep(0.1)
+                continue
+        elif not is_unity_process(pid):
+            break
+        else:
+            time.sleep(0.25)
+    if result is None:
+        try:
+            os.remove(request)
+        except FileNotFoundError:
+            pass
+        log("error: the editor did not answer within %ds. Request withdrawn" % args.timeout)
+        return EXIT_FAILED
+    try:
+        os.remove(answer)
+    except FileNotFoundError:
+        pass
+    if args.json:
+        print(json.dumps(result, indent=2))
+    previous = result.get("Previous") or []
+    if not result.get("Opened"):
+        log("error: the editor did not open the scene: " + (result.get("Error") or "no reason given"))
+        return EXIT_REFUSED
+    log("opened %s" % ", ".join(scenes))
+    log("previously open: %s" % ",".join(previous))
+    return EXIT_SUCCESS
+
+
 def quit_editor(args, project):
     """Asks the editor that has the project open to close, and waits until the project is free."""
     queue_root = os.path.join(project, QUEUE_RELATIVE)
@@ -930,7 +996,8 @@ def main(argv=None):
     p.add_argument("--status", action="store_true", help="show what the editor's queue is doing")
     p.add_argument("--launch", action="store_true", help="open the project in the editor and wait until it takes tasks")
     p.add_argument("--quit", action="store_true", help="close the editor that has the project open")
-    p.add_argument("--force", action="store_true", help="with --quit: close even when a scene has unsaved changes")
+    p.add_argument("--open-scene", help="open these scenes (comma-separated) in the editor that has the project open")
+    p.add_argument("--force", action="store_true", help="with --quit or --open-scene: go ahead even when a scene has unsaved changes")
     argv = list(sys.argv[1:] if argv is None else argv)
     # "--args -apply" would make argparse read -apply as an option of its own. Glue the value on.
     for i in range(len(argv) - 1):
@@ -950,8 +1017,10 @@ def main(argv=None):
         return launch(args, project)
     if args.quit:
         return quit_editor(args, project)
+    if args.open_scene is not None:
+        return open_scene(args, project)
     if args.force:
-        log("error: --force only goes with --quit")
+        log("error: --force only goes with --quit or --open-scene")
         return EXIT_REFUSED
     run = args.run
     if args.list:

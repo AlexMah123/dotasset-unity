@@ -61,6 +61,8 @@ class FakeEditor(threading.Thread):
         self.quit_refusal = quit_refusal
         self.on_quit = on_quit
         self.quit_requests = []
+        self.open_requests = []
+        self.scenes = ["Assets/Scenes/Main.unity"]
         self.stop = threading.Event()
         self.tasks = []
         for d in (ops.PENDING, ops.PROCESSING, ops.DONE):
@@ -91,9 +93,27 @@ class FakeEditor(threading.Thread):
                     with open(os.path.join(self.queue, ops.DONE, name), "w") as f:
                         json.dump(self.respond(task), f)
                     os.remove(dst)
+                self.serve_open_scene()
                 if self.serve_quit():
                     return
             time.sleep(0.05)
+
+    def serve_open_scene(self):
+        """Answers openscene.json like TaskQueue.HandleOpenSceneRequest, refusing like quit does."""
+        path = os.path.join(self.queue, ops.OPEN_SCENE_REQUEST)
+        if not os.path.exists(path):
+            return
+        with open(path) as f:
+            request = json.load(f)
+        os.remove(path)
+        self.open_requests.append(request)
+        refusal = None if request.get("Force") else self.quit_refusal
+        previous = list(self.scenes)
+        if refusal is None:
+            self.scenes = list(request["Scenes"])
+        with open(os.path.join(self.queue, ops.OPEN_SCENE_RESULT), "w") as f:
+            json.dump({"Opened": refusal is None, "Previous": previous, "PreviousActive": previous[0] if previous else None,
+                       "Error": refusal}, f)
 
     def serve_quit(self):
         """Answers quit.json like TaskQueue.HandleQuitRequest. True when the fake editor closed."""
@@ -224,7 +244,8 @@ class GroupRule(unittest.TestCase):
         src = read(os.path.join(PACKAGE, "Editor", "Core", "TaskQueue.cs"))
         self.assertIn('QueueRelative = "Library/DotAsset/Queue"', src)
         self.assertEqual(ops.QUEUE_RELATIVE.replace(os.sep, "/"), "Library/DotAsset/Queue")
-        for const in ("pending", "processing", "done", ".alive", "quit.json", "quit.result.json"):
+        for const in ("pending", "processing", "done", ".alive", "quit.json", "quit.result.json", "openscene.json",
+                      "openscene.result.json"):
             self.assertIn('"%s"' % const, src)
 
 
@@ -286,6 +307,36 @@ class EditorControl(Base):
         code, out = self.call("--quit")
         self.assertEqual(code, 0)
         self.assertIn("no editor has this project open", out)
+
+    def test_open_scene_reports_what_was_open(self):
+        editor = FakeEditor(self.project, lambda t: result(t["RunName"]))
+        editor.start()
+        try:
+            code, out = self.call("--open-scene", "Assets/A.unity,Assets/B.unity")
+        finally:
+            editor.stop.set()
+        self.assertEqual(code, 0, out)
+        self.assertEqual(editor.open_requests, [{"Scenes": ["Assets/A.unity", "Assets/B.unity"], "Force": False}])
+        self.assertEqual(editor.scenes, ["Assets/A.unity", "Assets/B.unity"])
+        self.assertEqual(out.strip().splitlines()[-1], "[dotasset] previously open: Assets/Scenes/Main.unity")
+
+    def test_open_scene_refused_with_unsaved_changes(self):
+        editor = FakeEditor(self.project, lambda t: result(t["RunName"]), quit_refusal="unsaved changes in Assets/Scenes/Main.unity")
+        editor.start()
+        try:
+            code, out = self.call("--open-scene", "Assets/A.unity")
+            self.assertEqual(code, 2)
+            self.assertIn("unsaved changes", out)
+            self.assertEqual(editor.scenes, ["Assets/Scenes/Main.unity"])
+            code, out = self.call("--open-scene", "Assets/A.unity", "--force")
+            self.assertEqual(code, 0, out)
+        finally:
+            editor.stop.set()
+
+    def test_open_scene_without_an_editor(self):
+        code, out = self.call("--open-scene", "Assets/A.unity")
+        self.assertEqual(code, 2)
+        self.assertIn("--launch it first", out)
 
     def test_force_needs_quit(self):
         code, out = self.call("PrefabExport", "Assets/A.prefab", "--force")

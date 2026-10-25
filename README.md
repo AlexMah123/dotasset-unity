@@ -86,13 +86,16 @@ python dotasset.py AuditTexture --args '-scandir=Assets'
 
 The wrapper finds the project from the current directory (or `--project`) and the editor from `ProjectSettings/ProjectVersion.txt` through Unity Hub's install folder (or `--unity`, or `DOTASSET_UNITY`). `python dotasset.py --list` prints every run, `--status` shows what the editor's queue is doing.
 
-No one needs to be at the machine for the editor route either: `--launch` opens the project in the editor and waits until its queue is ready, and `--quit` closes it again once it is idle (refused while a scene has unsaved changes, unless `--force`).
+No one needs to be at the machine for the editor route either: `--launch` opens the project in the editor and waits until its queue is ready, `--open-scene` opens scenes in it, and `--quit` closes it again once it is idle. `--open-scene` and `--quit` are refused while a scene has unsaved changes, unless `--force`.
 
 ```
-python dotasset.py --launch      # open the editor, wait until it takes tasks
+python dotasset.py --launch                              # open the editor, wait until it takes tasks
+python dotasset.py --open-scene Assets/Scenes/Main.unity # prints "previously open: ..." to put back later
 python dotasset.py PrefabExport Assets/Prefabs
-python dotasset.py --quit        # close it, the project is free for headless runs again
+python dotasset.py --quit                                # close it, the project is free for headless runs again
 ```
+
+A scene open in the editor is edited in place on one undo group. When Unity completes something the run added on a later frame (a new Light gets its baking state), the queue saves the scene again before it reports the run, so the scene is left clean.
 
 Output: `Library/DotAsset/Export/<AssetPath>_<timestamp>.json`, the newest 10 per asset kept. Logs: `Library/DotAsset/Logs/`, the newest 200 kept, and `Window > DotAsset` in the editor.
 

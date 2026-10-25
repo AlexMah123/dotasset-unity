@@ -395,6 +395,61 @@ def check_edit_scene(base, tmp):
     return None
 
 
+def open_scenes(base, scenes, force=False):
+    """--open-scene in the editor. Returns (problem, the scenes that were open before)."""
+    r = subprocess.run(base + ["--open-scene", ",".join(scenes)] + (["--force"] if force else []), capture_output=True, text=True)
+    if r.returncode != 0:
+        return "--open-scene %s exit %s\n%s" % (",".join(scenes), r.returncode, (r.stdout + r.stderr).strip()), []
+    last = [l for l in r.stdout.splitlines() if "previously open:" in l]
+    previous = last[-1].split("previously open:", 1)[1].strip() if last else ""
+    return None, [s for s in previous.split(",") if s]
+
+
+def check_open_scene_edit(base, tmp):
+    # A scene open in the editor is edited on one undo group: a dry run reverts the group, -apply saves the scene.
+    # Either way the scene must not be left dirty, which the plain (unforced) restore of your scenes would refuse.
+    if not editor_open(base):
+        return "skip: needs the editor open, the scene is opened in it"
+    scene = ROOT + "/Smoke.unity"
+    problem, previous = open_scenes(base, [scene])
+    if problem:
+        return problem
+    try:
+        problem = edit_open_scene(base, tmp, scene)
+    except Exception as e:
+        problem = "%s: %s" % (type(e).__name__, e)
+    # Put back what you had open. Refused only if the run left the scene dirty, which is a failure in itself.
+    if previous:
+        restore, _ = open_scenes(base, previous)
+        if restore:
+            open_scenes(base, previous, force=True)
+            problem = (problem + "\n" if problem else "") + "the edit left the open scene dirty, restoring your scenes needed --force:\n" + restore
+    elif not problem:
+        problem = "the editor had no saved scene open, %s stays open until cleanup deletes it" % scene
+    return problem
+
+
+def edit_open_scene(base, tmp, scene):
+    lamp = spec("open_scene", {"Targets": [{"AssetPath": scene, "Ops": [
+        {"Op": "AddGameObject", "Name": "Lamp", "Components": [{"Type": "Light", "Properties": {"m_Intensity": 3}}]}]}]}, tmp)
+    path = os.path.join(project_of(base), *scene.split("/"))
+    with open(path, "rb") as f:
+        before = f.read()
+    problem = expect(base, "EditScene dry run on the open scene", ["EditScene", "--args", '-spec="%s"' % lamp], 0)
+    if problem:
+        return problem
+    with open(path, "rb") as f:
+        if f.read() != before:
+            return "the dry run on the open scene wrote the file"
+    problem = expect(base, "EditScene -apply on the open scene", ["EditScene", "--args", '-spec="%s" -apply' % lamp], 0)
+    if problem:
+        return problem
+    light = component(export_of("SceneExport", base, scene), "Lamp", "Light")
+    if light is None or light.get("Properties", {}).get("m_Intensity") != 3:
+        return "the open scene has no saved Lamp with intensity 3"
+    return None
+
+
 def check_edit_material(base, tmp):
     argv = ["EditMaterial", "--args", '-spec="%s"' % SPECS["edit_mat"]]
     problem = expect(base, "EditMaterial dry run", argv, 0)
@@ -445,6 +500,68 @@ def check_edit_controller(base, tmp):
     used = [c["Parameter"] for s in states.values() for t in s.get("Transitions", []) for c in t.get("Conditions", [])]
     if set(used) != {"IsOpen"}:
         return "RenameParameter left conditions on %s" % sorted(set(used))
+    return None
+
+
+ODD = ROOT + "/Sub Folder ü"
+
+
+def check_odd_paths(base, tmp):
+    # A space and a non-ASCII letter in a folder and an asset name: wrapper quoting, the base64 hand-off to Unity,
+    # and paths in specs, results and exports all have to carry them.
+    mat = ODD + "/Grün Mat.mat"
+    create = spec("odd_create", {"Assets": [{"Kind": "Folder", "Path": ODD}, {"Kind": "Material", "Path": mat, "Properties": {}}]}, tmp)
+    problem = expect(base, "CreateAsset with an odd path", ["CreateAsset", "--args", '-spec="%s"' % create], 0)
+    if problem:
+        return problem
+    if not on_disk(base, mat):
+        return "%s was not created" % mat
+    edit = spec("odd_edit", {"Targets": [{"AssetPath": mat, "EnableInstancing": True}]}, tmp)
+    problem = expect(base, "EditMaterial with an odd path", ["EditMaterial", "--args", '-spec="%s" -apply' % edit], 0)
+    if problem:
+        return problem
+    exp = export_of("MaterialExport", base, mat)
+    if exp.get("AssetPath") != mat or exp.get("EnableInstancing") is not True:
+        return "MaterialExport of %s reads AssetPath %r, EnableInstancing %r" % (mat, exp.get("AssetPath"), exp.get("EnableInstancing"))
+    moved = ODD + "/Grün Mat 2.mat"
+    problem = expect(base, "MoveAsset with an odd path", ["MoveAsset", "--args", '-from="%s" -to="%s" -apply' % (mat, moved)], 0)
+    if problem:
+        return problem
+    if on_disk(base, mat) or not on_disk(base, moved):
+        return "MoveAsset did not move %s" % mat
+    return None
+
+
+READ_ONLY = "Packages/com.unity.nuget.newtonsoft-json/package.json"  # a registry package DotAsset depends on
+
+
+def check_read_only_package(base, tmp):
+    # A registry package is immutable: a write must be refused before anything is touched.
+    target = spec("read_only", {"Targets": [{"AssetPath": READ_ONLY, "Properties": {"m_Name": "changed"}}]}, tmp)
+    r, _ = call(base, ["EditAsset", "--args", '-spec="%s" -apply' % target])
+    if r.returncode != 1 or "read-only" not in (r.stdout + r.stderr):
+        return "EditAsset on %s exit %s, expected a read-only refusal\n%s" % (READ_ONLY, r.returncode, (r.stdout + r.stderr)[-1500:])
+    drop_kept_log(r)
+    return None
+
+
+def check_output_options(base, tmp):
+    # -outdir and -report put files where the caller says, and pruning never touches them. The -outdir folder is
+    # filled past the cap with older stamped files first, so one export shows whether pruning reached in.
+    outdir = os.path.join(tmp, "my exports")
+    folder = os.path.join(outdir, *ROOT.split("/"))
+    os.makedirs(folder)
+    for i in range(KEEP_EXPORTS + 1):
+        with open(os.path.join(folder, "Red.mat_20200101-0000%02d.json" % i), "w") as f:
+            f.write("{}")
+    export_of("MaterialExport", base, ROOT + "/Red.mat", args='-outdir="%s"' % outdir.replace("\\", "/"))
+    files = [f for f in os.listdir(folder) if f.startswith("Red.mat_")]
+    if len(files) != KEEP_EXPORTS + 2:
+        return "-outdir holds %d Red.mat exports, expected all %d: pruning must leave the caller's folder alone" % (len(files), KEEP_EXPORTS + 2)
+    report = os.path.join(tmp, "my report.json").replace("\\", "/")
+    r, _ = call(base, ["AuditMaterial", ROOT, "--args", '-report="%s"' % report])
+    if r.returncode not in (0, 3) or not os.path.isfile(report):
+        return "AuditMaterial -report did not write %s, exit %s" % (report, r.returncode)
     return None
 
 
@@ -757,10 +874,14 @@ def run(args, tmp):
         ("array ops", check_array_ops, None),
         ("export round trip", check_round_trip, None),
         ("edit scene dry and apply", check_edit_scene, None),
+        ("edit the open scene", check_open_scene_edit, None),
         ("edit material dry and apply", check_edit_material, None),
         ("edit asset dry and apply", check_edit_asset, None),
         ("edit controller dry, apply", check_edit_controller, None),
         ("exports leave assets as is", check_exports_read_only, None),
+        ("-outdir and -report", check_output_options, None),
+        ("odd paths: spaces, ü", check_odd_paths, None),
+        ("read-only package refused", check_read_only_package, None),
         ("duplicate", check_duplicate, None),
         ("remap dry and apply", check_remap, None),
         ("move keeps references", check_move, None),
@@ -836,7 +957,7 @@ def run(args, tmp):
     if stray:
         failed += 1
         print(indent("\n".join(stray)))
-    capped = over_cap(args.project)
+    capped = over_cap(args.project, started)
     print("%-4s %-28s" % ("FAIL" if capped else "ok", "exports and reports capped"), flush=True)
     if capped:
         failed += 1
@@ -899,19 +1020,22 @@ def outside_changes(before, after):
 KEEP_EXPORTS, KEEP_REPORTS = 10, 20  # DotAssetPaths.KeepExportsPerAsset, KeepReportsPerAudit
 
 
-def over_cap(project):
-    """Exports and audit reports beyond what DotAssetPaths keeps. The run exports Crate.prefab about 20 times,
-    so pruning that stopped working shows up here."""
+def over_cap(project, since):
+    """Exports and audit reports beyond what DotAssetPaths keeps, for what this run wrote (pruning happens when an
+    asset is exported again, older leftovers of other assets are not this run's). The run exports Crate.prefab about
+    20 times, so pruning that stopped working shows up here."""
     stamped = re.compile(r"^(.*)_\d{8}-\d{6}(-\d+)?\.json$")
     problems = []
     for folder, keep in ((os.path.join(project, "Library", "DotAsset", "Export", *ROOT.split("/")), KEEP_EXPORTS),
                          (os.path.join(project, "Library", "DotAsset", "Audit"), KEEP_REPORTS)):
-        counts = {}
+        counts, fresh = {}, set()
         for name in os.listdir(folder) if os.path.isdir(folder) else []:
             m = stamped.match(name)
             if m:
                 counts[m.group(1)] = counts.get(m.group(1), 0) + 1
-        problems += ["%s: %d files, keeps %d" % (stem, n, keep) for stem, n in sorted(counts.items()) if n > keep]
+                if os.path.getmtime(os.path.join(folder, name)) >= since:
+                    fresh.add(m.group(1))
+        problems += ["%s: %d files, keeps %d" % (stem, n, keep) for stem, n in sorted(counts.items()) if n > keep and stem in fresh]
     return problems
 
 

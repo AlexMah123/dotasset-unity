@@ -25,6 +25,8 @@ Version.md                       release notes
 
 Version lives in `Package/Editor/Core/DotAssetVersion.cs` and `Package/package.json` "version". Change both, and add a `### <version>` section at the top of `Version.md`.
 
+Patch (0.1.x) for fixes, test upgrades and docs. Minor (0.x.0) for anything new to call: a run, an op, a spec key, an argument, a wrapper option. While on 0.x a breaking change is also a minor version, marked breaking in `Version.md`. 1.0.0 only when runs, specs and export JSON are promised stable.
+
 A release needs the smoke test to pass three times in a row on every tested Unity version, headless and with the editor open (`--launch` before, `--quit` after), then a `v<version>` tag. Never edit the package or the smoke test while a pass runs.
 
 ## Code rules

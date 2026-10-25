@@ -111,7 +111,7 @@ Writes are forgiving where the field type makes the intent clear: a prefab path 
 
 ```json
 {
-  "ExporterVersion": "0.1.2",
+  "ExporterVersion": "0.2.0",
   "ExportType": "PrefabExport",
   "AssetPath": "Assets/Prefabs/Player.prefab",
   "PrefabAssetType": "Regular",

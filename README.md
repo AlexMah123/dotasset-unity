@@ -96,7 +96,7 @@ python dotasset.py --quit        # close it, the project is free for headless ru
 
 Output: `Library/DotAsset/Export/<AssetPath>_<timestamp>.json`, the newest 10 per asset kept. Logs: `Library/DotAsset/Logs/`, the newest 200 kept, and `Window > DotAsset` in the editor.
 
-**Requirements:** Unity 2022.3 or 6000.x, Python 3.8 or newer (standard library only) for the wrapper, Windows, macOS or Linux. Apart from the assets a run is asked to change, everything DotAsset writes (exports, reports, logs, the task queue) stays under `Library/DotAsset/`, which version control ignores.
+**Requirements:** Unity 2022.3 or 6000.x on Windows, Python 3.8 or newer (standard library only) for the wrapper, tested on 3.8, 3.9 and 3.15. macOS and Linux are not tested: the wrapper has code paths for them, but nothing confirms they work. Apart from the assets a run is asked to change, everything DotAsset writes (exports, reports, logs, the task queue) stays under `Library/DotAsset/`, which version control ignores.
 
 ## A round trip, end to end
 

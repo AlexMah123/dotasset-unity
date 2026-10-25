@@ -520,6 +520,7 @@ def run_batch_unity(args, project, queue_root, run, assets, extra):
     task_id = uuid.uuid4().hex
     batch_dir = os.path.join(queue_root, "batch")
     os.makedirs(batch_dir, exist_ok=True)
+    sweep_logs(batch_dir)
     result_path = os.path.join(batch_dir, task_id + ".result.json")
     unity_log = os.path.join(batch_dir, task_id + ".unity.log")
     cmd = [unity, "-batchmode"]
@@ -568,14 +569,70 @@ def run_batch_unity(args, project, queue_root, run, assets, extra):
         os.remove(result_path)
     except OSError:
         pass
+    if exit_code_of(result) in (EXIT_SUCCESS, EXIT_ISSUES):
+        remove_log(batch_dir, unity_log)
+    else:
+        log("Unity log: " + unity_log)
+    return exit_code_of(result)
+
+
+LOG_SWEEP_LIST = "logs-to-delete.txt"
+FAILED_LOG_DAYS = 7
+
+
+def remove_log(batch_dir, unity_log):
+    """The log of a run that worked is not kept. On Windows Unity's licensing client inherits the open log and
+    outlives Unity, so the file can stay locked for minutes: it is then listed for the next run to sweep."""
     try:
-        if exit_code_of(result) in (EXIT_SUCCESS, EXIT_ISSUES):
-            os.remove(unity_log)
-        else:
-            log("Unity log: " + unity_log)
+        os.remove(unity_log)
+    except FileNotFoundError:
+        pass
+    except OSError:
+        try:
+            with open(os.path.join(batch_dir, LOG_SWEEP_LIST), "a", encoding="utf-8") as f:
+                f.write(os.path.basename(unity_log) + "\n")
+        except OSError:
+            pass
+
+
+def sweep_logs(batch_dir, now=None):
+    """Deletes the logs earlier runs could not, and failed runs' logs older than FAILED_LOG_DAYS."""
+    now = time.time() if now is None else now
+    listed = os.path.join(batch_dir, LOG_SWEEP_LIST)
+    pending = []
+    try:
+        with open(listed, encoding="utf-8") as f:
+            pending = [n.strip() for n in f if n.strip()]
     except OSError:
         pass
-    return exit_code_of(result)
+    still = []
+    for name in pending:
+        try:
+            os.remove(os.path.join(batch_dir, os.path.basename(name)))
+        except FileNotFoundError:
+            pass
+        except OSError:
+            still.append(name)
+    try:
+        if still:
+            with open(listed, "w", encoding="utf-8") as f:
+                f.write("".join(n + "\n" for n in still))
+        elif pending:
+            os.remove(listed)
+    except OSError:
+        pass
+    try:
+        names = os.listdir(batch_dir)
+    except OSError:
+        return
+    for name in names:
+        path = os.path.join(batch_dir, name)
+        if name.endswith(".unity.log") and name not in still:
+            try:
+                if now - os.path.getmtime(path) > FAILED_LOG_DAYS * 86400:
+                    os.remove(path)
+            except OSError:
+                pass
 
 
 # ---------------------------------------------------------------- main

@@ -510,6 +510,51 @@ class BatchRoute(Base):
         self.assertEqual(code, 2)
 
 
+class LogSweep(unittest.TestCase):
+    def setUp(self):
+        self.dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.dir, True)
+
+    def touch(self, name, age_days=0):
+        path = os.path.join(self.dir, name)
+        with open(path, "w") as f:
+            f.write("log")
+        stamp = time.time() - age_days * 86400
+        os.utime(path, (stamp, stamp))
+        return path
+
+    def test_listed_logs_are_swept_and_the_list_goes(self):
+        self.touch("a.unity.log")
+        with open(os.path.join(self.dir, ops.LOG_SWEEP_LIST), "w") as f:
+            f.write("a.unity.log\ngone.unity.log\n")
+        ops.sweep_logs(self.dir)
+        self.assertEqual(os.listdir(self.dir), [])
+
+    def test_failed_logs_kept_for_a_week(self):
+        self.touch("recent.unity.log", age_days=1)
+        self.touch("old.unity.log", age_days=ops.FAILED_LOG_DAYS + 1)
+        self.touch("other.json", age_days=30)
+        ops.sweep_logs(self.dir)
+        self.assertEqual(sorted(os.listdir(self.dir)), ["other.json", "recent.unity.log"])
+
+    def test_removed_log_is_not_listed(self):
+        path = self.touch("ok.unity.log")
+        ops.remove_log(self.dir, path)
+        ops.remove_log(self.dir, path)
+        self.assertEqual(os.listdir(self.dir), [])
+
+    @unittest.skipIf(sys.platform != "win32", "only Windows refuses to delete an open file")
+    def test_locked_log_is_listed_then_swept(self):
+        path = self.touch("held.unity.log")
+        held = open(path)
+        ops.remove_log(self.dir, path)
+        ops.sweep_logs(self.dir)
+        self.assertIn("held.unity.log", os.listdir(self.dir))
+        held.close()
+        ops.sweep_logs(self.dir)
+        self.assertEqual(os.listdir(self.dir), [])
+
+
 class StartupWait(Base):
     @unittest.skipIf(sys.platform == "win32", "fcntl lock")
     def test_locked_project_waits_for_heartbeat(self):

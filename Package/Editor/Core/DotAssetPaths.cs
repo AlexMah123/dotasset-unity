@@ -8,8 +8,8 @@ using UnityEngine;
 namespace DotAsset
 {
     // Everything DotAsset writes lives under <Project>/Library/DotAsset, which version control ignores.
-    //   Export/   export JSON, one file per asset per run
-    //   Audit/    audit reports and their fix specs
+    //   Export/   export JSON, one timestamped file per asset per run, the newest KeepExportsPerAsset kept
+    //   Audit/    audit reports and their fix specs, the newest KeepReportsPerAudit per audit kept
     //   Logs/     one log per run
     //   Queue/    task queue between the wrapper and the open editor, see TaskQueueProtocol
     public static class DotAssetPaths

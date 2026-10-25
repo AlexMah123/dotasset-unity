@@ -84,6 +84,17 @@ namespace DotAsset
             }
             // Code and folders have nothing to reserialize.
             paths.RemoveWhere(p => p.EndsWith(".cs", StringComparison.OrdinalIgnoreCase) || AssetDatabase.IsValidFolder(p));
+            // A resave rewrites the file from disk. One the editor holds unsaved changes for would leave the editor
+            // and the file disagreeing, and one side's changes lost.
+            foreach (string p in paths.OrderBy(p => p, StringComparer.Ordinal).ToList())
+            {
+                string unsaved = OpenWork.UnsavedIn(p);
+                if (unsaved != null)
+                {
+                    ctx.FailTarget(p, unsaved);
+                    paths.Remove(p);
+                }
+            }
 
             var list = paths.OrderBy(p => p, StringComparer.Ordinal).ToList();
             foreach (string p in list.Take(200))
@@ -97,17 +108,17 @@ namespace DotAsset
             if (list.Count == 0)
             {
                 ctx.Log.Warn("no assets matched");
-                return ExitCode.Success;
+                return ctx.FailedTargets.Count > 0 ? ExitCode.Failed : ExitCode.Success;
             }
             if (ctx.DryRun)
             {
                 ctx.Log.Info(list.Count + " asset(s) would be resaved");
-                return ExitCode.Success;
+                return ctx.FailedTargets.Count > 0 ? ExitCode.Failed : ExitCode.Success;
             }
             var options = ctx.Args.Has("metaonly") ? ForceReserializeAssetsOptions.ReserializeMetadata : ForceReserializeAssetsOptions.ReserializeAssetsAndMetadata;
             AssetDatabase.ForceReserializeAssets(list, options);
             ctx.Log.Info("resaved " + list.Count + " asset(s)");
-            return ExitCode.Success;
+            return ctx.FailedTargets.Count > 0 ? ExitCode.Failed : ExitCode.Success;
         }
     }
 }

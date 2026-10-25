@@ -37,6 +37,12 @@ namespace DotAsset
                     ctx.FailTarget(path, "nothing at that path");
                     continue;
                 }
+                string unsaved = OpenWork.UnsavedIn(path);
+                if (unsaved != null)
+                {
+                    ctx.FailTarget(path, unsaved);
+                    continue;
+                }
                 targets.Add(path);
             }
             // "Assets/Old,Assets/Old/A.mat": the folder takes A.mat with it, a second delete would fail after the first.

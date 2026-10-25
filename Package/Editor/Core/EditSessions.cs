@@ -278,6 +278,32 @@ namespace DotAsset
         }
     }
 
+    // Work open in the editor and not saved: a loaded scene, or the prefab in Prefab Mode, with unsaved changes.
+    // Runs that write files directly instead of through a session (DeleteAsset, ResaveAsset) refuse a target that
+    // holds such work, the user's changes would be lost with it.
+    public static class OpenWork
+    {
+        // The unsaved work at path, or anywhere under it when path is a folder. Null when there is none.
+        public static string UnsavedIn(string path)
+        {
+            var roots = new[] { path };
+            for (int i = 0; i < SceneManager.sceneCount; i++)
+            {
+                Scene scene = SceneManager.GetSceneAt(i);
+                if (scene.isLoaded && scene.isDirty && !string.IsNullOrEmpty(scene.path) && AssetScan.Under(scene.path, roots))
+                {
+                    return scene.path + " is open in the editor with unsaved changes. Save or discard them first";
+                }
+            }
+            PrefabStage stage = PrefabStageUtility.GetCurrentPrefabStage();
+            if (stage != null && stage.scene.isDirty && AssetScan.Under(stage.assetPath, roots))
+            {
+                return stage.assetPath + " is open in Prefab Mode with unsaved changes. Save or discard them first";
+            }
+            return null;
+        }
+    }
+
     // Assets in a package from the registry, git or a tarball are immutable, a write cannot reach disk.
     public static class ReadOnly
     {

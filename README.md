@@ -257,7 +257,23 @@ Patches within a tested version are expected to work, Unity keeps the API stable
 - `python -m unittest discover -s tests` covers the wrapper: both routes, startup wait, fallback, quoting, timeouts, exit codes.
 - `python tests/smoke/run_smoke.py --project <your project>` runs every group end to end in a real project, under `Assets/DotAssetSmoke`, and cleans up (`--clean` removes leftovers of an interrupted run first). Run it once with the editor closed and once with it open.
 
-The smoke test reads every change back through an export instead of trusting exit codes, checks that dry runs and failed targets leave files untouched and that exports change nothing on disk, and seeds a missing reference, a stray keyword and a misnamed normal map for the audits to find and fix. It is safe to run in a real project: it fails if anything in `Assets/` outside its own folder changed, stops at the first failure (`--keep-going` runs the rest), and removes its folder however the run ends.
+### What the smoke test checks
+
+Every write is read back through an export. An exit code alone never counts as a pass.
+
+| Area | Checked |
+| :-- | :-- |
+| Import | `CreateAsset` builds a material, a prefab with components, a prefab variant with an override, an Animator Controller with states and a transition, and a scene with a prefab instance. Running the same spec again skips what exists and changes nothing |
+| Export | Prefab, scene, material, controller, asset, reference and type catalog exports run. `AssetReferenceExport` lists the prefab as a user of its material. Writing an export's properties back leaves the export identical |
+| Edit | `EditPrefab` adds, sets and removes. `EditScene` adds a Light and overrides an instance. `EditMaterial` and `EditAsset` set a render queue. `EditAnimatorController` adds a transition and renames a parameter, along with every condition that reads it. `ArrayOps` Append, Insert and Remove land where they should |
+| Dry runs | Every Edit and Migrate run without `-apply` leaves the files as they were. A dry run in the open editor leaves nothing behind for the next run to save |
+| All or nothing | An edit with one bad op fails the target and saves none of it. A misspelt argument (`-aply`) is refused |
+| Migrate | `DuplicateAsset` copies, `RemapReference` swaps the reference, `MoveAsset` keeps it working, `ResaveAsset` runs, and `DeleteAsset` deletes an unused asset but refuses one still in use |
+| Audit | Each audit gets a seeded issue to find: a reference to a deleted material (R1), a keyword the shader does not declare (M5), and a texture named like a normal map but not imported as one (T1). The audit's own fix spec, run dry and then with `-apply`, must clear it |
+| Read only | A full set of exports over the edited assets changes no byte on disk |
+| Your project | The run fails if anything in `Assets/` outside `Assets/DotAssetSmoke` changed, or if it leaves a Unity log behind. It stops at the first failure (`--keep-going` runs the rest) and removes its folder however the run ends, Ctrl+C included |
+
+With the editor open, the texture step is skipped: Unity only imports a new file when it starts. The run with the editor closed covers it.
 
 Still to be confirmed, because the smoke test cannot set it up: undo coverage of `RemoveMissingScripts` in a scene open in the editor (it needs a Missing Script, which needs a script deleted and a recompile). Please open issues with the Console output.
 

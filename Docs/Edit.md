@@ -22,6 +22,8 @@ Every Edit run takes `-spec=<path>` and `-apply`, nothing else. The spec is `{"T
 
 A dry run executes everything a real run does and checks it just as hard; it only skips the save and then drops the changes. It works on both routes, including a scene open in the editor (the changes are reverted through undo).
 
+A scene open in the editor is edited in place on one undo group and saved. Some of what a run adds is completed by Unity on a later frame (a new Light gets its baking state), which marks the scene changed again; the editor queue saves it again before it reports the run, so the scene is left clean and the next edit is not refused. `--open-scene` opens a scene for this without anyone at the machine.
+
 Failure: `<RunName> failed for <target>. Reason: <first error>`. Nothing of that target is saved, the other targets still run. Errors Unity itself logs while a target is written (a component that refuses to be removed, a script exception in `OnValidate`) also fail the target.
 
 Targets in a package installed from the registry, git or a tarball are refused, Unity restores those packages. Embedded and local packages can be edited. Unity's bookkeeping fields (`m_GameObject`, `m_Children`, `m_Father`, `m_Component`, `m_PrefabInstance`, `m_Script` and the like) are refused as `Properties` keys, the hierarchy ops change structure.

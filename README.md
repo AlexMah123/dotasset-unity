@@ -219,6 +219,8 @@ python dotasset.py ──┬──▶│ Library/DotAsset/Queue/pending │─�
 
 - The editor writes a heartbeat (`Queue/.alive`, its pid and state) every 2 seconds. The wrapper trusts the pid only when it belongs to a live Unity process, so a heartbeat left by a crash is ignored.
 - When Unity holds the project (`Temp/UnityLockfile` locked) but no heartbeat is up yet, the editor is still starting or compiling. The wrapper waits for the heartbeat instead of starting a second Unity that would fail on the lock.
+- Headless runs of one project take turns through `Queue/batch.lock`, held for the whole run and released by the OS if the wrapper dies, so parallel callers queue up instead of racing for the project.
+- Work you have open and have not saved is never written over: edits, deletes and resaves refuse a scene or Prefab Mode prefab with unsaved changes and say why.
 - Queue states: `ready`, `busy`, `compiling`, `importing`, `playmode`, `reloading`, `starting`, `paused`. Tasks wait until the editor is `ready`.
 - Both routes return the same `RunResult` (exit code, summary, every log line, outputs), and the wrapper prints it the same way.
 

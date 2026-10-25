@@ -143,8 +143,11 @@ Audit reports land in `Library/DotAsset/Audit/`, with `-report=` to choose the p
 | `RemapScript` or the fast pass of `AuditMissingReference` reports nothing | They read YAML. Project Settings > Editor > Asset Serialization Mode must be Force Text |
 | Renaming a C# field loses its data | Add `[FormerlySerializedAs("oldName")]`, then `ResaveAsset -dependson=Assets/Scripts/X.cs -apply`, then the attribute can go |
 | `MoveAsset` warns that a script mentions the path | GUIDs keep serialized references, not strings. Fix `Resources.Load` paths and hard-coded asset paths in code by hand |
-| `DeleteAsset` refuses | Something under `-scandir` still references it, the warnings list what. Fix those first, or add `-force` |
+| `DeleteAsset` refuses | Something under `-scandir` still references it, the warnings list what. Fix those first, or add `-force`. A scene open with unsaved changes, or the prefab in Prefab Mode with unsaved changes, is refused even with `-force`: ask the user to save or discard first. `ResaveAsset` refuses those too |
 | Treating exit code 3 as failure | 3 means the audit worked and found something |
 | Exports and reports in version control | `Library/` is ignored by Unity's default `.gitignore`. Copy what you need to keep |
+| Several headless calls at once | They take turns: a later call prints `another DotAsset headless run has the project, waiting` and starts when the one before ends. For many steps in a row, `--launch` the editor once instead, queued runs skip Unity's start-up |
+| Finding the latest export by listing the folder | Read the path from the run's `Outputs` (`--json`). Only the newest 10 exports per asset and 20 reports per audit are kept, older ones are deleted unless written with `-outdir` or `-report` |
+| Showing the user a scene, or editing one in their open editor | `--open-scene <path>` opens it, refused while the user has unsaved changes. Its last line is `previously open: <paths>`, pass those back to `--open-scene` when done |
 | A headless run times out on a large project | The first headless start imports or refreshes the project and can take minutes. Raise `--timeout` (default 600 seconds), or keep the editor open so runs go to its queue |
 | The project does not compile | Headless runs cannot start; the wrapper prints the `error CS` lines from the Unity log. The editor route waits in `compiling` |

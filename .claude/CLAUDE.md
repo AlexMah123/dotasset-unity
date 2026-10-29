@@ -18,6 +18,7 @@ tests/                           wrapper tests and naming-rule checks: python -m
 tests/smoke/run_smoke.py         end-to-end test in a real Unity project, both routes
 examples/                        agent tasks done with DotAsset, e.g. npc_scenario.py
 tools/gen_meta.py                writes missing .meta files for the package
+tools/compile_check.py           compiles the package with every test project's Unity compiler, plus .NET 4.8 and Standard 2.1
 Version.md                       release notes
 ```
 
@@ -54,5 +55,5 @@ Run name suffix `Export` is Export, suffix `Import` or prefix `Create` is Import
 4. Export: write through `ExportHelper.Header` and `ExportHelper.Save` (path under `Library/DotAsset/Export`, `ExporterVersion` and `ExportType` included). Audit: use `AuditReport`
 5. Run `python tools/gen_meta.py` so the new file has a `.meta` (git-installed packages ignore files without one)
 6. Update `Docs/<Group>.md`, the decision table in `Docs/AI-Guide.md`, the README matrix when a new asset type is covered, and `Version.md`
-7. `python -m unittest discover -s tests`
+7. `python tools/compile_check.py` and `python -m unittest discover -s tests`
 8. Add a smoke step that runs it and reads the result back through an export, never on its exit code alone, then run `python tests/smoke/run_smoke.py --project <test project> --clean` headless and with the editor open

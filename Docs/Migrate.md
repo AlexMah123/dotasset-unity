@@ -57,7 +57,7 @@ python dotasset.py DeleteAsset "Assets/Old/Unused.mat,Assets/Old/Props" --args "
 
 A folder counts as referenced when something outside it uses something inside it. Assets deleted in the same run do not count as referencers of each other. The dry run lists every referencer.
 
-A scene open in the editor with unsaved changes, or the prefab open in Prefab Mode with unsaved changes, is never deleted, also when it sits in a folder being deleted and with `-force`: the target fails with the reason. Save or discard the changes, then delete. `ResaveAsset` refuses such a target the same way and resaves the rest.
+A scene open in the editor with unsaved changes, the prefab open in Prefab Mode with unsaved changes, or any asset with unsaved changes in the editor (a material edited in the Inspector) is never deleted, also when it sits in a folder being deleted and with `-force`: the target fails with the reason. Save or discard the changes, then delete. `ResaveAsset` refuses such a target the same way and resaves the rest.
 
 ## ResaveAsset
 

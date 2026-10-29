@@ -55,10 +55,10 @@ namespace DotAsset
                     ctx.FailTarget(label, error);
                     continue;
                 }
-                string readOnly = ReadOnly.Reason(path);
-                if (readOnly != null)
+                string refused = ReadOnly.Reason(path) ?? OpenWork.UnsavedIn(path);
+                if (refused != null)
                 {
-                    ctx.FailTarget(label, readOnly);
+                    ctx.FailTarget(label, refused);
                     continue;
                 }
                 if (AssetDatabase.IsForeignAsset(obj))

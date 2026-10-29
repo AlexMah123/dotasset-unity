@@ -220,7 +220,7 @@ python dotasset.py ──┬──▶│ Library/DotAsset/Queue/pending │─�
 - The editor writes a heartbeat (`Queue/.alive`, its pid and state) every 2 seconds. The wrapper trusts the pid only when it belongs to a live Unity process, so a heartbeat left by a crash is ignored.
 - When Unity holds the project (`Temp/UnityLockfile` locked) but no heartbeat is up yet, the editor is still starting or compiling. The wrapper waits for the heartbeat instead of starting a second Unity that would fail on the lock.
 - Headless runs of one project take turns through `Queue/batch.lock`, held for the whole run and released by the OS if the wrapper dies, so parallel callers queue up instead of racing for the project.
-- Work you have open and have not saved is never written over: edits, deletes and resaves refuse a scene or Prefab Mode prefab with unsaved changes and say why.
+- Work you have open and have not saved is never written over: every run that writes refuses a scene, a Prefab Mode prefab or any other asset (a material, controller or prefab edited in the Inspector) with unsaved changes and says why.
 - Queue states: `ready`, `busy`, `compiling`, `importing`, `playmode`, `reloading`, `starting`, `paused`. Tasks wait until the editor is `ready`.
 - Both routes return the same `RunResult` (exit code, summary, every log line, outputs), and the wrapper prints it the same way.
 
@@ -296,6 +296,7 @@ Every write is read back through an export. An exit code alone never counts as a
 | Migrate | `DuplicateAsset` copies, `RemapReference` swaps the reference, `MoveAsset` keeps it working, `ResaveAsset` rewrites the files without changing what they hold, and `DeleteAsset` deletes an unused asset but refuses one still in use |
 | Audit | Each audit gets a seeded issue to find: a reference to a deleted material (R1), a Missing Script written into a prefab (R2), a keyword the shader does not declare (M5), and a texture named like a normal map but not imported as one (T1). The audit's own fix spec, run dry and then with `-apply`, must clear it, and `RemoveMissingScripts` must leave the prefab's other components alone |
 | Read only | A full set of exports over the edited assets changes no byte on disk |
+| Unsaved work | With the editor open, a material, a controller and a prefab are given unsaved changes. Every run that writes refuses them, the files stay byte-identical, and the changes are still there to save afterwards. The changes are made by a small helper run the smoke test installs as `Packages/com.alexmah.dotasset.smoke` in the test project, compiled at the next Unity start |
 | Your project | The run fails if anything in `Assets/` outside `Assets/DotAssetSmoke` changed, or if it leaves a Unity log behind. It stops at the first failure (`--keep-going` runs the rest, `--only "edit asset,delete"` runs just the named steps after `create`) and removes its folder however the run ends, Ctrl+C included |
 
 With the editor open, the texture and Missing Script steps are skipped: Unity only reads a new or edited file when it starts. The run with the editor closed covers them.

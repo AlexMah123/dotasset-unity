@@ -122,10 +122,10 @@ namespace DotAsset
                 ctx.FailTarget(path, "has no importer");
                 return false;
             }
-            string readOnly = ReadOnly.Reason(path);
-            if (readOnly != null)
+            string refused = ReadOnly.Reason(path) ?? OpenWork.UnsavedIn(path);
+            if (refused != null)
             {
-                ctx.FailTarget(path, readOnly);
+                ctx.FailTarget(path, refused);
                 return false;
             }
             ctx.BeginTarget();

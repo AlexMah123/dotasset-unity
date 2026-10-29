@@ -474,6 +474,9 @@ namespace DotAsset
                 error = "Unity could not create " + path;
                 return false;
             }
+            // Unity leaves the new controller marked dirty. Saved now, EditAnimatorController takes it as clean
+            // rather than as unsaved work it must not write over.
+            AssetDatabase.SaveAssetIfDirty(controller);
             var ops = Json.Get(entry, "Ops") as JArray;
             if (ops == null || ops.Count == 0)
             {

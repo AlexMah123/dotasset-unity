@@ -26,6 +26,8 @@ A scene open in the editor is edited in place on one undo group and saved. Some 
 
 Failure: `<RunName> failed for <target>. Reason: <first error>`. Nothing of that target is saved, the other targets still run. Errors Unity itself logs while a target is written (a component that refuses to be removed, a script exception in `OnValidate`) also fail the target.
 
+A target the open editor holds unsaved changes for (a material, controller or prefab edited in the Inspector before Save Project) is refused, dry runs included: saving it would write the user's changes out along with the run's. The file stays as it was and the changes stay in the editor; save or discard them, then run again.
+
 Targets in a package installed from the registry, git or a tarball are refused, Unity restores those packages. Embedded and local packages can be edited. Unity's bookkeeping fields (`m_GameObject`, `m_Children`, `m_Father`, `m_Component`, `m_PrefabInstance`, `m_Script` and the like) are refused as `Properties` keys, the hierarchy ops change structure.
 
 ## EditPrefab
@@ -48,7 +50,7 @@ Targets in a package installed from the registry, git or a tarball are refused, 
 }
 ```
 
-The prefab loads into an isolated preview scene (`PrefabUtility.LoadPrefabContents`), the ops run in order, and `SaveAsPrefabAsset` writes it only if every op succeeded. Refused: models (`.fbx`, use `EditImporter` or a variant) and a prefab open in Prefab Mode with unsaved changes.
+The prefab loads into an isolated preview scene (`PrefabUtility.LoadPrefabContents`), the ops run in order, and `SaveAsPrefabAsset` writes it only if every op succeeded. Refused: models (`.fbx`, use `EditImporter` or a variant) and a prefab open in Prefab Mode or edited in the Inspector with unsaved changes.
 
 ## EditScene
 

@@ -49,10 +49,10 @@ namespace DotAsset
                 error = readOnly;
                 return null;
             }
-            PrefabStage stage = PrefabStageUtility.GetCurrentPrefabStage();
-            if (stage != null && stage.assetPath == path && stage.scene.isDirty)
+            string unsaved = OpenWork.UnsavedIn(path);
+            if (unsaved != null)
             {
-                error = path + " is open in Prefab Mode with unsaved changes. Save or discard them first";
+                error = unsaved;
                 return null;
             }
             GameObject root;
@@ -278,14 +278,19 @@ namespace DotAsset
         }
     }
 
-    // Work open in the editor and not saved: a loaded scene, or the prefab in Prefab Mode, with unsaved changes.
-    // Runs that write files directly instead of through a session (DeleteAsset, ResaveAsset) refuse a target that
-    // holds such work, the user's changes would be lost with it.
+    // Work open in the editor and not saved: a loaded scene, the prefab in Prefab Mode, or an asset whose loaded
+    // objects carry changes (a material edited in the Inspector before Save Project). Every run that writes refuses
+    // a target that holds such work: a save would write the user's changes out with the run's, a delete or resave
+    // would lose them.
     public static class OpenWork
     {
         // The unsaved work at path, or anywhere under it when path is a folder. Null when there is none.
         public static string UnsavedIn(string path)
         {
+            if (string.IsNullOrEmpty(path))
+            {
+                return null;
+            }
             var roots = new[] { path };
             for (int i = 0; i < SceneManager.sceneCount; i++)
             {
@@ -299,6 +304,22 @@ namespace DotAsset
             if (stage != null && stage.scene.isDirty && AssetScan.Under(stage.assetPath, roots))
             {
                 return stage.assetPath + " is open in Prefab Mode with unsaved changes. Save or discard them first";
+            }
+            // Objects that are not loaded hold no changes, so nothing is loaded just to be checked.
+            var files = AssetDatabase.IsValidFolder(path) ? AssetScan.All(roots) : new System.Collections.Generic.List<string> { path };
+            foreach (string file in files)
+            {
+                if (!AssetDatabase.IsMainAssetAtPathLoaded(file))
+                {
+                    continue;
+                }
+                foreach (Object o in AssetDatabase.LoadAllAssetsAtPath(file))
+                {
+                    if (o != null && EditorUtility.IsDirty(o))
+                    {
+                        return file + " has unsaved changes in the editor. Save them (File > Save Project) or discard them first";
+                    }
+                }
             }
             return null;
         }

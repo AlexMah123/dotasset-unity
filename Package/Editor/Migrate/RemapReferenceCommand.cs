@@ -307,7 +307,11 @@ namespace DotAsset
         static bool Remap(RunContext ctx, string path, Dictionary<Object, Object> map, HashSet<Object> unmapped, Dictionary<string, GameObject> swaps, out int count, out string error)
         {
             count = 0;
-            error = null;
+            error = OpenWork.UnsavedIn(path);
+            if (error != null)
+            {
+                return false;
+            }
             Type main = AssetDatabase.GetMainAssetTypeAtPath(path);
             if (path.EndsWith(".prefab", StringComparison.OrdinalIgnoreCase))
             {

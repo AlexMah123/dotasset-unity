@@ -79,10 +79,10 @@ namespace DotAsset
                     ctx.FailTarget(path, "no Animator Controller at that path");
                     continue;
                 }
-                string readOnly = ReadOnly.Reason(path);
-                if (readOnly != null)
+                string refused = ReadOnly.Reason(path) ?? OpenWork.UnsavedIn(path);
+                if (refused != null)
                 {
-                    ctx.FailTarget(path, readOnly);
+                    ctx.FailTarget(path, refused);
                     continue;
                 }
                 if (ops == null)

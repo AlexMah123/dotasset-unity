@@ -51,10 +51,10 @@ namespace DotAsset
                     ctx.FailTarget(path ?? "(no AssetPath)", "no material at that path");
                     continue;
                 }
-                string readOnly = ReadOnly.Reason(path);
-                if (readOnly != null)
+                string refused = ReadOnly.Reason(path) ?? OpenWork.UnsavedIn(path);
+                if (refused != null)
                 {
-                    ctx.FailTarget(path, readOnly);
+                    ctx.FailTarget(path, refused);
                     continue;
                 }
                 if (AssetDatabase.IsForeignAsset(mat) || AssetImporter.GetAtPath(path) is ModelImporter)

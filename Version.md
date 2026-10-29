@@ -6,6 +6,16 @@ Defined in `Package/Editor/Core/DotAssetVersion.cs` and `Package/package.json`, 
 
 Versions follow one rule. A patch (0.1.x) holds fixes, test upgrades and docs. A minor version (0.x.0) adds something new to call: a run, an op, a spec key, an argument or a wrapper option. While on 0.x, a change that breaks existing calls is also a minor version, marked breaking here. 1.0.0 comes when runs, specs and export JSON are promised to stay stable.
 
+### 0.2.2
+
+- Fix: `EditAsset`, `EditMaterial`, `EditAnimatorController`, `EditImporter`, `EditPrefab`, `RemapReference`, `ResaveAsset` and `DeleteAsset` saved over an asset with unsaved changes in the editor (edited in the Inspector, say), writing those changes to disk along with their own. Every run that writes now refuses such a target, dry runs included, and names it
+- Fix: `CreateAsset` left a new Animator Controller marked unsaved, so its own ops, or the next `EditAnimatorController`, refused it under the fix above. It is saved right after it is created
+- Fix: `-maxarray`, `-maxstring` and `-maxsize` fell back to their defaults when the value was not a whole number. They are refused (exit 2)
+- Fix: after a run saved a scene open in the editor, the queue's short wait for Unity to settle could lose the result on a script reload (reported as "the editor stopped") and could save an edit someone made in that wait. The result now survives the reload, and an edit made in the wait is left unsaved with a warning
+- Docs: the comparison table covers the Unity CLI's headless runs and `batch`, and MCP servers that edit prefabs. The group rule notes that prefixes match letters (`EditorTidy` is Edit). Editing a Particle System's modules by dotted path
+- Smoke test: unsaved changes in the open editor are refused and kept, a reload and an edit while a run settles, a bad number refused, a Particle System edited and read back. `--only` runs chosen steps. A small helper package, `com.alexmah.dotasset.smoke`, is installed into the test project for the editor-side steps
+- `tools/compile_check.py` compiles the package with each test project's Unity compiler, and against .NET Standard 2.1 and .NET Framework 4.8, in seconds
+
 ### 0.2.1
 
 - Fix: `DeleteAsset` deleted a scene open in the editor with unsaved changes, or the prefab in Prefab Mode with unsaved changes, along with those changes, also inside a deleted folder and with `-force`. It now fails that target with the reason

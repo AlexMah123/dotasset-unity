@@ -1,0 +1,7 @@
+{
+    "name": "com.alexmah.dotasset.smoke",
+    "version": "0.0.1",
+    "displayName": "DotAsset smoke helper",
+    "description": "Installed by DotAsset's smoke test into test projects only. Leaves unsaved changes in the editor for the smoke test to check against.",
+    "unity": "2022.3"
+}

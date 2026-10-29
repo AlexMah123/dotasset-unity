@@ -1,0 +1,11 @@
+{
+    "name": "DotAsset.Smoke",
+    "rootNamespace": "DotAsset.Smoke",
+    "references": [
+        "DotAsset.Editor"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "autoReferenced": false
+}

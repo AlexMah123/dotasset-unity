@@ -29,6 +29,7 @@ import zlib
 HERE = os.path.dirname(os.path.abspath(__file__))
 PACKAGE = os.path.join(HERE, "..", "..", "Package")
 WRAPPER = os.path.join(PACKAGE, "Scripts~", "dotasset.py")
+HELPER = os.path.join(HERE, "helper")
 with open(os.path.join(PACKAGE, "package.json"), encoding="utf-8") as _f:
     VERSION = json.load(_f)["version"]
 # Every run this repo defines, from the class files: <Group>/<RunName>Command.cs
@@ -578,6 +579,87 @@ def check_duplicate(base, tmp):
     return None
 
 
+def install_helper(project):
+    """Copies tests/smoke/helper into the project as an embedded package, outside Assets/. Its SmokeDirtyAsset run
+    leaves unsaved changes in the editor. Unity compiles it at its next start, the headless run starts one.
+    Returns True when the files were already in place."""
+    target = os.path.join(project, "Packages", "com.alexmah.dotasset.smoke")
+    current = True
+    for name in sorted(os.listdir(HELPER)):
+        with open(os.path.join(HELPER, name), "rb") as f:
+            data = f.read()
+        dest = os.path.join(target, name)
+        if os.path.isfile(dest):
+            with open(dest, "rb") as f:
+                if f.read() == data:
+                    continue
+        os.makedirs(target, exist_ok=True)
+        with open(dest, "wb") as f:
+            f.write(data)
+        current = False
+    return current
+
+
+def check_unsaved_kept(base, tmp):
+    # Assets with unsaved changes in the editor, as after editing in the Inspector: every run that writes must refuse
+    # them and leave the files as they were, and the changes must still be there to save afterwards.
+    if not editor_open(base):
+        return "skip: needs the editor open, the unsaved changes live in it"
+    targets = [ROOT + "/Red.mat", ROOT + "/Door.controller", ROOT + "/Crate.prefab"]
+    files = {t: os.path.join(project_of(base), *t.split("/")) for t in targets}
+    before = {}
+    for t, path in files.items():
+        with open(path, "rb") as f:
+            before[t] = f.read()
+    r, _ = call(base, ["SmokeDirtyAsset", ",".join(targets)])
+    if r.returncode == 2 and "unknown run 'SmokeDirtyAsset'" in r.stdout + r.stderr:
+        drop_kept_log(r)
+        return "skip: the smoke helper compiles at the next Unity start, the headless run starts one"
+    if r.returncode != 0:
+        return run_failed("SmokeDirtyAsset", r)
+    mat = spec("unsaved_mat", {"Targets": [{"AssetPath": ROOT + "/Red.mat", "RenderQueue": 2470}]}, tmp)
+    asset = spec("unsaved_asset", {"Targets": [{"AssetPath": ROOT + "/Red.mat", "Properties": {"m_CustomRenderQueue": 2480}}]}, tmp)
+    anim = spec("unsaved_anim", {"Targets": [{"AssetPath": ROOT + "/Door.controller", "Ops": [
+        {"Op": "AddParameter", "Name": "Spare", "Type": "Bool"}]}]}, tmp)
+    prefab = spec("unsaved_prefab", {"Targets": [{"AssetPath": ROOT + "/Crate.prefab", "Ops": [
+        {"Op": "Set", "Path": "Crate", "Component": "Rigidbody", "Properties": {"m_Mass": 6}}]}]}, tmp)
+    runs = [
+        ("EditMaterial", ["EditMaterial", "--args", '-spec="%s" -apply' % mat]),
+        ("EditAsset", ["EditAsset", "--args", '-spec="%s" -apply' % asset]),
+        ("EditAnimatorController", ["EditAnimatorController", "--args", '-spec="%s" -apply' % anim]),
+        ("EditPrefab", ["EditPrefab", "--args", '-spec="%s" -apply' % prefab]),
+        ("RemapReference", ["RemapReference", "--args", "-from=%s/Red.mat -to=%s/Blue.mat -scandir=%s -apply" % (ROOT, ROOT, ROOT)]),
+        ("ResaveAsset", ["ResaveAsset", ROOT + "/Red.mat", "--args", "-apply"]),
+        ("DeleteAsset", ["DeleteAsset", ROOT + "/Red.mat", "--args", "-force -apply"]),
+    ]
+    problems = []
+    for label, argv in runs:
+        r, _ = call(base, argv)
+        out = r.stdout + r.stderr
+        if r.returncode != 1 or "unsaved changes" not in out:
+            problems.append("%s exit %s, expected 1 with \"unsaved changes\"\n%s" % (label, r.returncode, out[-1500:]))
+        else:
+            drop_kept_log(r)
+    for t, path in files.items():
+        if not os.path.isfile(path):
+            problems.append("%s is gone" % t)
+            continue
+        with open(path, "rb") as f:
+            if f.read() != before[t]:
+                problems.append("%s changed on disk although it held unsaved changes" % t)
+    if problems:
+        return "\n".join(problems)
+    # The changes are still in the editor: saving them now writes each file.
+    r, _ = call(base, ["SmokeDirtyAsset", ",".join(targets), "--args", "-save"])
+    if r.returncode != 0:
+        return run_failed("SmokeDirtyAsset -save", r)
+    for t, path in files.items():
+        with open(path, "rb") as f:
+            if f.read() == before[t]:
+                problems.append("%s lost its unsaved changes, saving them changed nothing" % t)
+    return "\n".join(problems) or None
+
+
 def check_remap(base, tmp):
     argv = ["RemapReference", "--args", "-from=%s/Red.mat -to=%s/Blue.mat -scandir=%s" % (ROOT, ROOT, ROOT)]
     problem = expect(base, "RemapReference dry run", argv, 0)
@@ -894,6 +976,7 @@ def run(args, tmp):
             print(indent(problem))
             return 1
 
+    install_helper(args.project)
     outside_before = outside_state(args.project)
     failed, skipped, not_run = 0, 0, 0
     try:
@@ -987,6 +1070,7 @@ def steps_of(specs):
         ("odd paths: spaces, ü", check_odd_paths, None),
         ("read-only package refused", check_read_only_package, None),
         ("duplicate", check_duplicate, None),
+        ("unsaved changes kept", check_unsaved_kept, None),
         ("remap dry and apply", check_remap, None),
         ("move keeps references", check_move, None),
         ("resave keeps content", check_resave, None),

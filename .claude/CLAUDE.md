@@ -45,7 +45,7 @@ A release needs the smoke test to pass three times in a row on every tested Unit
 
 ## Group rule
 
-Run name suffix `Export` is Export, suffix `Import` or prefix `Create` is Import, prefix `Edit` is Edit, prefix `Audit` is Audit, anything else is Migrate. Written twice, in `Groups.Resolve` (ExitCodes.cs) and `resolve_group` (dotasset.py). Change both. The tests check every command sits in the folder its name resolves to.
+Run name suffix `Export` is Export, suffix `Import` or prefix `Create` is Import, prefix `Edit` is Edit, prefix `Audit` is Audit, anything else is Migrate, checked in that order. Prefixes match letters, not words: `EditorTidy` is Edit. Written twice, in `Groups.Resolve` (ExitCodes.cs) and `resolve_group` (dotasset.py). Change both. The tests check every command sits in the folder its name resolves to.
 
 ## Adding a run
 

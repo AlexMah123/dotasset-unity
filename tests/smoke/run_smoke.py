@@ -1054,6 +1054,7 @@ def steps_of(specs):
         ("reference export", check_reference_export, None),
         ("type catalog", check_type_catalog, None),
         ("unknown arg refused", ["EditPrefab", "--args", '-spec="%s" -aply' % edit_prefab], 2),
+        ("bad number refused", ["MaterialExport", ROOT + "/Red.mat", "--args", "-maxarray=lots"], 2),
         ("edit prefab dry", ["EditPrefab", "--args", '-spec="%s"' % edit_prefab], 0),
         ("dry run left it unchanged", check_dry_run_left_prefab, None),
         ("edit prefab apply", check_edit_prefab, None),

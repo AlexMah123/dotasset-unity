@@ -180,6 +180,12 @@ namespace DotAsset
                 ctx.Log.Error(string.Join(", ", badSwitches.Select(b => "-" + b)) + " is a switch: give it alone, or =true / =false");
                 return ExitCode.Refused;
             }
+            List<string> badIntegers = ctx.Args.BadIntegers();
+            if (badIntegers.Count > 0)
+            {
+                ctx.Log.Error(string.Join(", ", badIntegers.Select(b => "-" + b + "=" + ctx.Args.Get(b, ""))) + " needs a whole number of 0 or more, e.g. -" + badIntegers[0] + "=100");
+                return ExitCode.Refused;
+            }
 
             if (ctx.Args.Stray.Count > 0)
             {

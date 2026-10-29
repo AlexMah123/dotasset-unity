@@ -33,6 +33,8 @@ Every export takes:
 | `-maxstring=N` | Strings longer than N characters (default 4000) are cut and marked |
 | `-outdir=<dir>` | Write under this folder instead of `Library/DotAsset/Export` |
 
+N is a whole number of 0 or more. Anything else, such as `-maxarray=lots` or `-maxarray=1e3`, is refused (exit 2) rather than replaced by the default.
+
 Per run:
 
 | Run | Argument | Effect |

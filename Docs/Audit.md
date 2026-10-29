@@ -95,7 +95,7 @@ Issues carry `Guid`, `FileID`, `Field` (the YAML key) and `LocalId` (the object 
 
 | Argument | Effect |
 | --- | --- |
-| `-maxsize=N` | the T8 budget, default 2048, a power of two from 32 to 16384 |
+| `-maxsize=N` | the T8 budget, default 2048, a power of two from 32 to 16384, anything else is refused |
 | `-rules=T1,T3` | only these rules |
 | `-normalsuffix=_n,_nrm` | replaces the T1 name list |
 | `-datasuffix=_mask,_orm` | replaces the T2 name list |

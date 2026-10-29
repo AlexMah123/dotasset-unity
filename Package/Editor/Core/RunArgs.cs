@@ -61,6 +61,26 @@ namespace DotAsset
             return bad;
         }
 
+        // Arguments that take a whole number. A typo there must not quietly fall back to the default.
+        public static readonly string[] Integers = { "maxarray", "maxstring", "maxsize" };
+
+        // Returns the integer arguments given without a value, or with one that is not a whole number of 0 or more.
+        public List<string> BadIntegers()
+        {
+            var bad = new List<string>();
+            foreach (string key in Integers)
+            {
+                string value;
+                int parsed;
+                if (values.TryGetValue(key, out value)
+                    && (value == null || !int.TryParse(value.Trim(), NumberStyles.None, CultureInfo.InvariantCulture, out parsed)))
+                {
+                    bad.Add(key);
+                }
+            }
+            return bad;
+        }
+
         public static RunArgs Parse(string raw)
         {
             var args = new RunArgs { Raw = raw ?? string.Empty };

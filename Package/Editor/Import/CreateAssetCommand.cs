@@ -266,6 +266,8 @@ namespace DotAsset
                 return false;
             }
             AssetDatabase.CreateAsset(instance, path);
+            // Saved now for the same reason as a new material.
+            AssetDatabase.SaveAssetIfDirty(instance);
             return true;
         }
 
@@ -306,6 +308,8 @@ namespace DotAsset
                 return false;
             }
             AssetDatabase.CreateAsset(mat, path);
+            // Unity 6.6 can leave the new material marked dirty, which later writing runs take as unsaved work.
+            AssetDatabase.SaveAssetIfDirty(mat);
             return true;
         }
 

@@ -9,7 +9,7 @@ Versions follow one rule. A patch (0.1.x) holds fixes, test upgrades and docs. A
 ### 0.2.2
 
 - Fix: `EditAsset`, `EditMaterial`, `EditAnimatorController`, `EditImporter`, `EditPrefab`, `RemapReference`, `ResaveAsset` and `DeleteAsset` saved over an asset with unsaved changes in the editor (edited in the Inspector, say), writing those changes to disk along with their own. Every run that writes now refuses such a target, dry runs included, and names it
-- Fix: `CreateAsset` left a new Animator Controller marked unsaved, so its own ops, or the next `EditAnimatorController`, refused it under the fix above. It is saved right after it is created
+- Fix: `CreateAsset` left a new Animator Controller marked unsaved, so its own ops, or the next `EditAnimatorController`, refused it under the fix above. It is saved right after it is created. New materials and other assets are saved the same way, since Unity 6.6 at times leaves a new material marked unsaved too
 - Fix: `-maxarray`, `-maxstring` and `-maxsize` fell back to their defaults when the value was not a whole number. They are refused (exit 2)
 - Fix: after a run saved a scene open in the editor, the queue's short wait for Unity to settle could lose the result on a script reload (reported as "the editor stopped") and could save an edit someone made in that wait. The result now survives the reload, and an edit made in the wait is left unsaved with a warning
 - Docs: the comparison table covers the Unity CLI's headless runs and `batch`, and MCP servers that edit prefabs. The group rule notes that prefixes match letters (`EditorTidy` is Edit). Editing a Particle System's modules by dotted path

@@ -86,7 +86,7 @@ python dotasset.py AuditTexture --args '-scandir=Assets'
 
 The wrapper finds the project from the current directory (or `--project`) and the editor from `ProjectSettings/ProjectVersion.txt` through Unity Hub's install folder (or `--unity`, or `DOTASSET_UNITY`). `python dotasset.py --list` prints every run, `--status` shows what the editor's queue is doing.
 
-No one needs to be at the machine for the editor route either: `--launch` opens the project in the editor and waits until its queue is ready, `--open-scene` opens scenes in it, and `--quit` closes it again once it is idle. `--open-scene` and `--quit` are refused while a scene has unsaved changes, unless `--force`.
+No one needs to be at the machine for the editor route either: `--launch` opens the project in the editor, minimized and without taking the focus (`--visible` shows it), and waits until its queue is ready, `--open-scene` opens scenes in it, and `--quit` closes it again once it is idle. `--open-scene` and `--quit` are refused while a scene has unsaved changes, unless `--force`.
 
 ```
 python dotasset.py --launch                              # open the editor, wait until it takes tasks

@@ -13,7 +13,8 @@ Usage:
   python dotasset.py <RunName> [AssetList] [--args "<extra args>"] [--project DIR] [--unity PATH] [--timeout SEC]
   python dotasset.py --list          every run the project knows, with its summary
   python dotasset.py --status        what the editor's queue is doing
-  python dotasset.py --launch        open the project in the editor and wait until it takes tasks
+  python dotasset.py --launch [--visible]  open the project in the editor and wait until it takes tasks. The
+                                       editor starts minimized and never takes the focus unless --visible
   python dotasset.py --quit [--force]  close the editor that has the project open, refused while a scene has
                                        unsaved changes unless --force
   python dotasset.py --open-scene A.unity[,B.unity] [--force]  open scenes in that editor, refused the same way.
@@ -767,14 +768,40 @@ def status(project):
     return EXIT_SUCCESS
 
 
-def start_detached(cmd):
-    """Starts the editor so it outlives this script and the terminal that ran it."""
+def start_detached(cmd, visible=True):
+    """Starts the editor so it outlives this script and the terminal that ran it. Not visible: it starts minimized
+    and never takes the focus."""
     kwargs = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL, "close_fds": True}
     if sys.platform == "win32":
         kwargs["creationflags"] = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+        if not visible:
+            info = subprocess.STARTUPINFO()
+            info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+            info.wShowWindow = 7  # SW_SHOWMINNOACTIVE
+            kwargs["startupinfo"] = info
     else:
         kwargs["start_new_session"] = True
     return subprocess.Popen(cmd, **kwargs)
+
+
+def minimize_windows(pid):
+    """Minimizes the visible top-level windows of a process without activating them. Unity opens its splash and
+    main window itself and ignores the start flags, so the launch wait calls this every second. Windows only."""
+    if sys.platform != "win32":
+        return
+    import ctypes
+    from ctypes import wintypes
+    user32 = ctypes.windll.user32
+
+    @ctypes.WINFUNCTYPE(wintypes.BOOL, wintypes.HWND, wintypes.LPARAM)
+    def visit(hwnd, _):
+        owner = wintypes.DWORD()
+        user32.GetWindowThreadProcessId(hwnd, ctypes.byref(owner))
+        if owner.value == pid and user32.IsWindowVisible(hwnd) and not user32.IsIconic(hwnd):
+            user32.ShowWindow(hwnd, 7)  # SW_SHOWMINNOACTIVE
+        return True
+
+    user32.EnumWindows(visit, 0)
 
 
 def launch(args, project):
@@ -808,7 +835,7 @@ def launch_locked(args, project, queue_root):
             log("error: no Unity %s found. Pass --unity <path to the editor executable> or set DOTASSET_UNITY" % (project_unity_version(project) or "?"))
             return EXIT_FAILED
         try:
-            proc = start_detached([unity, "-projectPath", project])
+            proc = start_detached([unity, "-projectPath", project], args.visible)
         except OSError as e:
             log("error: cannot start Unity: %s" % e)
             return EXIT_FAILED
@@ -818,6 +845,8 @@ def launch_locked(args, project, queue_root):
     deadline = time.time() + args.startup_wait
     last_state = None
     while time.time() < deadline:
+        if proc is not None and not args.visible:
+            minimize_windows(proc.pid)
         alive = live_editor(queue_root)
         state = alive.get("State") if alive else None
         if state and state != last_state:
@@ -995,6 +1024,7 @@ def main(argv=None):
     p.add_argument("--list", action="store_true", help="list every run the project knows")
     p.add_argument("--status", action="store_true", help="show what the editor's queue is doing")
     p.add_argument("--launch", action="store_true", help="open the project in the editor and wait until it takes tasks")
+    p.add_argument("--visible", action="store_true", help="with --launch: show the editor window, by default it starts minimized and never takes the focus")
     p.add_argument("--quit", action="store_true", help="close the editor that has the project open")
     p.add_argument("--open-scene", help="open these scenes (comma-separated) in the editor that has the project open")
     p.add_argument("--force", action="store_true", help="with --quit or --open-scene: go ahead even when a scene has unsaved changes")
@@ -1021,6 +1051,9 @@ def main(argv=None):
         return open_scene(args, project)
     if args.force:
         log("error: --force only goes with --quit or --open-scene")
+        return EXIT_REFUSED
+    if args.visible:
+        log("error: --visible only goes with --launch")
         return EXIT_REFUSED
     run = args.run
     if args.list:

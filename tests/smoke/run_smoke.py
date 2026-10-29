@@ -983,6 +983,7 @@ def main():
         return 0
     if not args.project:
         p.error("--project is required")
+    args.project = os.path.abspath(args.project)
     if not os.path.isdir(os.path.join(args.project, "Assets")):
         print("%s is not a Unity project (no Assets folder)" % args.project)
         return 2

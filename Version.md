@@ -6,7 +6,7 @@ Defined in `Package/Editor/Core/DotAssetVersion.cs` and `Package/package.json`, 
 
 Versions follow one rule. A patch (0.1.x) holds fixes, test upgrades and docs. A minor version (0.x.0) adds something new to call: a run, an op, a spec key, an argument or a wrapper option. While on 0.x, a change that breaks existing calls is also a minor version, marked breaking here. 1.0.0 comes when runs, specs and export JSON are promised to stay stable.
 
-### 0.3.0 (in progress)
+### 0.3.0
 
 - Wrapper: `--launch` starts the editor minimized and keeps its windows minimized without activating them until the queue is ready, so a launch no longer takes the mouse and keyboard focus. A minimized editor still runs its task queue. `--visible` opts out
 

@@ -502,6 +502,39 @@ def settle_edit_and_reload(base, tmp, scene):
     return None
 
 
+def dig(props, dotted):
+    """A property from an export, whether it is written as one dotted key or as nested objects."""
+    if dotted in props:
+        return props[dotted]
+    for part in dotted.split("."):
+        if not isinstance(props, dict) or part not in props:
+            return None
+        props = props[part]
+    return props
+
+
+def check_particles(base, tmp):
+    # A Particle System keeps its settings in modules, nested structs several levels deep: one is set by its dotted
+    # path through EditPrefab and read back through PrefabExport.
+    sparks = ROOT + "/Sparks.prefab"
+    make = spec("particles_create", {"Assets": [{"Kind": "Prefab", "Path": sparks, "Root": "Sparks", "Components": ["ParticleSystem"]}]}, tmp)
+    problem = expect(base, "CreateAsset with a ParticleSystem", ["CreateAsset", "--args", '-spec="%s"' % make], 0)
+    if problem:
+        return problem
+    edit = spec("particles_edit", {"Targets": [{"AssetPath": sparks, "Ops": [
+        {"Op": "Set", "Path": "Sparks", "Component": "ParticleSystem",
+         "Properties": {"InitialModule.startLifetime.scalar": 2.5, "EmissionModule.rateOverTime.scalar": 33}}]}]}, tmp)
+    problem = expect(base, "EditPrefab on a ParticleSystem", ["EditPrefab", "--args", '-spec="%s" -apply' % edit], 0)
+    if problem:
+        return problem
+    ps = component(export_of("PrefabExport", base, sparks, "-full"), "Sparks", "ParticleSystem")
+    props = (ps or {}).get("Properties") or {}
+    got = (dig(props, "InitialModule.startLifetime.scalar"), dig(props, "EmissionModule.rateOverTime.scalar"))
+    if got != (2.5, 33):
+        return "after EditPrefab the ParticleSystem's start lifetime and rate are %s and %s, expected 2.5 and 33" % got
+    return None
+
+
 def check_edit_material(base, tmp):
     argv = ["EditMaterial", "--args", '-spec="%s"' % SPECS["edit_mat"]]
     problem = expect(base, "EditMaterial dry run", argv, 0)
@@ -1109,6 +1142,7 @@ def steps_of(specs):
         ("edit prefab apply", check_edit_prefab, None),
         ("bad op fails, saves nothing", check_failed_edit, None),
         ("array ops", check_array_ops, None),
+        ("particle system", check_particles, None),
         ("export round trip", check_round_trip, None),
         ("edit scene dry and apply", check_edit_scene, None),
         ("edit the open scene", check_open_scene_edit, None),

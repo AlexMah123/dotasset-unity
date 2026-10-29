@@ -90,6 +90,7 @@ Shared by `EditPrefab`, `EditScene` and `CreateAsset`. `Path` and `Parent` are [
 - script fields by field name: `speed`, `loadout.primary`, `waypoints[2]` (also `waypoints.Array.data[2]`)
 - built-in components by their serialized names: `m_Mass`, `m_LocalPosition`, `m_Materials`. A key without `m_` is retried with it, so `mass` finds `m_Mass`
 - the GameObject itself (no `Component`): `m_IsActive`, `m_Layer`, `m_TagString`, `m_StaticEditorFlags`, though `SetGameObject` is simpler
+- nested structs by a dotted path, such as a Particle System's modules: `InitialModule.startLifetime.scalar`, `EmissionModule.rateOverTime.scalar`. A curve setting is its `scalar` for a constant value, `minScalar` and `scalar` for a random range between two constants, and `minMaxState` picks the mode (0 constant, 3 random between two constants)
 
 An unknown key fails with the list of the object's real property names. `TypeCatalogExport -filter=<type>` lists them up front.
 

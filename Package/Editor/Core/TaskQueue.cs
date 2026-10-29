@@ -407,7 +407,8 @@ namespace DotAsset
             }
             if (SceneSession.SavedOpenScenes.Count > 0)
             {
-                // Report the run only after Unity's own follow-up on those scenes, see Settle.
+                // Report the run only after Unity's own follow-up on those scenes, see Settle. The result waits on
+                // disk, so a domain reload in the meantime still reports it (SweepStaleProcessing).
                 settling = new Settling
                 {
                     Result = result,
@@ -416,8 +417,10 @@ namespace DotAsset
                     Scenes = new List<string>(SceneSession.SavedOpenScenes),
                     Started = EditorApplication.timeSinceStartup,
                     LastDirty = EditorApplication.timeSinceStartup,
+                    UndoGroup = Undo.GetCurrentGroup(),
                 };
                 SceneSession.SavedOpenScenes.Clear();
+                WriteDone(SettlingPath(processingPath), result);
                 return;
             }
             WriteDone(donePath, result);
@@ -432,6 +435,7 @@ namespace DotAsset
             public List<string> Scenes;
             public double Started;
             public double LastDirty;
+            public int UndoGroup;
             public readonly List<string> SavedAgain = new List<string>();
         }
 
@@ -439,17 +443,26 @@ namespace DotAsset
         // is completed by Unity on a later frame (a new Light gets its baking state) and that marks the scene dirty
         // again. Each update saves such a scene again. The run is done after SettleQuietSeconds without a change,
         // at most SettleMaxSeconds after it ended. The next task waits, so it never finds the scene dirty.
+        // Unity's follow-up records no undo, a person's edit starts a new undo group. Once the group moves, nothing
+        // is saved again and the run ends at once: the scene now holds their unsaved work, not the run's.
         const double SettleQuietSeconds = 0.4;
         const double SettleMaxSeconds = 3.0;
         static Settling settling;
 
         static void Settle(double now)
         {
+            bool edited = Undo.GetCurrentGroup() != settling.UndoGroup;
+            var leftDirty = new List<string>();
             foreach (string path in settling.Scenes)
             {
                 UnityEngine.SceneManagement.Scene scene = UnityEngine.SceneManagement.SceneManager.GetSceneByPath(path);
                 if (scene.IsValid() && scene.isLoaded && scene.isDirty)
                 {
+                    if (edited)
+                    {
+                        leftDirty.Add(path);
+                        continue;
+                    }
                     settling.LastDirty = now;
                     if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene) && !settling.SavedAgain.Contains(path))
                     {
@@ -457,7 +470,7 @@ namespace DotAsset
                     }
                 }
             }
-            if (now - settling.LastDirty < SettleQuietSeconds && now - settling.Started < SettleMaxSeconds)
+            if (!edited && now - settling.LastDirty < SettleQuietSeconds && now - settling.Started < SettleMaxSeconds)
             {
                 return;
             }
@@ -465,9 +478,21 @@ namespace DotAsset
             {
                 settling.Result.Lines.Add("I saved " + path + " again after Unity updated it");
             }
+            foreach (string path in leftDirty)
+            {
+                settling.Result.Lines.Add("W " + path + " was edited in the editor right after the run saved it. Those changes are left unsaved");
+                settling.Result.Warnings++;
+            }
             WriteDone(settling.DonePath, settling.Result);
+            TryDelete(SettlingPath(settling.ProcessingPath));
             TryDelete(settling.ProcessingPath);
             settling = null;
+        }
+
+        // The result of a run still settling, next to its task in processing/. Not *.json, so it is never taken for a task.
+        static string SettlingPath(string processingPath)
+        {
+            return Path.ChangeExtension(processingPath, ".settling");
         }
 
         static RunResult Refusal(string runName, string error)
@@ -496,17 +521,41 @@ namespace DotAsset
         }
 
         // A task left in processing/ means the editor stopped in the middle of it. Report it instead of rerunning it.
+        // One that finished and was settling when the domain reloaded reports its own result.
         static void SweepStaleProcessing()
         {
             foreach (string file in Directory.GetFiles(ProcessingDir, "*.json"))
             {
                 string id = Path.GetFileNameWithoutExtension(file);
+                string donePath = DotAssetPaths.Combine(DoneDir, id + ".json");
+                JObject settled;
+                string unread;
+                if (Json.TryReadFile(SettlingPath(file), out settled, out unread))
+                {
+                    var lines = Json.Get(settled, "Lines") as JArray;
+                    if (lines != null)
+                    {
+                        lines.Add("W Unity reloaded before the run settled. Check the scenes it saved for unsaved changes");
+                        settled["Warnings"] = Json.Int(settled, "Warnings", 0) + 1;
+                    }
+                    try
+                    {
+                        Json.WriteFile(donePath, settled);
+                    }
+                    catch (Exception e)
+                    {
+                        UnityEngine.Debug.LogError("[DotAsset] could not write " + donePath + ": " + e.Message);
+                    }
+                    TryDelete(SettlingPath(file));
+                    TryDelete(file);
+                    continue;
+                }
                 JObject task;
                 string error;
                 string runName = Json.TryReadFile(file, out task, out error) ? Json.Str(task, "RunName") : null;
                 var result = Refusal(runName, "the editor stopped while this task was running. Check the targets before rerunning, a write may have reached disk");
                 result.ExitCode = (int)ExitCode.Failed;
-                WriteDone(DotAssetPaths.Combine(DoneDir, id + ".json"), result);
+                WriteDone(donePath, result);
                 TryDelete(file);
             }
         }

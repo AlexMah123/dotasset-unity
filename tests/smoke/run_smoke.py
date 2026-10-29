@@ -453,6 +453,55 @@ def edit_open_scene(base, tmp, scene):
     return None
 
 
+def check_settle(base, tmp):
+    # After a run saves an open scene the queue waits for Unity to settle before it reports. Someone editing the
+    # scene in that window keeps their edit unsaved, and a script reload in it still reports the run's result.
+    if not editor_open(base):
+        return "skip: needs the editor open, the queue settles there"
+    scene = ROOT + "/Smoke.unity"
+    problem, previous = open_scenes(base, [scene])
+    if problem:
+        return problem
+    try:
+        problem = settle_edit_and_reload(base, tmp, scene)
+    except Exception as e:
+        problem = "%s: %s" % (type(e).__name__, e)
+    # The edit made while settling is meant to stay unsaved, so it is discarded here.
+    restore, _ = open_scenes(base, previous or [scene], force=True)
+    return problem or restore
+
+
+def settle_edit_and_reload(base, tmp, scene):
+    path = os.path.join(project_of(base), *scene.split("/"))
+    for mode, lamp, said in (("edit", "Lamp2", "edited in the editor right after the run saved it"),
+                             ("reload", "Lamp3", "reloaded before the run settled")):
+        r, _ = call(base, ["SmokeAfterSave", scene, "--args", "-" + mode])
+        if r.returncode == 2 and "unknown run 'SmokeAfterSave'" in r.stdout + r.stderr:
+            drop_kept_log(r)
+            return "skip: the smoke helper compiles at the next Unity start, the headless run starts one"
+        if r.returncode != 0:
+            return run_failed("SmokeAfterSave -" + mode, r)
+        add = spec("settle_" + mode, {"Targets": [{"AssetPath": scene, "Ops": [
+            {"Op": "AddGameObject", "Name": lamp, "Components": [{"Type": "Light"}]}]}]}, tmp)
+        r, _ = call(base, ["EditScene", "--args", '-spec="%s" -apply' % add])
+        if r.returncode != 0:
+            return run_failed("EditScene -apply, then -%s while it settles" % mode, r)
+        if said not in r.stdout + r.stderr:
+            return "EditScene, then -%s while it settles, does not say \"%s\"\n%s" % (mode, said, (r.stdout + r.stderr)[-2000:])
+        with open(path, "rb") as f:
+            saved = f.read()
+        if ("m_Name: " + lamp).encode() not in saved:
+            return "the run's %s is not in the saved scene after -%s" % (lamp, mode)
+        if b"SmokeEdited" in saved:
+            return "the rename made while the run settled was saved, it should stay unsaved"
+        if mode == "edit":
+            # Discard the rename, the next run would refuse the scene for it.
+            problem, _ = open_scenes(base, [scene], force=True)
+            if problem:
+                return problem
+    return None
+
+
 def check_edit_material(base, tmp):
     argv = ["EditMaterial", "--args", '-spec="%s"' % SPECS["edit_mat"]]
     problem = expect(base, "EditMaterial dry run", argv, 0)
@@ -1063,6 +1112,7 @@ def steps_of(specs):
         ("export round trip", check_round_trip, None),
         ("edit scene dry and apply", check_edit_scene, None),
         ("edit the open scene", check_open_scene_edit, None),
+        ("settle: edit, reload", check_settle, None),
         ("edit material dry and apply", check_edit_material, None),
         ("edit asset dry and apply", check_edit_asset, None),
         ("edit controller dry, apply", check_edit_controller, None),

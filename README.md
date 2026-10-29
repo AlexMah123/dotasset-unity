@@ -296,7 +296,7 @@ Every write is read back through an export. An exit code alone never counts as a
 | Migrate | `DuplicateAsset` copies, `RemapReference` swaps the reference, `MoveAsset` keeps it working, `ResaveAsset` rewrites the files without changing what they hold, and `DeleteAsset` deletes an unused asset but refuses one still in use |
 | Audit | Each audit gets a seeded issue to find: a reference to a deleted material (R1), a Missing Script written into a prefab (R2), a keyword the shader does not declare (M5), and a texture named like a normal map but not imported as one (T1). The audit's own fix spec, run dry and then with `-apply`, must clear it, and `RemoveMissingScripts` must leave the prefab's other components alone |
 | Read only | A full set of exports over the edited assets changes no byte on disk |
-| Your project | The run fails if anything in `Assets/` outside `Assets/DotAssetSmoke` changed, or if it leaves a Unity log behind. It stops at the first failure (`--keep-going` runs the rest) and removes its folder however the run ends, Ctrl+C included |
+| Your project | The run fails if anything in `Assets/` outside `Assets/DotAssetSmoke` changed, or if it leaves a Unity log behind. It stops at the first failure (`--keep-going` runs the rest, `--only "edit asset,delete"` runs just the named steps after `create`) and removes its folder however the run ends, Ctrl+C included |
 
 With the editor open, the texture and Missing Script steps are skipped: Unity only reads a new or edited file when it starts. The run with the editor closed covers them.
 

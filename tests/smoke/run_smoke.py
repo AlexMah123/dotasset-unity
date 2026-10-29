@@ -6,6 +6,8 @@ Creates everything under Assets/DotAssetSmoke and deletes it at the end. Run it 
 
   python tests/smoke/run_smoke.py --project /path/to/UnityProject [--unity /path/to/Unity] [--clean] [--keep]
 
+--only "edit asset,delete" runs create and the matching steps, to prove one change before a full run.
+
 With the editor open, save or close any Untitled scene first: Unity cannot open a scene next to one.
 Steps that change assets read the result back through an export, dry runs and failed targets must leave files as
 they were, and the audits get seeded issues to find and fix. Prints one line per step and exits 1 if any step
@@ -799,14 +801,24 @@ def check_importer(base, tmp):
 
 def main():
     p = argparse.ArgumentParser()
-    p.add_argument("--project", required=True)
+    p.add_argument("--project")
     p.add_argument("--unity")
     p.add_argument("--keep", action="store_true", help="leave Assets/DotAssetSmoke in place")
     p.add_argument("--clean", action="store_true", help="delete a leftover Assets/DotAssetSmoke before starting")
     p.add_argument("--timeout", type=int, default=1200, help="per step, headless starts of a big project are slow (default 1200)")
     p.add_argument("--keep-going", action="store_true",
                    help="run every step after a failure too. Later steps build on earlier ones, so they mostly fail along")
+    p.add_argument("--only", metavar="NAMES",
+                   help="comma-separated parts of step names, e.g. \"edit asset,delete\": runs create and the matching "
+                        "steps in their usual order. A step that builds on an earlier one needs that one named too. "
+                        "--only list prints the step names")
     args = p.parse_args()
+    if args.only is not None and args.only.strip() == "list":
+        for name, _, _ in steps_of(None):
+            print(name)
+        return 0
+    if not args.project:
+        p.error("--project is required")
     if not os.path.isdir(os.path.join(args.project, "Assets")):
         print("%s is not a Unity project (no Assets folder)" % args.project)
         return 2
@@ -853,47 +865,16 @@ def run(args, tmp):
     SPECS.update(create=create, edit_prefab=edit_prefab, bad_prefab=bad_prefab, edit_scene=edit_scene,
                  edit_mat=edit_mat, edit_anim=edit_anim)
 
-    # Steps that change assets read the result back through an export, the exit code alone is not enough.
-    steps = [
-        ("catalog: every run, this repo", check_catalog, None),
-        ("create", ["CreateAsset", "--args", '-spec="%s"' % create], 0),
-        ("create wrote the assets", check_create, None),
-        ("create again skips", check_create_again, None),
-        ("prefab export", ["PrefabExport", ROOT], 0),
-        ("scene export", ["SceneExport", ROOT + "/Smoke.unity"], 0),
-        ("material export", ["MaterialExport", ROOT + "/Red.mat"], 0),
-        ("controller export", ["AnimatorControllerExport", ROOT + "/Door.controller"], 0),
-        ("asset export", ["AssetExport", ROOT + "/Red.mat"], 0),
-        ("reference export", check_reference_export, None),
-        ("type catalog", check_type_catalog, None),
-        ("unknown arg refused", ["EditPrefab", "--args", '-spec="%s" -aply' % edit_prefab], 2),
-        ("edit prefab dry", ["EditPrefab", "--args", '-spec="%s"' % edit_prefab], 0),
-        ("dry run left it unchanged", check_dry_run_left_prefab, None),
-        ("edit prefab apply", check_edit_prefab, None),
-        ("bad op fails, saves nothing", check_failed_edit, None),
-        ("array ops", check_array_ops, None),
-        ("export round trip", check_round_trip, None),
-        ("edit scene dry and apply", check_edit_scene, None),
-        ("edit the open scene", check_open_scene_edit, None),
-        ("edit material dry and apply", check_edit_material, None),
-        ("edit asset dry and apply", check_edit_asset, None),
-        ("edit controller dry, apply", check_edit_controller, None),
-        ("exports leave assets as is", check_exports_read_only, None),
-        ("-outdir and -report", check_output_options, None),
-        ("odd paths: spaces, ü", check_odd_paths, None),
-        ("read-only package refused", check_read_only_package, None),
-        ("duplicate", check_duplicate, None),
-        ("remap dry and apply", check_remap, None),
-        ("move keeps references", check_move, None),
-        ("resave keeps content", check_resave, None),
-        ("delete, refused if used", check_delete, None),
-        ("audit missing refs clean", ["AuditMissingReference", ROOT], 0),
-        ("audit missing refs seeded", check_audit_missing_reference, None),
-        ("audit material and fix", check_audit_material, None),
-        ("missing script, audit, fix", check_missing_script, None),
-        ("texture audit, export, fix", check_importer, None),
-    ]
-    base = [sys.executable, WRAPPER, "--project", args.project, "--quiet", "--timeout", str(args.timeout)]
+    steps = steps_of(SPECS)
+    if args.only is not None:
+        wanted = [w.strip().lower() for w in args.only.split(",") if w.strip()]
+        unmatched = [w for w in wanted if not any(w in name.lower() for name, _, _ in steps)]
+        if not wanted or unmatched:
+            print("--only: no step matches %s. --only list prints the step names" % ", ".join(unmatched or ["nothing"]))
+            return 2
+        steps = [s for s in steps if s[0] == "create" or any(w in s[0].lower() for w in wanted)]
+
+    base =[sys.executable, WRAPPER, "--project", args.project, "--quiet", "--timeout", str(args.timeout)]
     if args.unity:
         base += ["--unity", args.unity]
     BASE.extend(base)
@@ -970,6 +951,52 @@ def run(args, tmp):
         summary += ", %d skipped" % skipped
     print("%s in %.0fs" % (summary, time.time() - started))
     return 1 if failed else 0
+
+
+def steps_of(specs):
+    """The steps in order: (name, wrapper argv or check function, expected exit code). specs is None for names only."""
+    create = specs["create"] if specs else ""
+    edit_prefab = specs["edit_prefab"] if specs else ""
+    # Steps that change assets read the result back through an export, the exit code alone is not enough.
+    return [
+        ("catalog: every run, this repo", check_catalog, None),
+        ("create", ["CreateAsset", "--args", '-spec="%s"' % create], 0),
+        ("create wrote the assets", check_create, None),
+        ("create again skips", check_create_again, None),
+        ("prefab export", ["PrefabExport", ROOT], 0),
+        ("scene export", ["SceneExport", ROOT + "/Smoke.unity"], 0),
+        ("material export", ["MaterialExport", ROOT + "/Red.mat"], 0),
+        ("controller export", ["AnimatorControllerExport", ROOT + "/Door.controller"], 0),
+        ("asset export", ["AssetExport", ROOT + "/Red.mat"], 0),
+        ("reference export", check_reference_export, None),
+        ("type catalog", check_type_catalog, None),
+        ("unknown arg refused", ["EditPrefab", "--args", '-spec="%s" -aply' % edit_prefab], 2),
+        ("edit prefab dry", ["EditPrefab", "--args", '-spec="%s"' % edit_prefab], 0),
+        ("dry run left it unchanged", check_dry_run_left_prefab, None),
+        ("edit prefab apply", check_edit_prefab, None),
+        ("bad op fails, saves nothing", check_failed_edit, None),
+        ("array ops", check_array_ops, None),
+        ("export round trip", check_round_trip, None),
+        ("edit scene dry and apply", check_edit_scene, None),
+        ("edit the open scene", check_open_scene_edit, None),
+        ("edit material dry and apply", check_edit_material, None),
+        ("edit asset dry and apply", check_edit_asset, None),
+        ("edit controller dry, apply", check_edit_controller, None),
+        ("exports leave assets as is", check_exports_read_only, None),
+        ("-outdir and -report", check_output_options, None),
+        ("odd paths: spaces, ü", check_odd_paths, None),
+        ("read-only package refused", check_read_only_package, None),
+        ("duplicate", check_duplicate, None),
+        ("remap dry and apply", check_remap, None),
+        ("move keeps references", check_move, None),
+        ("resave keeps content", check_resave, None),
+        ("delete, refused if used", check_delete, None),
+        ("audit missing refs clean", ["AuditMissingReference", ROOT], 0),
+        ("audit missing refs seeded", check_audit_missing_reference, None),
+        ("audit material and fix", check_audit_material, None),
+        ("missing script, audit, fix", check_missing_script, None),
+        ("texture audit, export, fix", check_importer, None),
+    ]
 
 
 def run_step(base, tmp, argv, expected):

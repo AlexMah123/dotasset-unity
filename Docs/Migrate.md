@@ -13,6 +13,7 @@ Asset-level moves and project-wide reference changes, the repairs after a rename
 | `RemapReference` | repoints every reference from one asset to another, prefab instances included |
 | `RemapScript` | repoints components and ScriptableObjects from one script GUID to another script |
 | `RemoveMissingScripts` | removes Missing Script components from prefabs and scenes |
+| `RebindAnimation` | rewrites curve paths in `.anim` clips after a GameObject or bone was renamed or moved |
 
 ## Which one after a change
 
@@ -25,6 +26,7 @@ Asset-level moves and project-wide reference changes, the repairs after a rename
 | Two materials, textures or ScriptableObjects should become one | `RemapReference -from=<old> -to=<new> -apply`, then `DeleteAsset <old> -apply` |
 | A prefab is replaced by another | `RemapReference` swaps its instances through Unity's Replace Prefab Asset and repoints fields that reference it |
 | Leftover Missing Script components | `RemoveMissingScripts` |
+| A GameObject or bone under an Animator was renamed or moved, clips show "(Missing!)" | `RebindAnimation -from=Body/Arm -to=Body/ArmL -apply` |
 
 ## MoveAsset
 
@@ -117,6 +119,20 @@ python dotasset.py RemapScript --args '-from=4f2c9a1e0b8d4c7e9f3a2b1c0d9e8f7a -t
 | `-fromfileid` | the old reference's fileID, default `11500000` (a `.cs` script). Scripts inside a DLL use another fileID |
 
 Rewrites `m_Script: {fileID: ..., guid: <old>, type: 3}` in every YAML asset (`.prefab`, `.unity`, `.asset`, `.controller`, ...) and reimports the changed files. Needs Asset Serialization Mode = Force Text. Field values survive when the new class has fields of the same names. With the editor open, a file that is loaded there (an open scene, a prefab in Prefab Mode, an asset with unsaved changes) fails its target: the loaded copy would write the old GUID back on its next save.
+
+## RebindAnimation
+
+```bash
+python dotasset.py RebindAnimation --args '-from=Body/Arm -to=Body/ArmL -scandir=Assets/Animations -apply'
+```
+
+| Argument | Effect |
+| --- | --- |
+| `-from` | the old path, relative to the Animator, as the Animation window shows it |
+| `-to` | the new path |
+| `-scandir=<dirs>` | default `Assets`. An AssetList of clips or folders replaces the scan |
+
+Curves on `-from` and everything beneath it move: `Body/Arm` -> `Body/ArmL` also rewrites `Body/Arm/Hand`. Float and object reference curves (sprite swaps) both move, keys and tangents unchanged. A clip that already animates the same property at the new path fails its target instead of overwriting it. Clips inside model files are read-only and skipped, extract them to `.anim` first. The dry run plans one change per old path with its curve count. `AssetExport` on a clip shows the paths under `m_FloatCurves`, `m_PPtrCurves` and `m_EditorCurves`.
 
 ## RemoveMissingScripts
 

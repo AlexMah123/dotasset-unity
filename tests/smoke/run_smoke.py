@@ -986,13 +986,7 @@ def check_remap_script(base, tmp):
     if editor_open(base):
         return "skip: needs the editor closed, scripts written to disk only compile when Unity starts"
     for name, guid in SCRIPT_GUIDS.items():
-        path = os.path.join(project_of(base), *(ROOT + "/" + name + ".cs").split("/"))
-        with open(path, "w", encoding="utf-8", newline="\n") as f:
-            f.write("using UnityEngine;\n\npublic class %s : MonoBehaviour\n{\n    public int hp = 3;\n}\n" % name)
-        with open(path + ".meta", "w", encoding="utf-8", newline="\n") as f:
-            f.write("fileFormatVersion: 2\nguid: %s\nMonoImporter:\n  externalObjects: {}\n  serializedVersion: 2\n"
-                    "  defaultReferences: []\n  executionOrder: 0\n  icon: {instanceID: 0}\n  userData: \n"
-                    "  assetBundleName: \n  assetBundleVariant: \n" % guid)
+        write_script(base, name, guid, "public int hp = 3;")
     unit = ROOT + "/Unit.prefab"
     seed = spec("unit", {"Assets": [{"Kind": "Prefab", "Path": unit, "Root": "Unit",
                                      "Components": [{"Type": "DotAssetSmokeOld", "Properties": {"hp": 7}}]}]}, tmp)
@@ -1017,6 +1011,85 @@ def check_remap_script(base, tmp):
         return "after RemapScript -apply Unit.prefab's components are %s" % [c.get("Type") for c in (node(export, "Unit") or {}).get("Components", [])]
     if (moved.get("Properties") or {}).get("hp") != 7:
         return "after RemapScript -apply hp is %s, expected 7" % (moved.get("Properties") or {}).get("hp")
+    return None
+
+
+def write_script(base, name, guid, body):
+    """A MonoBehaviour script under ROOT with a known GUID. It compiles at the next Unity start."""
+    path = os.path.join(project_of(base), *(ROOT + "/" + name + ".cs").split("/"))
+    with open(path, "w", encoding="utf-8", newline="\n") as f:
+        f.write("using UnityEngine;\n\npublic class %s : MonoBehaviour\n{\n    %s\n}\n" % (name, body))
+    with open(path + ".meta", "w", encoding="utf-8", newline="\n") as f:
+        f.write("fileFormatVersion: 2\nguid: %s\nMonoImporter:\n  externalObjects: {}\n  serializedVersion: 2\n"
+                "  defaultReferences: []\n  executionOrder: 0\n  icon: {instanceID: 0}\n  userData: \n"
+                "  assetBundleName: \n  assetBundleVariant: \n" % guid)
+
+
+FIELD_GUID = "d07a55e7f1e1d0000000000000000f1e"
+
+
+def check_rename_field(base, tmp):
+    # A component with a field, overridden by a variant, a prefab nesting it and a scene holding that prefab. The
+    # files are set back to the old key on disk, as if saved before the C# rename, then RenameField renames it back.
+    # The YAML on disk and the exported values must both show the new name with every value kept.
+    if editor_open(base):
+        return "skip: needs the editor closed, scripts written to disk only compile when Unity starts"
+    write_script(base, "DotAssetSmokeField", FIELD_GUID, "public int health = 1;")
+    field, variant, holder, scene = (ROOT + "/" + n for n in ("Field.prefab", "FieldVariant.prefab", "FieldHolder.prefab", "FieldScene.unity"))
+    comp = "DotAssetSmokeField"
+    seed = spec("field", {"Assets": [
+        {"Kind": "Prefab", "Path": field, "Root": "Field", "Components": [{"Type": comp, "Properties": {"health": 7}}]},
+        {"Kind": "PrefabVariant", "Path": variant, "Base": field,
+         "Ops": [{"Op": "Set", "Path": "FieldVariant", "Component": comp, "Properties": {"health": 9}}]},
+        {"Kind": "Prefab", "Path": holder, "Root": "Holder",
+         "Ops": [{"Op": "AddPrefabInstance", "Parent": "Holder", "Prefab": field, "Name": "Field"},
+                 {"Op": "Set", "Path": "Holder/Field", "Component": comp, "Properties": {"health": 11}}]},
+        {"Kind": "Scene", "Path": scene,
+         "Ops": [{"Op": "AddPrefabInstance", "Prefab": holder, "Name": "Holder"},
+                 {"Op": "Set", "Path": "Holder/Field", "Component": comp, "Properties": {"health": 13}}]},
+    ]}, tmp)
+    problem = expect(base, "CreateAsset the field assets", ["CreateAsset", "--args", '-spec="%s"' % seed], 0)
+    if problem:
+        return problem
+    files = [field, variant, holder, scene]
+    text = lambda p: open(os.path.join(project_of(base), *p.split("/")), encoding="utf-8").read()
+    for p in files:
+        t = text(p)
+        if "health" not in t:
+            return "%s has no health key or override after CreateAsset" % p
+        with open(os.path.join(project_of(base), *p.split("/")), "w", encoding="utf-8", newline="\n") as f:
+            f.write(re.sub(r"(?m)^  health:", "  hp:", t).replace("propertyPath: health", "propertyPath: hp"))
+    problem = expect(base, "RenameField while the class has the field", ["RenameField", "--args",
+                     "-script=%s/%s.cs -from=health -to=hp -scandir=%s" % (ROOT, comp, ROOT)], 2)
+    if problem:
+        return problem
+    argv = ["RenameField", "--args", "-script=%s -from=hp -to=health -scandir=%s" % (FIELD_GUID, ROOT)]
+    r, res = call(base, argv)
+    planned = sorted(p.get("Path") for p in res.get("Plan") or [] if p.get("Action") == "rewrite")
+    if r.returncode != 0 or planned != sorted(files):
+        return "the RenameField dry run exit %s, planned %s, expected %s" % (r.returncode, planned, sorted(files))
+    if "health" in text(field):
+        return "the RenameField dry run changed Field.prefab"
+    argv[-1] += " -apply"
+    problem = expect(base, "RenameField -apply", argv, 0)
+    if problem:
+        return problem
+    left = [p for p in files if re.search(r"(?m)^  hp:|propertyPath: hp\b", text(p))]
+    if left:
+        return "after RenameField -apply the old key is still in %s" % left
+    # A prefab exports the value on its component, the others as an instance override.
+    got = {}
+    for label, run, asset in (("prefab", "PrefabExport", field), ("variant", "PrefabExport", variant),
+                              ("nested", "PrefabExport", holder), ("scene", "SceneExport", scene)):
+        values = []
+        for n in export_of(run, base, asset).get("Hierarchy", []):
+            values += [(c.get("Properties") or {}).get("health") for c in n.get("Components", []) if c.get("Type") == comp]
+            values += [o.get("Value") for o in (n.get("PrefabInstance") or {}).get("Overrides", [])
+                       if o.get("Component") == comp and o.get("Property") == "health"]
+        got[label] = [str(v) for v in values if v is not None]
+    want = {"prefab": ["7"], "variant": ["9"], "nested": ["11"], "scene": ["13"]}
+    if got != want:
+        return "after RenameField -apply health is %s, expected %s" % (got, want)
     return None
 
 
@@ -1442,6 +1515,7 @@ def steps_of(specs):
         ("rename shader property", check_rename_shader_property, None),
         ("rebind animation", check_rebind_animation, None),
         ("remap script by guid", check_remap_script, None),
+        ("rename field", check_rename_field, None),
         ("journal, undo, -atomic", check_journal_undo, None),
         ("editor states: pause, compile, play", check_editor_states, None),
     ]
@@ -1449,7 +1523,7 @@ def steps_of(specs):
 
 # Headless steps that launch Unity per run even with a warm host: create, an export, an edit with -apply, a failing
 # run, and the two that need a fresh start to import a file the test wrote.
-COLD = ("catalog", "create", "prefab export", "edit prefab apply", "bad op fails", "missing script", "texture audit", "rebind", "remap script")
+COLD = ("catalog", "create", "prefab export", "edit prefab apply", "bad op fails", "missing script", "texture audit", "rebind", "remap script", "rename field")
 
 
 def host(base, hosted, want):

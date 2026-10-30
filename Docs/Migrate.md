@@ -12,6 +12,7 @@ Asset-level moves and project-wide reference changes, the repairs after a rename
 | `ResaveAsset` | reserializes assets: after `[FormerlySerializedAs]`, after an upgrade, before a diff |
 | `RemapReference` | repoints every reference from one asset to another, prefab instances included |
 | `RemapScript` | repoints components and ScriptableObjects from one script GUID to another script |
+| `RenameField` | renames a serialized field of one script in assets and prefab overrides, values kept |
 | `RemoveMissingScripts` | removes Missing Script components from prefabs and scenes |
 | `RebindAnimation` | rewrites curve paths in `.anim` clips after a GameObject or bone was renamed or moved |
 | `RenameShaderProperty` | renames a saved shader property in `.mat` files, values kept |
@@ -22,7 +23,7 @@ Asset-level moves and project-wide reference changes, the repairs after a rename
 | What changed | Run |
 | --- | --- |
 | An asset or folder needs a new path | `MoveAsset`. References are by GUID and survive; `Resources.Load` strings and hard-coded paths do not, the run lists the scripts that mention them |
-| A C# field was renamed | add `[FormerlySerializedAs("oldName")]` to the field, `ResaveAsset -dependson=Assets/Scripts/X.cs -apply`, then remove the attribute |
+| A C# field was renamed | `RenameField -script=Assets/Scripts/X.cs -from=oldName -to=newName -apply` after the C# rename, before Unity saves the assets. Or `[FormerlySerializedAs("oldName")]`, `ResaveAsset -dependson=Assets/Scripts/X.cs -apply`, then remove the attribute |
 | A `.meta` was lost or regenerated, components show Missing Script | `AuditMissingReference` lists the old GUIDs, `RemapScript -from=<old guid> -to=Assets/Scripts/X.cs -apply` |
 | A class moved to another file or assembly | `RemapScript -from=Assets/Old/X.cs -to=Assets/New/X.cs -apply` (by path while the old file still exists, by GUID after) |
 | Two materials, textures or ScriptableObjects should become one | `RemapReference -from=<old> -to=<new> -apply`, then `DeleteAsset <old> -apply` |
@@ -107,6 +108,23 @@ python dotasset.py RemapReference --args '-spec="C:/temp/remap.json" -apply'
 - `To` itself, and the prefabs and models `To` nests or is a variant of, are left pointing at `From` with a warning: repointing them would nest `To` inside itself. Other assets `To` references are remapped, a cycle of plain field references is fine. With several pairs this is decided per pair.
 - Children map by name and position among same-named siblings, components by type and position among that type.
 - `From` and `To` must be the same kind of asset.
+
+## RenameField
+
+```bash
+python dotasset.py RenameField --args '-script=Assets/Scripts/Enemy.cs -from=hp -to=health -apply'
+```
+
+| Argument | Effect |
+| --- | --- |
+| `-script` | the script whose field was renamed, by path or GUID |
+| `-from` | the old serialized name |
+| `-to` | the new name |
+| `-scandir=<dirs>` | default `Assets` |
+
+Rename the field in C# first, then run this before Unity saves the assets: Unity drops keys the class no longer has on the next save. It is refused while the class still has a field named `-from`, and warns when it has none named `-to`.
+
+Rewrites the top-level key in every MonoBehaviour and ScriptableObject document that uses the script, and the `propertyPath` of prefab overrides that target one of its components, through variants, nested prefabs and scenes (`hp`, `hp.x` and `hp.Array.data[0]` alike). Overrides of other components with a field of the same name are left alone. An object that already has a `-to` key fails its file, so does a file loaded in the editor, as for `RemapScript`. Top-level fields only: a field inside a `[Serializable]` class, `[SerializeReference]` data and animation curves that name the field are not followed. Needs Asset Serialization Mode = Force Text.
 
 ## RemapScript
 

@@ -29,6 +29,7 @@ The call manual for agents. Arguments, spec shapes, exit codes and JSON fields a
 | Delete assets, refusing while something still uses them | `DeleteAsset` | Migrate |
 | Replace every use of one asset with another (material, texture, prefab, ScriptableObject) | `RemapReference` | Migrate |
 | Fix "Missing Script" after a `.meta` was lost or a class moved to another file | `RemapScript` (GUIDs from `AuditMissingReference`) | Migrate |
+| Keep values after renaming a serialized C# field | `RenameField` (after the C# rename, before Unity saves) | Migrate |
 | Fix animation clips after a GameObject or bone was renamed or moved | `RebindAnimation` | Migrate |
 | Keep material values after a shader renamed a property | `RenameShaderProperty` | Migrate |
 | Remove Missing Script components | `RemoveMissingScripts` | Migrate |
@@ -148,7 +149,7 @@ Audit reports land in `Library/DotAsset/Audit/`, with `-report=` to choose the p
 | `EditPrefab` on a prefab open in Prefab Mode with unsaved changes | Refused for the same reason |
 | Any run that writes (`EditMaterial`, `EditAsset`, `EditAnimatorController`, `EditImporter`, `EditPrefab`, `RemapReference`, `ResaveAsset`, `DeleteAsset`) on an asset with unsaved changes in the editor | That target fails with "has unsaved changes in the editor", the file is untouched and the user's changes stay in the editor. Ask the user to save (File > Save Project) or discard them, then run again |
 | Editing a model (`.fbx`) as a prefab | Refused, its hierarchy comes from the importer. Create a variant with `CreateAsset` `PrefabVariant`, or change the import with `EditImporter` |
-| `RemapScript` or the fast pass of `AuditMissingReference` reports nothing | They read YAML. Project Settings > Editor > Asset Serialization Mode must be Force Text |
+| `RemapScript`, `RenameField` or the fast pass of `AuditMissingReference` reports nothing | They read YAML. Project Settings > Editor > Asset Serialization Mode must be Force Text |
 | Renaming a C# field loses its data | Add `[FormerlySerializedAs("oldName")]`, then `ResaveAsset -dependson=Assets/Scripts/X.cs -apply`, then the attribute can go |
 | `MoveAsset` warns that a script mentions the path | GUIDs keep serialized references, not strings. Fix `Resources.Load` paths and hard-coded asset paths in code by hand |
 | `DeleteAsset` refuses | Something under `-scandir` still references it, the warnings list what. Fix those first, or add `-force`. A scene open with unsaved changes, or the prefab in Prefab Mode with unsaved changes, is refused even with `-force`: ask the user to save or discard first. `ResaveAsset` refuses those too |

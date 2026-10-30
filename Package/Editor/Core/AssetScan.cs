@@ -4,6 +4,10 @@ using System.IO;
 using System.Linq;
 using Newtonsoft.Json.Linq;
 using UnityEditor;
+using UnityEditor.SceneManagement;
+using UnityEngine;
+using UnityEngine.SceneManagement;
+using Object = UnityEngine.Object;
 
 namespace DotAsset
 {
@@ -48,6 +52,34 @@ namespace DotAsset
                 .Where(p => Under(p, list) && !AssetDatabase.IsValidFolder(p) && (filter == null || filter(p)))
                 .OrderBy(p => p, StringComparer.Ordinal)
                 .ToList();
+        }
+
+        // Why a file rewritten on disk would be undone by the editor, or null. A loaded scene, a prefab in Prefab Mode
+        // or an asset with unsaved changes keeps its old copy in memory and writes it back on its next save.
+        public static string OpenInEditor(string path)
+        {
+            if (Application.isBatchMode)
+            {
+                return null;
+            }
+            if (path.EndsWith(".unity", StringComparison.OrdinalIgnoreCase))
+            {
+                Scene scene = SceneManager.GetSceneByPath(path);
+                return scene.IsValid() && scene.isLoaded ? "the scene is open in the editor, close it first" : null;
+            }
+            PrefabStage stage = PrefabStageUtility.GetCurrentPrefabStage();
+            if (stage != null && stage.assetPath == path)
+            {
+                return "the prefab is open in Prefab Mode, close it first";
+            }
+            foreach (Object o in AssetDatabase.LoadAllAssetsAtPath(path))
+            {
+                if (o != null && EditorUtility.IsDirty(o))
+                {
+                    return "it has unsaved changes in the editor, save or discard them first";
+                }
+            }
+            return null;
         }
 
         public static bool HasExtension(string path, params string[] extensions)

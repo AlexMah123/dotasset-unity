@@ -31,6 +31,7 @@ python dotasset.py <RunName> "<AssetList>" --args "<-key=value ...>" --agent
 | Move, copy, delete assets with references kept | `MoveAsset`, `DuplicateAsset`, `DeleteAsset` |
 | Swap every use of one asset for another | `RemapReference` |
 | Fix Missing Script | `AuditMissingReference`, then `RemapScript` or `RemoveMissingScripts` |
+| Rename a serialized field | rename it in C#, then `RenameField` |
 | Renamed or moved a GameObject or bone, clips show "(Missing!)" | `RebindAnimation --args "-from=Body/Arm -to=Body/ArmL"` |
 | A shader renamed a property, materials lost their values | `RenameShaderProperty --args "-from=_Color -to=_BaseColor"` |
 | Renamed a serialized field | `[FormerlySerializedAs("old")]`, then `ResaveAsset --args "-dependson=<script>"` |

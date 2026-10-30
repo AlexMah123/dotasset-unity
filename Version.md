@@ -6,6 +6,13 @@ Defined in `Package/Editor/Core/DotAssetVersion.cs` and `Package/package.json`, 
 
 Versions follow one rule. A patch (0.1.x) holds fixes, test upgrades and docs. A minor version (0.x.0) adds something new to call: a run, an op, a spec key, an argument or a wrapper option. While on 0.x, a change that breaks existing calls is also a minor version, marked breaking here. 1.0.0 comes when runs, specs and export JSON are promised to stay stable.
 
+### 0.7.0
+
+- Run journal: every writing run (Import, and Edit or Migrate with `-apply`) keeps the files it touches, as they were, in `Library/DotAsset/Journal/<id>`, printed as an `out:` line. The newest 30 are kept
+- `UndoRun` (Migrate): `-run=<id>` or `-run=last` puts back every file the run wrote, created, moved or deleted, moved files with their GUID. Refused as a whole when any of them changed after the run, is open in the editor or has unsaved changes. Undoing an undo redoes the run
+- `-atomic` on every Edit, Migrate and Import run: all or nothing across targets. When a target fails, the files the run already wrote are restored. Without it, other targets stay written as before
+- Smoke test: journal, undo of an edit and a move, `-atomic`, a refused undo after a later change. Editor states: a paused queue refuses and withdraws the task, a compile and play mode make the run wait
+
 ### 0.6.1
 
 - Smoke test: `RemapScript` by GUID, a prefab's component moves to another script with its field value kept, headless route

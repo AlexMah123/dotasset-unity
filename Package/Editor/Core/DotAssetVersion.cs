@@ -4,6 +4,6 @@ namespace DotAsset
     // Every export JSON and every run log carries this string.
     public static class DotAssetVersion
     {
-        public const string Version = "0.6.1";
+        public const string Version = "0.7.0";
     }
 }

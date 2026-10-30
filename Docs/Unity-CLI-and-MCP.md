@@ -50,7 +50,7 @@ unity cmd job batch --operations '[{"command":"asset write_text","params":{"path
 
 ## Reference remapping
 
-No command in the 0.9.1 list repoints references from one asset or script to another across scenes, prefabs and assets, or refuses to delete an asset that is still referenced. Doing this through `eval` means writing the C# yourself.
+No command in the 0.9.1 list repoints references from one asset or script to another across scenes, prefabs and assets, or refuses to delete an asset that another asset or a project setting still references. Doing this through `eval` means writing the C# yourself.
 
 ## Capture commands
 

@@ -26,7 +26,7 @@ The call manual for agents. Arguments, spec shapes, exit codes and JSON fields a
 | Rename a parameter and every condition and blend tree that reads it | `EditAnimatorController` op `RenameParameter` | Edit |
 | Move or rename assets and folders without breaking references | `MoveAsset` | Migrate |
 | Copy an asset or folder before a risky change | `DuplicateAsset` | Migrate |
-| Delete assets, refusing while something still uses them | `DeleteAsset` | Migrate |
+| Delete assets, refusing while an asset or a project setting still uses them | `DeleteAsset` | Migrate |
 | Find assets nothing uses, then delete them | `AuditUnusedAsset`, then `DeleteAsset -spec=<fix spec>` | Audit |
 | Replace every use of one asset with another (material, texture, prefab, ScriptableObject) | `RemapReference` | Migrate |
 | Fix "Missing Script" after a `.meta` was lost or a class moved to another file | `RemapScript` (GUIDs from `AuditMissingReference`) | Migrate |
@@ -155,7 +155,7 @@ Audit reports land in `Library/DotAsset/Audit/`, with `-report=` to choose the p
 | `RemapScript`, `RenameField` or the fast pass of `AuditMissingReference` reports nothing | They read YAML. Project Settings > Editor > Asset Serialization Mode must be Force Text |
 | Renaming a C# field loses its data | Add `[FormerlySerializedAs("oldName")]`, then `ResaveAsset -dependson=Assets/Scripts/X.cs -apply`, then the attribute can go |
 | `MoveAsset` warns that a script mentions the path | GUIDs keep serialized references, not strings. Fix `Resources.Load` paths and hard-coded asset paths in code by hand |
-| `DeleteAsset` refuses | Something under `-scandir` still references it, the warnings list what. Fix those first, or add `-force`. A scene open with unsaved changes, or the prefab in Prefab Mode with unsaved changes, is refused even with `-force`: ask the user to save or discard first. `ResaveAsset` refuses those too |
+| `DeleteAsset` refuses | Something under `-scandir`, or a project setting, Build Settings, a Build Profile, Addressables or an AssetBundle name, still references it: the warnings list what. References from code are not seen. Fix those first, or add `-force`. A scene open with unsaved changes, or the prefab in Prefab Mode with unsaved changes, is refused even with `-force`: ask the user to save or discard first. `ResaveAsset` refuses those too |
 | Treating exit code 3 as failure | 3 means the audit worked and found something |
 | Exports and reports in version control | `Library/` is ignored by Unity's default `.gitignore`. Copy what you need to keep |
 | Several headless calls at once | They take turns: a later call prints `another DotAsset headless run has the project, waiting` and starts when the one before ends. For many steps in a row, `--launch` the editor or `--serve` a headless host once instead, queued runs skip Unity's start-up |

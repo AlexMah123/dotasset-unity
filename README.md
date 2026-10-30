@@ -148,7 +148,7 @@ Run it without `-apply` first. The dry run does everything a real run does, chec
 ```
 $ python dotasset.py EditPrefab --args '-spec="C:/temp/player.edit.json"'
 [dotasset] route: batchmode (C:/Program Files/Unity/Hub/Editor/6000.6.7f1/Editor/Unity.exe)
-DotAsset 0.2.1, Unity 6000.6.7f1, batchmode
+DotAsset 0.9.3, Unity 6000.6.7f1, batchmode
 dry run, nothing is written. Add -apply to write.
 Assets/Prefabs/Player.prefab: 2 op(s) would apply
 [dotasset] EditPrefab dry run passed, 0 warning(s), 0 error(s), 0.4s
@@ -237,7 +237,7 @@ Commands are plain classes: derive from `DotAssetCommand`, name the class `<RunN
 | [UniCli](https://github.com/yucchiy/UniCli) | ✗ | 80+ editor commands (GameObjects, scenes, prefabs, materials, builds, tests, packages, `Eval`), refuses dirty scenes by default | Driving the whole editor from a terminal: compile, test, build, inspect |
 | YAML parsers (e.g. [unityparser](https://pypi.org/project/unityparser)) | ✓ (no Unity at all) | Raw YAML, no validation, no reimport | Reading or patching files without Unity |
 
-Scene and prefab editing, headless runs and agent access are now common. What DotAsset adds is the migrations: none of the tools above repoints every reference to an asset or a script, or refuses to delete an asset still in use. The table reflects their docs as of October 2026, and the Unity CLI and Pipeline package are still in beta. The Unity CLI and `unity mcp` were also tested on a real editor: see [Docs/Unity-CLI-and-MCP.md](Docs/Unity-CLI-and-MCP.md).
+Scene and prefab editing, headless runs and agent access are now common. What DotAsset adds is the migrations: none of the tools above repoints every reference to an asset or a script, or refuses to delete an asset that another asset or a project setting still uses. The table reflects their docs as of October 2026, and the Unity CLI and Pipeline package are still in beta. The Unity CLI and `unity mcp` were also tested on a real editor: see [Docs/Unity-CLI-and-MCP.md](Docs/Unity-CLI-and-MCP.md).
 
 They combine well: an agent can drive the editor through the Unity CLI, an MCP server or UniCli (builds, tests, the Console), and call DotAsset for asset changes that must be safe and repeatable, with the editor open or closed.
 

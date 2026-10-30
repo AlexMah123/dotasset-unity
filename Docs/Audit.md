@@ -52,7 +52,7 @@ When issues have a mechanical fix the audit writes `<report>.fix.json` next to t
 | --- | --- | --- |
 | `AuditTexture` | `EditImporter` | T1 T2 T3 T4 T5 T6 T8 |
 | `AuditMaterial` | `EditMaterial` | M4 M5 |
-| `AuditUnusedAsset` | `DeleteAsset` | U1, as `{"Assets": [...]}`. `DeleteAsset` checks the references again and refuses anything still used |
+| `AuditUnusedAsset` | `DeleteAsset` | U1, as `{"Assets": [...]}`. `DeleteAsset` checks the references and the project-named roots again and refuses anything still used |
 | `AuditMissingReference` | `RemoveMissingScripts` | R2 on ordinary objects. Missing scripts added on prefab instances (variants included) are listed but left, with a warning. The report's `MissingScripts` lists each GUID for `RemapScript`, which fixes both |
 
 Read it, delete what should stay, run `FixRun` without `-apply`, then with it:
@@ -142,4 +142,4 @@ python dotasset.py DeleteAsset --args '-spec="Library/DotAsset/Audit/<report>.fi
 | `-buildonly` | only the enabled Build Settings scenes are roots, instead of every scene |
 | `-rules=U1` | only these rules |
 
-An asset is used when a root reaches it, directly or through other assets. Roots: every scene (the enabled Build Settings scenes with `-buildonly`), everything under a `Resources`, `StreamingAssets`, `Editor`, `Editor Default Resources` or `Gizmos` folder, every asset `ProjectSettings/*.asset` names (render pipeline, preloaded assets, package settings), and Addressables entries, folders included. Code, shaders, shader includes, plugins and files Unity imports as no asset type are never listed, because code loads them by name. An asset loaded only by a path or name string from code (`AssetDatabase.LoadAssetAtPath`, `Shader.Find`, an address string) is listed too: read the list before deleting. The report's `UnusedBytes` adds up the file sizes. Addressables entries are read from the YAML, so Force Text is needed for them.
+An asset is used when a root reaches it, directly or through other assets. Roots: every scene (the enabled Build Settings scenes with `-buildonly`), everything under a `Resources`, `StreamingAssets`, `Editor`, `Editor Default Resources` or `Gizmos` folder, every asset `ProjectSettings/*.asset` names (render pipeline, preloaded assets, package settings), Build Profiles and their scenes (Unity 6, with `-buildonly` too), Addressables entries, folders included, and assets with an AssetBundle name. Project settings and Addressables are read through the loaded objects, so binary serialization works as well. Code, shaders, shader includes, plugins and files Unity imports as no asset type are never listed, because code loads them by name. An asset loaded only by a path or name string from code (`AssetDatabase.LoadAssetAtPath`, `Shader.Find`, an address string) is listed too: read the list before deleting. The report's `UnusedBytes` adds up the file sizes.

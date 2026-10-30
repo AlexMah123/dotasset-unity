@@ -27,12 +27,11 @@ namespace DotAsset
             ".cs", ".asmdef", ".asmref", ".rsp", ".dll", ".so", ".a", ".aar", ".jar", ".bundle", ".jslib", ".jspre",
             ".shader", ".shadergraph", ".shadersubgraph", ".compute", ".hlsl", ".cginc", ".glslinc", ".raytrace",
         };
-        static readonly Regex Guid = new Regex(@"guid: ([0-9a-f]{32})", RegexOptions.Compiled);
         static readonly Regex AddressableEntry = new Regex(@"m_GUID: ([0-9a-f]{32})", RegexOptions.Compiled);
 
         public override string Summary
         {
-            get { return "Assets that no scene, Resources folder, project setting or Addressables entry reaches"; }
+            get { return "Assets that no scene, Resources folder, project setting, Build Profile, Addressables entry or AssetBundle reaches"; }
         }
 
         public override IEnumerable<string> Arguments
@@ -99,7 +98,7 @@ namespace DotAsset
 
             List<string> project = AssetScan.All(new[] { "Assets" });
             bool text = AssetScan.IsForceText();
-            var buildScenes = new HashSet<string>(EditorBuildSettings.scenes.Where(s => s.enabled).Select(s => s.path), StringComparer.OrdinalIgnoreCase);
+            var buildScenes = ProjectRoots.BuildScenes();
             var roots = new HashSet<string>(StringComparer.Ordinal);
             for (int i = 0; i < project.Count; i++)
             {
@@ -109,7 +108,7 @@ namespace DotAsset
                     ctx.Progress(i, project.Count, "finding roots");
                 }
                 bool scene = path.EndsWith(".unity", StringComparison.OrdinalIgnoreCase);
-                if ((scene && (!buildOnly || buildScenes.Contains(path))) || InRootFolder(path))
+                if ((scene && (!buildOnly || buildScenes.ContainsKey(path))) || InRootFolder(path))
                 {
                     roots.Add(path);
                 }
@@ -127,14 +126,9 @@ namespace DotAsset
                     }
                 }
             }
-            string settings = Path.Combine(DotAssetPaths.ProjectRoot, "ProjectSettings");
-            foreach (string file in Directory.GetFiles(settings, "*.asset"))
-            {
-                foreach (Match m in Guid.Matches(File.ReadAllText(file)))
-                {
-                    AddGuid(m.Groups[1].Value, roots);
-                }
-            }
+            // Project settings, Build Profiles, Addressables and AssetBundles, read through the loaded objects so binary
+            // serialization works too.
+            roots.UnionWith(ProjectRoots.Named().Keys);
             ctx.Log.Info(roots.Count + " root asset(s), following their dependencies");
             var used = new HashSet<string>(AssetDatabase.GetDependencies(roots.ToArray(), true), StringComparer.Ordinal);
 
@@ -145,7 +139,7 @@ namespace DotAsset
             foreach (string path in scanned)
             {
                 bool scene = path.EndsWith(".unity", StringComparison.OrdinalIgnoreCase);
-                if (scene && buildOnly && !buildScenes.Contains(path))
+                if (scene && buildOnly && !buildScenes.ContainsKey(path))
                 {
                     if (on("U2") && !used.Contains(path))
                     {

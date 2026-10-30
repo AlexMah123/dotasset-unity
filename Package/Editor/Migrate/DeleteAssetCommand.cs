@@ -6,7 +6,9 @@ using UnityEditor;
 
 namespace DotAsset
 {
-    // Deletes assets only when nothing under -scandir still references them (-force overrides).
+    // Deletes assets only when nothing under -scandir still references them and the project does not name them in its
+    // settings, Build Settings, Build Profiles, Addressables or AssetBundles (-force overrides). Assets in a Resources
+    // or StreamingAssets folder get a warning: code may load them by name, which no reference shows.
     // Goes to the OS trash by default, -permanent deletes outright. -spec takes {"Assets": [...]}, the fix spec of
     // AuditUnusedAsset, in place of or beside AssetList.
     // Usage: dotasset.py DeleteAsset Assets/Old/Unused.mat[,Assets/Old/Folder] --args "-apply"
@@ -73,6 +75,17 @@ namespace DotAsset
             targets = targets.Where(t => !targets.Any(o => o != t && t.StartsWith(o + "/", StringComparison.OrdinalIgnoreCase))).ToList();
             ctx.Log.Info("indexing references under " + string.Join(", ", AssetScan.Roots(ctx.Args)));
             var index = AssetScan.Referencers(AssetScan.Roots(ctx.Args), ctx);
+            // The project's own references count wherever -scandir points: their referencer is a setting, not an asset.
+            foreach (var named in ProjectRoots.Named())
+            {
+                List<string> list;
+                if (!index.TryGetValue(named.Key, out list))
+                {
+                    list = new List<string>();
+                    index.Add(named.Key, list);
+                }
+                list.Add(named.Value);
+            }
             bool force = ctx.Args.Has("force");
             // A referencer that is itself deleted does not count, but only if it really goes: a target refused for
             // its own referencers keeps its references alive, so the set shrinks until it is stable.
@@ -111,6 +124,11 @@ namespace DotAsset
                     ctx.FailTarget(path, users.Count + " reference(s) remain, fix them or add -force");
                     continue;
                 }
+                string byName = inside.FirstOrDefault(LoadedByName);
+                if (byName != null)
+                {
+                    ctx.Log.Warn(byName + " is in a Resources or StreamingAssets folder, code may load it by name, which no reference shows");
+                }
                 if (ctx.DryRun)
                 {
                     ctx.Log.Info("would delete " + path + (inside.Count > 1 ? " (" + inside.Count + " assets)" : string.Empty));
@@ -127,6 +145,12 @@ namespace DotAsset
                 ctx.Log.Info((ctx.Args.Has("permanent") ? "deleted " : "moved to trash ") + path);
             }
             return ctx.FailedTargets.Count > 0 ? ExitCode.Failed : ExitCode.Success;
+        }
+
+        static bool LoadedByName(string path)
+        {
+            string[] parts = path.Split('/');
+            return parts.Take(parts.Length - 1).Any(p => p == "Resources" || p == "StreamingAssets");
         }
 
         // Who uses path (or anything inside a folder path), not counting users inside the assets that go.

@@ -1179,6 +1179,9 @@ def check_project_named(base, tmp):
         return "skip: no Build Settings scene or GraphicsSettings asset here, the AssetBundle case needs the editor closed"
     for p in targets:
         r, res = call(base, ["DeleteAsset", p, "--args", "-scandir=" + ROOT])
+        if "nothing at that path" in r.stdout and on_disk(base, p):
+            # Its script is not compiled here, as for template URP assets without the URP package: no asset to test.
+            continue
         # The reason must be the reference, not an unsaved open scene.
         if r.returncode != 1 or res.get("Plan") or not on_disk(base, p) or "reference(s) remain" not in r.stdout:
             return "DeleteAsset of %s, which the project names, exit %s, planned %s" % (p, r.returncode, res.get("Plan"))

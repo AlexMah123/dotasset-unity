@@ -1104,13 +1104,20 @@ def check_editor_states(base, tmp):
     # A paused queue refuses a run and withdraws its task, a compile and play mode make a run wait and then go through.
     if not editor_open(base):
         return "skip: needs the editor open, these are states of the editor"
-    for state, seconds, said, code in (("pause", 6, "queue is paused", 2), ("compile", 0, "editor is ", 0), ("play", 8, "editor is playmode", 0)):
+    for state, seconds, said, code in (("pause", 6, "queue is paused", 2), ("compile", 0, "editor is ", 0), ("play", 12, "playmode", 0)):
         r, _ = call(base, ["SmokeEditorState", "--args", "-%s -seconds=%d" % (state, seconds)])
         if r.returncode == 2 and "unknown run 'SmokeEditorState'" in r.stdout + r.stderr:
             drop_kept_log(r)
             return "skip: the smoke helper compiles at the next Unity start, the headless run starts one"
         if r.returncode != 0:
             return run_failed("SmokeEditorState -" + state, r)
+        if state == "play":
+            # Unity enters play mode a frame or more after the request. A run sent sooner goes through first.
+            deadline = time.time() + 8
+            while "state playmode" not in subprocess.run(base + ["--status"], capture_output=True, text=True).stdout:
+                if time.time() > deadline:
+                    return "the editor did not enter play mode within 8 s of SmokeEditorState -play"
+                time.sleep(0.5)
         r, _ = call(base, ["CommandCatalogExport"])
         if r.returncode != code or said not in r.stdout + r.stderr:
             return "a run during -%s exit %s, expected %s with \"%s\"\n%s" % (state, r.returncode, code, said, (r.stdout + r.stderr)[-2000:])

@@ -164,6 +164,7 @@ namespace DotAsset
             var so = new SerializedObject(target);
             // Property path -> value before the write, only when the caller records changes.
             var was = wc.Changes != null ? new List<KeyValuePair<string, JToken>>() : null;
+            var written = new List<string>();
             if (properties != null)
             {
                 foreach (var kv in properties)
@@ -178,6 +179,7 @@ namespace DotAsset
                     {
                         break;
                     }
+                    written.Add(prop.propertyPath);
                 }
             }
             if (wc.Errors.Count == before && arrayOps != null)
@@ -212,8 +214,26 @@ namespace DotAsset
                     }
                 }
             }
+            var intended = new List<KeyValuePair<string, JToken>>();
+            foreach (string path in written)
+            {
+                intended.Add(new KeyValuePair<string, JToken>(path, ValueCodec.Read(so.FindProperty(path), ReadOptions.Plan, 0)));
+            }
             Commit(so, wc.UseUndo);
-            return true;
+            // Applying runs Unity's consistency checks and OnValidate, which can clamp or replace a value. Saving what
+            // Unity made of it instead of what the spec asked for would be a silent change, so the target fails.
+            so.Update();
+            foreach (var kv in intended)
+            {
+                SerializedProperty prop = so.FindProperty(kv.Key);
+                JToken now = prop != null ? ValueCodec.Read(prop, ReadOptions.Plan, 0) : JValue.CreateNull();
+                if (!JToken.DeepEquals(kv.Value, now))
+                {
+                    wc.Fail(null, "Unity changed " + kv.Key + " on " + Describe(target) + " after the write (OnValidate or a range check): wrote "
+                        + kv.Value.ToString(Newtonsoft.Json.Formatting.None) + ", now " + now.ToString(Newtonsoft.Json.Formatting.None));
+                }
+            }
+            return wc.Errors.Count == before;
         }
 
         static void Remember(List<KeyValuePair<string, JToken>> was, SerializedProperty prop)

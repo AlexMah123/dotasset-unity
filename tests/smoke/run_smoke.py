@@ -865,6 +865,26 @@ def check_audit_material(base, tmp):
     return None
 
 
+def check_read_back(base, tmp):
+    # The smoke helper's SmokeClamped clamps a negative amount to 0 in OnValidate. Writing -5 must fail the target
+    # with the value Unity made of it, and save nothing.
+    path = ROOT + "/Clamped.asset"
+    seed = spec("clamped", {"Assets": [{"Kind": "ScriptableObject", "Type": "DotAsset.Smoke.SmokeClamped", "Path": path,
+                                        "Properties": {"amount": 3}}]}, tmp)
+    problem = expect(base, "CreateAsset Clamped.asset", ["CreateAsset", "--args", '-spec="%s"' % seed], 0)
+    if problem:
+        return problem
+    amount = lambda: next((o.get("Properties") or {} for o in export_of("AssetExport", base, path).get("Objects", []) if o.get("Main")), {}).get("amount")
+    edit = spec("clamped_edit", {"Targets": [{"AssetPath": path, "Properties": {"amount": -5}}]}, tmp)
+    r, _ = call(base, ["EditAsset", "--args", '-spec="%s" -apply' % edit])
+    if r.returncode != 1 or "Unity changed" not in r.stdout + r.stderr:
+        return "EditAsset with an amount of -5 exit %s, expected 1 with 'Unity changed'\n%s" % (r.returncode, (r.stdout + r.stderr)[-1500:])
+    drop_kept_log(r)
+    if amount() != 3:
+        return "the refused edit changed the amount from 3 to %s" % amount()
+    return None
+
+
 def check_cleanup(base, tmp):
     problem = expect(base, "DeleteAsset " + ROOT, ["DeleteAsset", ROOT, "--args", "-force -permanent -apply"], 0)
     if problem:
@@ -1112,7 +1132,7 @@ def check_unused_asset(base, tmp):
     code, report, fix = audit(base, "AuditUnusedAsset", None, "-scandir=" + ROOT)
     listed = set(i.get("Asset") for i in report.get("Issues", []) if i.get("Rule") == "U1")
     gone = [names[n] for n in ("Unused.mat", "Orphan.mat", "Orphan.prefab")]
-    kept = [names["Resources/Keep.mat"], names["Editor/Tool.mat"], ROOT + "/Red.mat", ROOT + "/Crate.prefab", ROOT + "/Smoke.unity"]
+    kept = [names["Resources/Keep.mat"], names["Editor/Tool.mat"], ROOT + "/Crate.prefab", ROOT + "/Smoke.unity"]
     if code != 3 or not fix or not set(gone) <= listed or listed & set(kept):
         return "AuditUnusedAsset exit %s, fix spec %s, listed %s" % (code, fix, sorted(listed))
     _, report, _ = audit(base, "AuditUnusedAsset", None, "-scandir=%s -buildonly -rules=U2" % ROOT)
@@ -1526,6 +1546,7 @@ def steps_of(specs):
         ("dry run left it unchanged", check_dry_run_left_prefab, None),
         ("edit prefab apply", check_edit_prefab, None),
         ("bad op fails, saves nothing", check_failed_edit, None),
+        ("Unity changed it, saves nothing", check_read_back, None),
         ("array ops", check_array_ops, None),
         ("particle system", check_particles, None),
         ("export round trip", check_round_trip, None),

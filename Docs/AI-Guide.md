@@ -148,6 +148,7 @@ Audit reports land in `Library/DotAsset/Audit/`, with `-report=` to choose the p
 | `EditScene` on a scene with unsaved changes in the editor | Refused, the run would mix your changes with the user's. Save or discard first |
 | `EditScene` while the editor shows an Untitled scene | Unity cannot open a second scene next to an Untitled one. Save it first |
 | `EditPrefab` on a prefab open in Prefab Mode with unsaved changes | Refused for the same reason |
+| `Unity changed <property> ... after the write` | `OnValidate` or a range check replaced the value. Nothing was saved. Write a value the object keeps |
 | Any run that writes (`EditMaterial`, `EditAsset`, `EditAnimatorController`, `EditImporter`, `EditPrefab`, `RemapReference`, `ResaveAsset`, `DeleteAsset`) on an asset with unsaved changes in the editor | That target fails with "has unsaved changes in the editor", the file is untouched and the user's changes stay in the editor. Ask the user to save (File > Save Project) or discard them, then run again |
 | Editing a model (`.fbx`) as a prefab | Refused, its hierarchy comes from the importer. Create a variant with `CreateAsset` `PrefabVariant`, or change the import with `EditImporter` |
 | `RemapScript`, `RenameField` or the fast pass of `AuditMissingReference` reports nothing | They read YAML. Project Settings > Editor > Asset Serialization Mode must be Force Text |

@@ -218,6 +218,9 @@ def check_missing_script(base, tmp):
         "  m_Name: ", "  m_EditorClassIdentifier: ", ""])
     with open(path, "w", encoding="utf-8", newline="") as f:
         f.write(text)
+    problem = fresh_host(base)
+    if problem:
+        return problem
     code, report, fix = audit(base, "AuditMissingReference", ROOT)
     if code != 3 or not issues(report, "R2", ghost) or not fix:
         return "AuditMissingReference exit %s did not report R2 on Ghost.prefab with a fix spec: %s" % (code, report.get("Counts"))
@@ -973,6 +976,9 @@ def check_rebind_animation(base, tmp):
                     "  m_EditorCurves:", curves, "  m_Events: []", ""])
     with open(os.path.join(project_of(base), *clip.split("/")), "w", encoding="utf-8", newline="") as f:
         f.write(text)
+    problem = fresh_host(base)
+    if problem:
+        return problem
 
     def paths():
         dump = json.dumps(export_of("AssetExport", base, clip))
@@ -1007,6 +1013,9 @@ def check_remap_script(base, tmp):
         return "skip: needs the editor closed, scripts written to disk only compile when Unity starts"
     for name, guid in SCRIPT_GUIDS.items():
         write_script(base, name, guid, "public int hp = 3;")
+    problem = fresh_host(base)
+    if problem:
+        return problem
     unit = ROOT + "/Unit.prefab"
     seed = spec("unit", {"Assets": [{"Kind": "Prefab", "Path": unit, "Root": "Unit",
                                      "Components": [{"Type": "DotAssetSmokeOld", "Properties": {"hp": 7}}]}]}, tmp)
@@ -1055,6 +1064,9 @@ def check_rename_field(base, tmp):
     if editor_open(base):
         return "skip: needs the editor closed, scripts written to disk only compile when Unity starts"
     write_script(base, "DotAssetSmokeField", FIELD_GUID, "public int health = 1;")
+    problem = fresh_host(base)
+    if problem:
+        return problem
     field, variant, holder, scene = (ROOT + "/" + n for n in ("Field.prefab", "FieldVariant.prefab", "FieldHolder.prefab", "FieldScene.unity"))
     comp = "DotAssetSmokeField"
     seed = spec("field", {"Assets": [
@@ -1079,6 +1091,9 @@ def check_rename_field(base, tmp):
             return "%s has no health key or override after CreateAsset" % p
         with open(os.path.join(project_of(base), *p.split("/")), "w", encoding="utf-8", newline="\n") as f:
             f.write(re.sub(r"(?m)^  health:", "  hp:", t).replace("propertyPath: health", "propertyPath: hp"))
+    problem = fresh_host(base)
+    if problem:
+        return problem
     problem = expect(base, "RenameField while the class has the field", ["RenameField", "--args",
                      "-script=%s/%s.cs -from=health -to=hp -scandir=%s" % (ROOT, comp, ROOT)], 2)
     if problem:
@@ -1090,8 +1105,10 @@ def check_rename_field(base, tmp):
         return "the RenameField dry run exit %s, planned %s, expected %s" % (r.returncode, planned, sorted(files))
     if "health" in text(field):
         return "the RenameField dry run changed Field.prefab"
+    # One migration -apply keeps the cold batch route, the steps above it run through the host.
+    hosted = HOSTED[0]
     argv[-1] += " -apply"
-    problem = expect(base, "RenameField -apply", argv, 0)
+    problem = host(base, HOSTED, False) or expect(base, "RenameField -apply", argv, 0) or host(base, HOSTED, hosted)
     if problem:
         return problem
     left = [p for p in files if re.search(r"(?m)^  hp:|propertyPath: hp\b", text(p))]
@@ -1165,12 +1182,18 @@ def check_serialize_reference_type(base, tmp):
         return "skip: needs the editor closed, scripts written to disk only compile when Unity starts"
     asset = ROOT + "/Ref.asset"
     write_script(base, "DotAssetSmokeRef", REF_GUID, None, REF_SOURCE % ("", "", ""))
+    problem = fresh_host(base)
+    if problem:
+        return problem
     seed = spec("ref", {"Assets": [{"Kind": "ScriptableObject", "Type": "DotAssetSmokeRef", "Path": asset,
                                     "Properties": {"item": {"x": 7}}}]}, tmp)
     problem = expect(base, "CreateAsset Ref.asset", ["CreateAsset", "--args", '-spec="%s"' % seed], 0)
     if problem:
         return problem
     write_script(base, "DotAssetSmokeRef", REF_GUID, None, REF_SOURCE % ("namespace DotAssetSmokeNs { ", " }", "DotAssetSmokeNs."))
+    problem = fresh_host(base)
+    if problem:
+        return problem
     old, new = "Assembly-CSharp DotAssetSmokeRefItem", "Assembly-CSharp DotAssetSmokeNs.DotAssetSmokeRefItem"
     code, report, _ = audit(base, "AuditMissingReference", ROOT)
     groups = [g for g in report.get("MissingTypes") or [] if g.get("Type") == old]
@@ -1342,12 +1365,33 @@ def check_edit_asset(base, tmp):
         return "the EditAsset dry run's plan has no render queue change to 2460: %s" % res.get("Plan")
     if export_of("MaterialExport", base, ROOT + "/Red.mat").get("RenderQueue") == 2460:
         return "the EditAsset dry run saved the render queue"
-    r = subprocess.run(base + ["EditAsset", "--args", '-spec="%s" -apply' % path], capture_output=True, text=True)
+    r, _ = call(base, ["EditAsset", "--args", '-spec="%s" -apply' % path])
     if r.returncode != 0:
         return run_failed("EditAsset -apply", r)
     queue = export_of("MaterialExport", base, ROOT + "/Red.mat").get("RenderQueue")
     if queue != 2460:
         return "after EditAsset -apply the render queue is %s, expected 2460" % queue
+    return None
+
+
+def check_no_op_edit(base, tmp):
+    # An -apply whose values are already there must leave the files alone, bytes and modification time, or every
+    # rerun of a spec rewrites the project and shows up in version control.
+    mass = ((component(crate(), "Crate", "Rigidbody") or {}).get("Properties") or {}).get("m_Mass")
+    queue = export_of("MaterialExport", base, ROOT + "/Red.mat").get("RenderQueue")
+    runs = [
+        ("EditPrefab", ROOT + "/Crate.prefab", {"Targets": [{"AssetPath": ROOT + "/Crate.prefab", "Ops": [
+            {"Op": "Set", "Path": "Crate", "Component": "Rigidbody", "Properties": {"m_Mass": mass}}]}]}),
+        ("EditAsset", ROOT + "/Red.mat", {"Targets": [{"AssetPath": ROOT + "/Red.mat", "Properties": {"m_CustomRenderQueue": queue}}]}),
+    ]
+    for run, asset, data in runs:
+        path = os.path.join(project_of(base), *asset.split("/"))
+        before = (open(path, "rb").read(), os.path.getmtime(path))
+        problem = expect(base, run + " with no change -apply", [run, "--args", '-spec="%s" -apply' % spec("noop", data, tmp)], 0)
+        if problem:
+            return problem
+        if (open(path, "rb").read(), os.path.getmtime(path)) != before:
+            return "%s -apply with the values already there rewrote %s" % (run, asset)
     return None
 
 
@@ -1363,6 +1407,9 @@ def check_importer(base, tmp):
         return "skip: needs the editor closed, a new texture file is only imported when Unity starts"
     texture = ROOT + "/Rock_n.png"
     write_png(os.path.join(project_of(base), *texture.split("/")))
+    problem = fresh_host(base)
+    if problem:
+        return problem
     kind = texture_type(base, texture)
     if kind != "Default":
         return "a fresh texture exports TextureType %s, expected Default" % kind
@@ -1487,7 +1534,7 @@ def run(args, tmp):
     failed, skipped, not_run = 0, 0, 0
     # Headless route: a warm --serve host takes most steps, the COLD ones still launch Unity per run.
     headless = not editor_open(base)
-    hosted = [False]
+    hosted = HOSTED
     try:
         for name, argv, expected in steps:
             if failed and not args.keep_going:
@@ -1597,6 +1644,7 @@ def steps_of(specs):
         ("settle: edit, reload", check_settle, None),
         ("edit material dry and apply", check_edit_material, None),
         ("edit asset dry and apply", check_edit_asset, None),
+        ("no change, no write", check_no_op_edit, None),
         ("edit controller dry, apply", check_edit_controller, None),
         ("exports leave assets as is", check_exports_read_only, None),
         ("-outdir and -report", check_output_options, None),
@@ -1624,9 +1672,20 @@ def steps_of(specs):
     ]
 
 
-# Headless steps that launch Unity per run even with a warm host: create, an export, an edit with -apply, a failing
-# run, and the two that need a fresh start to import a file the test wrote.
-COLD = ("catalog", "create", "prefab export", "edit prefab apply", "bad op fails", "missing script", "texture audit", "rebind", "remap script", "rename field", "serialize reference type")
+# Headless steps that launch Unity per run even with a warm host, so the batch route stays tested: create, an
+# export, an edit with -apply and a failing run. Steps that write files restart the host instead (fresh_host).
+COLD = ("catalog", "create", "prefab export", "edit prefab apply", "bad op fails")
+
+
+HOSTED = [False]
+
+
+def fresh_host(base):
+    """Restarts the warm host after a step wrote files to disk, Unity imports and compiles them when it starts.
+    Without a host the next call launches Unity anyway. A problem or None."""
+    if not HOSTED[0]:
+        return None
+    return host(base, HOSTED, False) or host(base, HOSTED, True)
 
 
 def host(base, hosted, want):

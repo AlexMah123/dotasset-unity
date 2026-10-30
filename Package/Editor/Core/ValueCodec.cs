@@ -27,6 +27,9 @@ namespace DotAsset
         }
 
         public static readonly ReadOptions Unbounded = new ReadOptions { MaxArray = int.MaxValue, MaxString = int.MaxValue };
+
+        // Small enough that a dry run's plan stays short.
+        public static readonly ReadOptions Plan = new ReadOptions { MaxArray = 20, MaxString = 200, MaxDepth = 4 };
     }
 
     public sealed class WriteContext
@@ -35,6 +38,8 @@ namespace DotAsset
         // Record undo for scene edits so a failed or dry run can be reverted, and an applied one undone by hand.
         public bool UseUndo;
         public readonly List<string> Errors = new List<string>();
+        // When set, a successful write adds {"Property", "Before", "After"} for each value it changed.
+        public List<JObject> Changes;
 
         public void Fail(SerializedProperty prop, string message)
         {

@@ -152,6 +152,7 @@ namespace DotAsset
                 ctx.Log.Info((ctx.DryRun ? "would repoint " : "repointed ") + hits + " script reference(s) in " + path);
                 if (ctx.DryRun)
                 {
+                    ctx.PlanFile("rewrite", path, hits + " script reference(s) to " + to);
                     continue;
                 }
                 try

@@ -79,6 +79,10 @@ namespace DotAsset
                 using (var snapshot = new AssetSnapshot(obj))
                 {
                     var wc = new WriteContext { Scope = RefScope.None, UseUndo = false };
+                    if (ctx.DryRun)
+                    {
+                        wc.Changes = new List<JObject>();
+                    }
                     bool ok = PropertyIO.Write(obj, properties, arrayOps, wc);
                     if (!ok || ctx.TargetFailed())
                     {
@@ -91,6 +95,7 @@ namespace DotAsset
                     }
                     if (ctx.DryRun)
                     {
+                        ctx.PlanChanges(label, wc.Changes);
                         continue;
                     }
                     EditorUtility.SetDirty(obj);

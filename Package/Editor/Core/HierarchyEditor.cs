@@ -37,6 +37,9 @@ namespace DotAsset
         public readonly List<string> Errors = new List<string>();
         public int Changes { get; private set; }
 
+        // Set on dry runs: every property value the ops changed, {Object, Property, Before, After}.
+        public List<JObject> PlanChanges;
+
         // A scene: roots may be added. A prefab: everything stays under its one root.
         public HierarchyEditor(Scene scene, bool useUndo, RunLog log)
         {
@@ -217,6 +220,10 @@ namespace DotAsset
                         continue;
                     }
                     HierarchyEditor editor = editorFor(session);
+                    if (ctx.DryRun)
+                    {
+                        editor.PlanChanges = new List<JObject>();
+                    }
                     if (!editor.Apply(ops) || ctx.TargetFailed())
                     {
                         ctx.FailTarget(path, editor.Errors.Count > 0 ? editor.Errors[0] : ctx.TargetError);
@@ -224,6 +231,7 @@ namespace DotAsset
                     }
                     if (ctx.DryRun)
                     {
+                        ctx.PlanChanges(path, editor.PlanChanges);
                         ctx.Log.Info(path + ": " + editor.Changes + " op(s) would apply");
                         continue;
                     }
@@ -798,6 +806,10 @@ namespace DotAsset
         bool WriteProperties(Object target, JObject properties, JArray arrayOps, string label)
         {
             var wc = new WriteContext { Scope = scope, UseUndo = useUndo };
+            if (PlanChanges != null)
+            {
+                wc.Changes = new List<JObject>();
+            }
             if (!PropertyIO.Write(target, properties, arrayOps, wc))
             {
                 foreach (string e in wc.Errors)
@@ -805,6 +817,16 @@ namespace DotAsset
                     Fail(label, e);
                 }
                 return false;
+            }
+            if (wc.Changes != null)
+            {
+                string where = PropertyIO.Describe(target);
+                foreach (JObject change in wc.Changes)
+                {
+                    var entry = new JObject { ["Object"] = where };
+                    entry.Merge(change);
+                    PlanChanges.Add(entry);
+                }
             }
             return true;
         }

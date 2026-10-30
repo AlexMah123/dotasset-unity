@@ -22,6 +22,8 @@ Every Edit run takes `-spec=<path>` and `-apply`, nothing else. The spec is `{"T
 
 A dry run executes everything a real run does and checks it just as hard; it only skips the save and then drops the changes. It works on both routes, including a scene open in the editor (the changes are reverted through undo).
 
+A dry run also returns its plan: `Plan` in the `--json` result and `plan:` lines in the wrapper's output. A value change is `{Target, Object, Property, Before, After}`, where `Property` is the serialized property path. A file the run would write is `{Action, Path, Detail}`. The plan holds at most 500 entries, past that `PlanTruncated` is true.
+
 A scene open in the editor is edited in place on one undo group and saved. Some of what a run adds is completed by Unity on a later frame (a new Light gets its baking state), which marks the scene changed again; the editor queue saves it again before it reports the run, so the scene is left clean and the next edit is not refused. If someone edits the scene in that short wait, their changes are left unsaved and the run reports it with a warning. If Unity reloads scripts in that wait, the run still reports its own result, with a warning to check the scene. `--open-scene` opens a scene for this without anyone at the machine.
 
 Failure: `<RunName> failed for <target>. Reason: <first error>`. Nothing of that target is saved, the other targets still run. Errors Unity itself logs while a target is written (a component that refuses to be removed, a script exception in `OnValidate`) also fail the target.

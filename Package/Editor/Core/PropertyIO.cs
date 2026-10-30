@@ -162,6 +162,8 @@ namespace DotAsset
         {
             int before = wc.Errors.Count;
             var so = new SerializedObject(target);
+            // Property path -> value before the write, only when the caller records changes.
+            var was = wc.Changes != null ? new List<KeyValuePair<string, JToken>>() : null;
             if (properties != null)
             {
                 foreach (var kv in properties)
@@ -171,6 +173,7 @@ namespace DotAsset
                     {
                         break;
                     }
+                    Remember(was, prop);
                     if (!ValueCodec.Write(prop, kv.Value, wc))
                     {
                         break;
@@ -179,6 +182,16 @@ namespace DotAsset
             }
             if (wc.Errors.Count == before && arrayOps != null)
             {
+                if (was != null)
+                {
+                    var scratch = new WriteContext();
+                    foreach (JToken op in arrayOps)
+                    {
+                        string key = Json.Str(op, "Property");
+                        SerializedProperty array = key != null ? Find(so, key, scratch) : null;
+                        Remember(was, array);
+                    }
+                }
                 ApplyArrayOps(so, arrayOps, wc);
             }
             if (wc.Errors.Count != before)
@@ -187,8 +200,36 @@ namespace DotAsset
                 // early so its fields can be written, which the caller's session or snapshot rolls back.
                 return false;
             }
+            if (was != null)
+            {
+                foreach (var kv in was)
+                {
+                    SerializedProperty prop = so.FindProperty(kv.Key);
+                    JToken now = prop != null ? ValueCodec.Read(prop, ReadOptions.Plan, 0) : JValue.CreateNull();
+                    if (!JToken.DeepEquals(kv.Value, now))
+                    {
+                        wc.Changes.Add(new JObject { ["Property"] = kv.Key, ["Before"] = kv.Value, ["After"] = now });
+                    }
+                }
+            }
             Commit(so, wc.UseUndo);
             return true;
+        }
+
+        static void Remember(List<KeyValuePair<string, JToken>> was, SerializedProperty prop)
+        {
+            if (was == null || prop == null)
+            {
+                return;
+            }
+            foreach (var kv in was)
+            {
+                if (kv.Key == prop.propertyPath)
+                {
+                    return;
+                }
+            }
+            was.Add(new KeyValuePair<string, JToken>(prop.propertyPath, ValueCodec.Read(prop, ReadOptions.Plan, 0)));
         }
 
         // [{"Property": "items", "Insert": 2, "Value": {...}}, {"Property": "items", "Append": {...}}, {"Property": "items", "Remove": 3}]

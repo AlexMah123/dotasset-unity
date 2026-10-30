@@ -69,7 +69,7 @@ python dotasset.py SceneExport Assets/Scenes/Main.unity --args "-subtree=Environ
 python dotasset.py TypeCatalogExport --args "-filter=Rigidbody"
 ```
 
-Import and Edit. Targets are named in the spec, `AssetList` stays empty. Without `-apply`, Edit runs every op, reports, and drops the result.
+Import and Edit. Targets are named in the spec, `AssetList` stays empty. Without `-apply`, Edit runs every op, reports, and drops the result. Read the dry run's `Plan` (value changes with `Before` and `After`, files it would write) to confirm the change before you apply it.
 
 ```bash
 python dotasset.py CreateAsset --args '-spec="C:/temp/create.json"'

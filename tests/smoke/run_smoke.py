@@ -167,9 +167,12 @@ def check_resave(base, tmp):
     before = fingerprint(base)
     exports = lambda: (crate().get("Hierarchy"), export_of("SceneExport", base, ROOT + "/Smoke.unity").get("Hierarchy"))
     content = exports()
-    problem = expect(base, "ResaveAsset dry run", ["ResaveAsset", ROOT], 0)
-    if problem:
-        return problem
+    r, res = call(base, ["ResaveAsset", ROOT])
+    if r.returncode != 0:
+        return run_failed("ResaveAsset dry run", r)
+    planned = [p.get("Path") for p in res.get("Plan") or [] if p.get("Action") == "resave"]
+    if ROOT + "/Crate.prefab" not in planned:
+        return "the ResaveAsset dry run's plan does not list Crate.prefab: %s" % res.get("Plan")
     after = fingerprint(base)
     changed = sorted(k for k in set(before) | set(after) if before.get(k) != after.get(k))
     if changed:
@@ -537,9 +540,12 @@ def check_particles(base, tmp):
 
 def check_edit_material(base, tmp):
     argv = ["EditMaterial", "--args", '-spec="%s"' % SPECS["edit_mat"]]
-    problem = expect(base, "EditMaterial dry run", argv, 0)
-    if problem:
-        return problem
+    r, res = call(base, argv)
+    if r.returncode != 0:
+        return run_failed("EditMaterial dry run", r)
+    # The dry run's plan names each file it would write.
+    if not any(p.get("Action") == "write" and p.get("Path") == ROOT + "/Red.mat" for p in res.get("Plan") or []):
+        return "the EditMaterial dry run's plan does not list Red.mat: %s" % res.get("Plan")
     if export_of("MaterialExport", base, ROOT + "/Red.mat").get("RenderQueue") == 2450:
         return "the EditMaterial dry run saved the render queue"
     argv[-1] += " -apply"
@@ -914,9 +920,12 @@ def run_failed(label, r):
 def check_edit_asset(base, tmp):
     # EditAsset on a native asset: the material's render queue, read back through MaterialExport.
     path = spec("edit_asset", {"Targets": [{"AssetPath": ROOT + "/Red.mat", "Properties": {"m_CustomRenderQueue": 2460}}]}, tmp)
-    r = subprocess.run(base + ["EditAsset", "--args", '-spec="%s"' % path], capture_output=True, text=True)
+    r, res = call(base, ["EditAsset", "--args", '-spec="%s"' % path])
     if r.returncode != 0:
         return run_failed("EditAsset dry run", r)
+    # The dry run's plan names each value it would change, before and after.
+    if not any(p.get("Property") == "m_CustomRenderQueue" and p.get("After") == 2460 and p.get("Before") != 2460 for p in res.get("Plan") or []):
+        return "the EditAsset dry run's plan has no render queue change to 2460: %s" % res.get("Plan")
     if export_of("MaterialExport", base, ROOT + "/Red.mat").get("RenderQueue") == 2460:
         return "the EditAsset dry run saved the render queue"
     r = subprocess.run(base + ["EditAsset", "--args", '-spec="%s" -apply' % path], capture_output=True, text=True)

@@ -76,6 +76,7 @@ namespace DotAsset
                     if (ctx.DryRun)
                     {
                         ctx.Log.Info("would write " + path);
+                        ctx.PlanFile("write", path, null);
                         continue;
                     }
                     EditorUtility.SetDirty(mat);

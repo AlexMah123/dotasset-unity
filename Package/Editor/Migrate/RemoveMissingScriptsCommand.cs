@@ -90,6 +90,10 @@ namespace DotAsset
                 {
                     ctx.WarnIfSavedWithErrors(path);
                 }
+                if (removed > 0)
+                {
+                    ctx.PlanFile("rewrite", path, removed + " missing script component(s)");
+                }
                 total += removed;
             }
             ctx.Log.Info((ctx.DryRun ? "would remove " : "removed ") + total + " missing script component(s) in " + paths.Count + " file(s) checked");

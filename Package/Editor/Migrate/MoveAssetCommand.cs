@@ -89,6 +89,7 @@ namespace DotAsset
                 if (ctx.DryRun)
                 {
                     ctx.Log.Info("would move " + label);
+                    ctx.PlanFile("move", from, to);
                     plan.Move(from, to);
                     continue;
                 }

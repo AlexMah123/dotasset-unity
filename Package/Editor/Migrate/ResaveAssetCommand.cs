@@ -112,6 +112,10 @@ namespace DotAsset
             }
             if (ctx.DryRun)
             {
+                foreach (string p in list)
+                {
+                    ctx.PlanFile("resave", p, null);
+                }
                 ctx.Log.Info(list.Count + " asset(s) would be resaved");
                 return ctx.FailedTargets.Count > 0 ? ExitCode.Failed : ExitCode.Success;
             }

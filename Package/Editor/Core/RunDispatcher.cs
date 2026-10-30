@@ -25,10 +25,12 @@ namespace DotAsset
         public List<string> Outputs = new List<string>();
         public List<string> FailedTargets = new List<string>();
         public List<string> Lines = new List<string>();
+        public List<JObject> Plan = new List<JObject>();
+        public bool PlanTruncated;
 
         public JObject ToJson()
         {
-            return new JObject
+            var json = new JObject
             {
                 ["DotAssetVersion"] = DotAssetVersion.Version,
                 ["RunName"] = RunName,
@@ -44,6 +46,13 @@ namespace DotAsset
                 ["FailedTargets"] = new JArray(FailedTargets.Select(o => (object)o).ToArray()),
                 ["Lines"] = new JArray(Lines.Select(o => (object)o).ToArray()),
             };
+            // Dry runs only, so a writing run's result keeps its old shape.
+            if (DryRun)
+            {
+                json["Plan"] = new JArray(Plan.Select(o => (object)o).ToArray());
+                json["PlanTruncated"] = PlanTruncated;
+            }
+            return json;
         }
     }
 
@@ -110,6 +119,8 @@ namespace DotAsset
             result.DryRun = ctx.DryRun;
             result.Outputs.AddRange(ctx.Outputs);
             result.FailedTargets.AddRange(ctx.FailedTargets);
+            result.Plan.AddRange(ctx.Plan);
+            result.PlanTruncated = ctx.PlanTruncated;
             result.Seconds = watch.Elapsed.TotalSeconds;
             result.Summary = BuildSummary(ctx, code, result.Seconds);
             log.Info(result.Summary);

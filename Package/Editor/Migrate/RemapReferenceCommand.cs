@@ -177,6 +177,7 @@ namespace DotAsset
                     changedAssets++;
                     changedRefs += count;
                     ctx.Log.Info((ctx.DryRun ? "would repoint " : "repointed ") + count + " reference(s) in " + path);
+                    ctx.PlanFile("rewrite", path, count + " reference(s)");
                 }
             }
             ctx.Log.Info((ctx.DryRun ? "would change " : "changed ") + changedRefs + " reference(s) in " + changedAssets + " asset(s)");

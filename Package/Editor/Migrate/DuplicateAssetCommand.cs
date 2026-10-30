@@ -59,6 +59,7 @@ namespace DotAsset
                 if (ctx.DryRun)
                 {
                     ctx.Log.Info("would copy " + label);
+                    ctx.PlanFile("copy", copy.Key, copy.Value);
                     continue;
                 }
                 string error;

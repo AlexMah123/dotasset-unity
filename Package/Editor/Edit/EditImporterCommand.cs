@@ -130,6 +130,7 @@ namespace DotAsset
             }
             ctx.BeginTarget();
             var errors = new List<string>();
+            List<JObject> changes = null;
             using (var snapshot = new AssetSnapshot(importer))
             {
                 JToken tex = Json.Get(target, "Texture");
@@ -147,10 +148,15 @@ namespace DotAsset
                 if (errors.Count == 0 && props != null)
                 {
                     var wc = new WriteContext();
+                    if (ctx.DryRun)
+                    {
+                        wc.Changes = new List<JObject>();
+                    }
                     if (!PropertyIO.Write(importer, props, null, wc))
                     {
                         errors.AddRange(wc.Errors);
                     }
+                    changes = wc.Changes;
                 }
                 if (errors.Count > 0 || ctx.TargetFailed())
                 {
@@ -160,6 +166,8 @@ namespace DotAsset
                 if (ctx.DryRun)
                 {
                     ctx.Log.Info("would reimport " + path);
+                    ctx.PlanChanges(path, changes);
+                    ctx.PlanFile("reimport", path, tex != null ? "Texture settings" : null);
                     return true;
                 }
                 snapshot.Commit();

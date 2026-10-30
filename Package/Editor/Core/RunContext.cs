@@ -1,4 +1,5 @@
 using System.Collections.Generic;
+using Newtonsoft.Json.Linq;
 using UnityEditor;
 
 namespace DotAsset
@@ -22,6 +23,11 @@ namespace DotAsset
         public readonly List<string> Outputs = new List<string>();
 
         public readonly List<string> FailedTargets = new List<string>();
+
+        // What a dry run would change: {"Target", "Property", "Before", "After"} or {"Action", "Path", "Detail"}.
+        public readonly List<JObject> Plan = new List<JObject>();
+        public const int MaxPlan = 500;
+        public bool PlanTruncated { get; private set; }
 
         // Edit and Migrate write only with -apply. Import and Audit accept it and ignore it.
         public bool Apply
@@ -83,6 +89,48 @@ namespace DotAsset
         {
             FailedTargets.Add(target);
             Log.Error(RunName + " failed for " + target + ". Reason: " + reason);
+        }
+
+        // Records the property changes a dry run would make to target. Does nothing when the run writes.
+        public void PlanChanges(string target, List<JObject> changes)
+        {
+            if (!DryRun || changes == null)
+            {
+                return;
+            }
+            foreach (JObject change in changes)
+            {
+                var entry = new JObject { ["Target"] = target };
+                entry.Merge(change);
+                AddPlan(entry);
+            }
+        }
+
+        // Records a file a dry run would create, move, delete or rewrite. Does nothing when the run writes.
+        public void PlanFile(string action, string path, string detail)
+        {
+            if (!DryRun)
+            {
+                return;
+            }
+            var entry = new JObject { ["Action"] = action, ["Path"] = path };
+            if (detail != null)
+            {
+                entry["Detail"] = detail;
+            }
+            AddPlan(entry);
+        }
+
+        void AddPlan(JObject entry)
+        {
+            if (Plan.Count < MaxPlan)
+            {
+                Plan.Add(entry);
+            }
+            else
+            {
+                PlanTruncated = true;
+            }
         }
 
         public void AddOutput(string absolutePath)

@@ -374,6 +374,10 @@ def print_result(result, quiet):
             print("warning: " + text, flush=True)
         elif not quiet:
             print(text, flush=True)
+    for entry in result.get("Plan") or []:
+        print("plan: " + plan_line(entry), flush=True)
+    if result.get("PlanTruncated"):
+        print("plan: truncated, narrow the run to see the rest", flush=True)
     for out in result.get("Outputs") or []:
         if not os.path.exists(out):
             print("missing output: " + out, flush=True)
@@ -382,6 +386,17 @@ def print_result(result, quiet):
     log(result.get("Summary") or "no summary")
     if result.get("LogFile"):
         log("log: " + result["LogFile"])
+
+
+def plan_line(entry):
+    # A property change: {Target, Object?, Property, Before, After}. A file action: {Action, Path, Detail?}.
+    if "Action" in entry:
+        return " ".join(str(entry[k]) for k in ("Action", "Path", "Detail") if entry.get(k) is not None)
+    where = entry.get("Target", "")
+    if entry.get("Object"):
+        where += " [" + str(entry["Object"]) + "]"
+    return "%s %s: %s -> %s" % (where, entry.get("Property"),
+                                json.dumps(entry.get("Before")), json.dumps(entry.get("After")))
 
 
 def exit_code_of(result):

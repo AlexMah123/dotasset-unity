@@ -108,6 +108,10 @@ namespace DotAsset
                     if (ctx.DryRun)
                     {
                         ctx.Log.Info(path + ": " + ops.Count + " op(s) would apply");
+                        foreach (JToken op in ops)
+                        {
+                            ctx.PlanFile("op", path, Json.Str(op, "Op"));
+                        }
                         continue;
                     }
                     EditorUtility.SetDirty(controller);

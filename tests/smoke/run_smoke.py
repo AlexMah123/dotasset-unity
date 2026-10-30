@@ -1034,11 +1034,11 @@ def check_remap_script(base, tmp):
     return None
 
 
-def write_script(base, name, guid, body):
-    """A MonoBehaviour script under ROOT with a known GUID. It compiles at the next Unity start."""
+def write_script(base, name, guid, body, source=None):
+    """A MonoBehaviour script under ROOT with a known GUID, or the given source. It compiles at the next Unity start."""
     path = os.path.join(project_of(base), *(ROOT + "/" + name + ".cs").split("/"))
     with open(path, "w", encoding="utf-8", newline="\n") as f:
-        f.write("using UnityEngine;\n\npublic class %s : MonoBehaviour\n{\n    %s\n}\n" % (name, body))
+        f.write(source or "using UnityEngine;\n\npublic class %s : MonoBehaviour\n{\n    %s\n}\n" % (name, body))
     with open(path + ".meta", "w", encoding="utf-8", newline="\n") as f:
         f.write("fileFormatVersion: 2\nguid: %s\nMonoImporter:\n  externalObjects: {}\n  serializedVersion: 2\n"
                 "  defaultReferences: []\n  executionOrder: 0\n  icon: {instanceID: 0}\n  userData: \n"
@@ -1148,6 +1148,48 @@ def check_unused_asset(base, tmp):
     left = [p for p in gone if on_disk(base, p)] + ["missing " + p for p in kept if not on_disk(base, p)]
     if left:
         return "after DeleteAsset of the fix spec: %s" % left
+    return None
+
+
+REF_GUID = "d07a55e7f1e1d0000000000000000aef"
+REF_SOURCE = ("using System;\nusing UnityEngine;\n\n"
+              "[Serializable] public abstract class DotAssetSmokeRefBase { public int x; }\n"
+              "%s[Serializable] public class DotAssetSmokeRefItem : DotAssetSmokeRefBase { }%s\n"
+              "public class DotAssetSmokeRef : ScriptableObject { [SerializeReference] public DotAssetSmokeRefBase item = new %sDotAssetSmokeRefItem(); }\n")
+
+
+def check_serialize_reference_type(base, tmp):
+    # [SerializeReference] data saved under DotAssetSmokeRefItem, then the class moves into a namespace. The audit must
+    # report R5 with the moved class as a candidate, and the rename must bring the data back under it, x kept.
+    if editor_open(base):
+        return "skip: needs the editor closed, scripts written to disk only compile when Unity starts"
+    asset = ROOT + "/Ref.asset"
+    write_script(base, "DotAssetSmokeRef", REF_GUID, None, REF_SOURCE % ("", "", ""))
+    seed = spec("ref", {"Assets": [{"Kind": "ScriptableObject", "Type": "DotAssetSmokeRef", "Path": asset,
+                                    "Properties": {"item": {"x": 7}}}]}, tmp)
+    problem = expect(base, "CreateAsset Ref.asset", ["CreateAsset", "--args", '-spec="%s"' % seed], 0)
+    if problem:
+        return problem
+    write_script(base, "DotAssetSmokeRef", REF_GUID, None, REF_SOURCE % ("namespace DotAssetSmokeNs { ", " }", "DotAssetSmokeNs."))
+    old, new = "Assembly-CSharp DotAssetSmokeRefItem", "Assembly-CSharp DotAssetSmokeNs.DotAssetSmokeRefItem"
+    code, report, _ = audit(base, "AuditMissingReference", ROOT)
+    groups = [g for g in report.get("MissingTypes") or [] if g.get("Type") == old]
+    if code != 3 or not issues(report, "R5", asset) or not groups or new not in groups[0].get("Candidates", []):
+        return "AuditMissingReference exit %s, R5 %s, MissingTypes %s" % (code, issues(report, "R5", asset), report.get("MissingTypes"))
+    argv = ["RenameSerializeReferenceType", "--args", '-from="%s" -to=DotAssetSmokeNs.DotAssetSmokeRefItem -scandir=%s' % (old, ROOT)]
+    r, res = call(base, argv)
+    if r.returncode != 0 or not any(p.get("Action") == "rewrite" and p.get("Path") == asset for p in res.get("Plan") or []):
+        return "the RenameSerializeReferenceType dry run exit %s, plan %s" % (r.returncode, res.get("Plan"))
+    argv[-1] += " -apply"
+    problem = expect(base, "RenameSerializeReferenceType -apply", argv, 0)
+    if problem:
+        return problem
+    item = next((o.get("Properties") or {} for o in export_of("AssetExport", base, asset).get("Objects", []) if o.get("Main")), {}).get("item")
+    if not item or item.get("$type") != new or item.get("x") != 7:
+        return "after the rename item is %s, expected %s with x 7" % (item, new)
+    _, report, _ = audit(base, "AuditMissingReference", ROOT)
+    if issues(report, "R5", asset):
+        return "AuditMissingReference still reports R5 after the rename"
     return None
 
 
@@ -1575,6 +1617,7 @@ def steps_of(specs):
         ("rebind animation", check_rebind_animation, None),
         ("remap script by guid", check_remap_script, None),
         ("rename field", check_rename_field, None),
+        ("serialize reference type", check_serialize_reference_type, None),
         ("journal, undo, -atomic", check_journal_undo, None),
         ("editor states: pause, compile, play", check_editor_states, None),
         ("unused assets, audit and delete", check_unused_asset, None),
@@ -1583,7 +1626,7 @@ def steps_of(specs):
 
 # Headless steps that launch Unity per run even with a warm host: create, an export, an edit with -apply, a failing
 # run, and the two that need a fresh start to import a file the test wrote.
-COLD = ("catalog", "create", "prefab export", "edit prefab apply", "bad op fails", "missing script", "texture audit", "rebind", "remap script", "rename field")
+COLD = ("catalog", "create", "prefab export", "edit prefab apply", "bad op fails", "missing script", "texture audit", "rebind", "remap script", "rename field", "serialize reference type")
 
 
 def host(base, hosted, want):

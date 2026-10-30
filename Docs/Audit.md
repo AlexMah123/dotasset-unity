@@ -6,7 +6,7 @@ Read-only checks that write a report JSON, and a fix spec where a fix is mechani
 
 | RunName | Checks |
 | --- | --- |
-| `AuditMissingReference` | references to deleted assets, Missing Scripts, missing sub-objects, missing prefab sources (R1-R4) |
+| `AuditMissingReference` | references to deleted assets, Missing Scripts, missing sub-objects, missing prefab sources, `[SerializeReference]` data of a missing type (R1-R5) |
 | `AuditTexture` | texture import settings against how the texture is used (T1-T8) |
 | `AuditMaterial` | missing, broken or unsupported shaders, stale properties, stray keywords (M1-M5) |
 | `AuditUnusedAsset` | assets nothing in the project reaches, scenes outside Build Settings (U1-U2) |
@@ -72,6 +72,7 @@ T4 (Read/Write) is in the fix spec too, though a script may need the pixels; rem
 | R2 | Error | Missing Script: a component or ScriptableObject whose script GUID no script has |
 | R3 | Error | `-deep`: a reference that loads as nothing. Catches deleted sub-objects inside assets that still exist, which the text pass cannot see. Repeats R1 hits |
 | R4 | Error | `-deep`: a prefab instance whose source prefab is missing |
+| R5 | Error | `[SerializeReference]` data saved under a type no compiled class has, after a class was renamed or moved. Unity reads it as null and keeps it in the file |
 
 | Argument | Effect |
 | --- | --- |
@@ -79,6 +80,8 @@ T4 (Read/Write) is in the fix spec too, though a script may need the pixels; rem
 | `-deep` | also load every asset and check each reference (slower) |
 
 The default pass reads the YAML of every `.prefab`, `.unity`, `.asset`, `.mat`, `.controller`, `.anim` and similar file without loading it, and checks every `{fileID, guid, type}` against the AssetDatabase. It needs Force Text serialization; without it the run warns and does the deep pass instead. Built-in resources are not reported. The deep pass skips scenes; for a scene, `SceneExport` and a grep for `"Missing": true` does the same.
+
+R5 reads the `type: {class, ns, asm}` entries in the YAML. Outside scenes, Unity confirms each hit, so a type renamed with `[MovedFrom]` is not reported. The report's `MissingTypes` groups R5 by type with the files, compiled `Candidates` of the same class name (a type moved to another namespace or assembly), and a ready `RenameSerializeReferenceType` argument line.
 
 Issues carry `Guid`, `FileID`, `Field` (the YAML key) and `LocalId` (the object inside the file). The report's `MissingScripts` groups R2 by GUID with the files that use it and a ready `RemapScript` argument line.
 

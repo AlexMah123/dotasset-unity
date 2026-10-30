@@ -13,6 +13,7 @@ Asset-level moves and project-wide reference changes, the repairs after a rename
 | `RemapReference` | repoints every reference from one asset to another, prefab instances included |
 | `RemapScript` | repoints components and ScriptableObjects from one script GUID to another script |
 | `RenameField` | renames a serialized field of one script in assets and prefab overrides, values kept |
+| `RenameSerializeReferenceType` | repoints `[SerializeReference]` data from an old type name to a compiled type, values kept |
 | `RemoveMissingScripts` | removes Missing Script components from prefabs and scenes |
 | `RebindAnimation` | rewrites curve paths in `.anim` clips after a GameObject or bone was renamed or moved |
 | `RenameShaderProperty` | renames a saved shader property in `.mat` files, values kept |
@@ -25,6 +26,7 @@ Asset-level moves and project-wide reference changes, the repairs after a rename
 | An asset or folder needs a new path | `MoveAsset`. References are by GUID and survive; `Resources.Load` strings and hard-coded paths do not, the run lists the scripts that mention them |
 | A C# field was renamed | `RenameField -script=Assets/Scripts/X.cs -from=oldName -to=newName -apply` after the C# rename, before Unity saves the assets. Or `[FormerlySerializedAs("oldName")]`, `ResaveAsset -dependson=Assets/Scripts/X.cs -apply`, then remove the attribute |
 | A `.meta` was lost or regenerated, components show Missing Script | `AuditMissingReference` lists the old GUIDs, `RemapScript -from=<old guid> -to=Assets/Scripts/X.cs -apply` |
+| A class behind a `[SerializeReference]` field was renamed or moved | `AuditMissingReference` R5 lists the old type names, `RenameSerializeReferenceType -from="<assembly> <old type>" -to=<new type> -apply` |
 | A class moved to another file or assembly | `RemapScript -from=Assets/Old/X.cs -to=Assets/New/X.cs -apply` (by path while the old file still exists, by GUID after) |
 | Two materials, textures or ScriptableObjects should become one | `RemapReference -from=<old> -to=<new> -apply`, then `DeleteAsset <old> -apply` |
 | A prefab is replaced by another | `RemapReference` swaps its instances through Unity's Replace Prefab Asset and repoints fields that reference it |
@@ -126,6 +128,20 @@ python dotasset.py RenameField --args '-script=Assets/Scripts/Enemy.cs -from=hp 
 Rename the field in C# first, then run this before Unity saves the assets: Unity drops keys the class no longer has on the next save. It is refused while the class still has a field named `-from`, and warns when it has none named `-to`.
 
 Rewrites the top-level key in every MonoBehaviour and ScriptableObject document that uses the script, and the `propertyPath` of prefab overrides that target one of its components, through variants, nested prefabs and scenes (`hp`, `hp.x` and `hp.Array.data[0]` alike). Overrides of other components with a field of the same name are left alone. An object that already has a `-to` key fails its file, so does a file loaded in the editor, as for `RemapScript`. Top-level fields only: a field inside a `[Serializable]` class, `[SerializeReference]` data and animation curves that name the field are not followed. Needs Asset Serialization Mode = Force Text.
+
+## RenameSerializeReferenceType
+
+```bash
+python dotasset.py RenameSerializeReferenceType --args '-from="Assembly-CSharp Game.OldEffect" -to=Game.Effects.Burn -apply'
+```
+
+| Argument | Effect |
+| --- | --- |
+| `-from` | the old type as `<assembly> <namespace>.<class>`, the form `AuditMissingReference` R5 and exports use. Without the assembly, any assembly matches. A nested class is `Outer/Inner` |
+| `-to` | the compiled type the data should load as: a `[Serializable]` class, not abstract, generic or a `UnityEngine.Object` |
+| `-scandir=<dirs>` | default `Assets` |
+
+Rewrites `type: {class: ..., ns: ..., asm: ...}` in every YAML asset and reimports the changed files. Field values survive when the new class has fields of the same names. Unity keeps the data of a type it cannot load in the file, also through a resave, so this works long after the rename. `[MovedFrom]` on the new class is the alternative that leaves the files alone. Files loaded in the editor fail their target, as for `RemapScript`. Needs Asset Serialization Mode = Force Text.
 
 ## RemapScript
 

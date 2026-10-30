@@ -6,6 +6,14 @@ Defined in `Package/Editor/Core/DotAssetVersion.cs` and `Package/package.json`, 
 
 Versions follow one rule. A patch (0.1.x) holds fixes, test upgrades and docs. A minor version (0.x.0) adds something new to call: a run, an op, a spec key, an argument or a wrapper option. While on 0.x, a change that breaks existing calls is also a minor version, marked breaking here. 1.0.0 comes when runs, specs and export JSON are promised to stay stable.
 
+### 0.8.0
+
+- `RenameField` (Migrate): renames a serialized field after its C# rename, `-script=Assets/Scripts/Enemy.cs -from=hp -to=health`. Rewrites the key in every component and ScriptableObject of that script, and the prefab overrides that target them through variants, nested prefabs and scenes. Refused while the class still has the old field. Top-level fields only
+- `AuditUnusedAsset` (Audit): U1 lists assets no scene, Resources or Editor folder, project setting or Addressables entry reaches, U2 scenes outside Build Settings with `-buildonly`. The fix spec deletes U1 through `DeleteAsset`
+- `DeleteAsset -spec=<file>` takes `{"Assets": [...]}`, the fix spec of `AuditUnusedAsset`
+- Edit runs read back every property they wrote. A value `OnValidate` or a range check changed fails the target with both values, nothing of it is saved
+- Smoke test: every run that writes with `-apply` must keep a journal at least once. Steps for `RenameField`, `AuditUnusedAsset` with its fix, and a value `OnValidate` clamps
+
 ### 0.7.0
 
 - Run journal: every writing run (Import, and Edit or Migrate with `-apply`) keeps the files it touches, as they were, in `Library/DotAsset/Journal/<id>`, printed as an `out:` line. The newest 30 are kept

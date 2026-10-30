@@ -157,9 +157,11 @@ if "-batchmode" not in argv:
         sys.exit(4)
     queue = os.path.join(val("-projectPath"), "Library", "DotAsset", "Queue")
     os.makedirs(queue, exist_ok=True)
+    open(os.path.join(queue, ".fake_started"), "w").close()
     with open(os.path.join(queue, ".alive"), "w") as f:
         json.dump({"Pid": int(os.environ.get("FAKE_EDITOR_PID", os.getpid())), "State": "ready", "ProjectPath": val("-projectPath")}, f)
     time.sleep(float(os.environ.get("FAKE_UNITY_LINGER", "2")))
+    open(os.path.join(queue, ".fake_exited"), "w").close()
     sys.exit(0)
 if mode == "compile_error":
     with open(log, "w") as f:
@@ -293,6 +295,15 @@ class GroupRule(unittest.TestCase):
 
 
 class EditorControl(Base):
+    def tearDown(self):
+        # A launched fake editor lingers, wait for it before deleting the files it holds.
+        queue = os.path.join(self.project, "Library", "DotAsset", "Queue")
+        deadline = time.time() + 10
+        while os.path.exists(os.path.join(queue, ".fake_started")) and not os.path.exists(os.path.join(queue, ".fake_exited")) \
+                and time.time() < deadline:
+            time.sleep(0.1)
+        Base.tearDown(self)
+
     def test_launch_starts_the_editor_and_waits_for_ready(self):
         record = os.path.join(self.tmp, "argv.json")
         os.environ["FAKE_UNITY_RECORD"] = record

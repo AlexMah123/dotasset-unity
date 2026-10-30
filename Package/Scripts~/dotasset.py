@@ -603,6 +603,11 @@ def kill_tree(proc):
             proc.kill()
     except OSError:
         pass
+    # Wait for it to let go of the project and the log, so a run right after does not find them held.
+    try:
+        proc.wait(timeout=30)
+    except subprocess.TimeoutExpired:
+        log("warning: Unity (pid %d) is still exiting" % proc.pid)
 
 
 def b64(text):

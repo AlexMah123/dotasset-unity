@@ -99,6 +99,7 @@ namespace DotAsset
                         continue;
                     }
                     EditorUtility.SetDirty(obj);
+                    RunJournal.Keep(AssetDatabase.GetAssetPath(obj));
                     AssetDatabase.SaveAssetIfDirty(obj);
                     snapshot.Commit();
                     ctx.WarnIfSavedWithErrors(label);

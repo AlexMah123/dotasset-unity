@@ -80,6 +80,7 @@ namespace DotAsset
                         continue;
                     }
                     EditorUtility.SetDirty(mat);
+                    RunJournal.Keep(path);
                     AssetDatabase.SaveAssetIfDirty(mat);
                     snapshot.Commit();
                     ctx.WarnIfSavedWithErrors(path);

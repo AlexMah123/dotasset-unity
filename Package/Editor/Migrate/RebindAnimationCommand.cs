@@ -177,6 +177,7 @@ namespace DotAsset
                         continue;
                     }
                     EditorUtility.SetDirty(clip);
+                    RunJournal.Keep(path);
                     AssetDatabase.SaveAssetIfDirty(clip);
                     snapshot.Commit();
                 }

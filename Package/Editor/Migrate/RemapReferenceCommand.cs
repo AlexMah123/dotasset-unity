@@ -435,6 +435,7 @@ namespace DotAsset
             {
                 EditorUtility.SetDirty(o);
             }
+            RunJournal.Keep(path);
             AssetDatabase.SaveAssetIfDirty(AssetDatabase.LoadMainAssetAtPath(path));
             return true;
         }

@@ -115,6 +115,7 @@ namespace DotAsset
                         continue;
                     }
                     EditorUtility.SetDirty(controller);
+                    RunJournal.Keep(AssetDatabase.GetAssetPath(controller));
                     AssetDatabase.SaveAssetIfDirty(controller);
                     keep = true;
                     ctx.WarnIfSavedWithErrors(path);

@@ -1055,6 +1055,7 @@ def write_script(base, name, guid, body, source=None):
 
 
 FIELD_GUID = "d07a55e7f1e1d0000000000000000f1e"
+FIELD_CHILD_GUID = "d07a55e7f1e1d0000000000000000f1c"
 
 
 def check_rename_field(base, tmp):
@@ -1063,14 +1064,18 @@ def check_rename_field(base, tmp):
     # The YAML on disk and the exported values must both show the new name with every value kept.
     if editor_open(base):
         return "skip: needs the editor closed, scripts written to disk only compile when Unity starts"
+    # A subclass inherits the field and must be renamed with it.
     write_script(base, "DotAssetSmokeField", FIELD_GUID, "public int health = 1;")
+    write_script(base, "DotAssetSmokeFieldChild", FIELD_CHILD_GUID, None,
+                 "using UnityEngine;\n\npublic class DotAssetSmokeFieldChild : DotAssetSmokeField\n{\n}\n")
     problem = fresh_host(base)
     if problem:
         return problem
-    field, variant, holder, scene = (ROOT + "/" + n for n in ("Field.prefab", "FieldVariant.prefab", "FieldHolder.prefab", "FieldScene.unity"))
+    field, variant, holder, scene, child = (ROOT + "/" + n for n in ("Field.prefab", "FieldVariant.prefab", "FieldHolder.prefab", "FieldScene.unity", "FieldChild.prefab"))
     comp = "DotAssetSmokeField"
     seed = spec("field", {"Assets": [
         {"Kind": "Prefab", "Path": field, "Root": "Field", "Components": [{"Type": comp, "Properties": {"health": 7}}]},
+        {"Kind": "Prefab", "Path": child, "Root": "FieldChild", "Components": [{"Type": comp + "Child", "Properties": {"health": 5}}]},
         {"Kind": "PrefabVariant", "Path": variant, "Base": field,
          "Ops": [{"Op": "Set", "Path": "FieldVariant", "Component": comp, "Properties": {"health": 9}}]},
         {"Kind": "Prefab", "Path": holder, "Root": "Holder",
@@ -1083,7 +1088,7 @@ def check_rename_field(base, tmp):
     problem = expect(base, "CreateAsset the field assets", ["CreateAsset", "--args", '-spec="%s"' % seed], 0)
     if problem:
         return problem
-    files = [field, variant, holder, scene]
+    files = [field, variant, holder, scene, child]
     text = lambda p: open(os.path.join(project_of(base), *p.split("/")), encoding="utf-8").read()
     for p in files:
         t = text(p)
@@ -1117,16 +1122,66 @@ def check_rename_field(base, tmp):
     # A prefab exports the value on its component, the others as an instance override.
     got = {}
     for label, run, asset in (("prefab", "PrefabExport", field), ("variant", "PrefabExport", variant),
-                              ("nested", "PrefabExport", holder), ("scene", "SceneExport", scene)):
+                              ("nested", "PrefabExport", holder), ("scene", "SceneExport", scene), ("subclass", "PrefabExport", child)):
         values = []
         for n in export_of(run, base, asset).get("Hierarchy", []):
-            values += [(c.get("Properties") or {}).get("health") for c in n.get("Components", []) if c.get("Type") == comp]
+            values += [(c.get("Properties") or {}).get("health") for c in n.get("Components", []) if c.get("Type") in (comp, comp + "Child")]
             values += [o.get("Value") for o in (n.get("PrefabInstance") or {}).get("Overrides", [])
                        if o.get("Component") == comp and o.get("Property") == "health"]
         got[label] = [str(v) for v in values if v is not None]
-    want = {"prefab": ["7"], "variant": ["9"], "nested": ["11"], "scene": ["13"]}
+    want = {"prefab": ["7"], "variant": ["9"], "nested": ["11"], "scene": ["13"], "subclass": ["5"]}
     if got != want:
         return "after RenameField -apply health is %s, expected %s" % (got, want)
+    return None
+
+
+BUNDLED = ROOT + "/Bundled.mat"
+
+
+def project_named(base):
+    """Assets outside ROOT the project names in its text settings: the first enabled Build Settings scene and the
+    assets GraphicsSettings references (the URP global settings in the Medium project)."""
+    root = project_of(base)
+    read = lambda name: open(os.path.join(root, "ProjectSettings", name), encoding="utf-8", errors="replace").read()
+    found = [m for m in re.findall(r"enabled: 1\s+path: (Assets/\S+\.unity)", read("EditorBuildSettings.asset"))[:1]]
+    guids = set(g for g in re.findall(r"guid: ([0-9a-f]{32})", read("GraphicsSettings.asset")) if not g.startswith("0" * 16))
+    for folder, _, names in os.walk(os.path.join(root, "Assets")):
+        for n in names:
+            path = os.path.join(folder, n)
+            if n.endswith(".meta") and os.path.isfile(path[:-5]):
+                m = re.search(r"(?m)^guid: ([0-9a-f]{32})", open(path, encoding="utf-8", errors="replace").read())
+                if m and m.group(1) in guids:
+                    found.append(os.path.relpath(path[:-5], root).replace("\\", "/"))
+    return [p for p in found if on_disk(base, p) and not p.startswith(ROOT + "/")]
+
+
+def check_project_named(base, tmp):
+    # DeleteAsset must refuse what the project names outside any asset, wherever -scandir points: a Build Settings
+    # scene, what GraphicsSettings references, and (editor closed) an AssetBundle-tagged material. Dry runs only.
+    # "unused assets" checks the audit keeps the material.
+    targets = project_named(base)
+    if not editor_open(base):
+        seed = spec("bundled", {"Assets": [{"Kind": "Material", "Path": BUNDLED, "Properties": {}}]}, tmp)
+        problem = expect(base, "CreateAsset Bundled.mat", ["CreateAsset", "--args", '-spec="%s"' % seed], 0)
+        if problem:
+            return problem
+        meta = os.path.join(project_of(base), *(BUNDLED + ".meta").split("/"))
+        text = open(meta, encoding="utf-8").read()
+        if not re.search(r"(?m)^  assetBundleName:", text):
+            return "Bundled.mat.meta has no assetBundleName line"
+        with open(meta, "w", encoding="utf-8", newline="\n") as f:
+            f.write(re.sub(r"(?m)^  assetBundleName:.*$", "  assetBundleName: dotassetsmoke", text))
+        problem = fresh_host(base)
+        if problem:
+            return problem
+        targets.append(BUNDLED)
+    if not targets:
+        return "skip: no Build Settings scene or GraphicsSettings asset here, the AssetBundle case needs the editor closed"
+    for p in targets:
+        r, res = call(base, ["DeleteAsset", p, "--args", "-scandir=" + ROOT])
+        # The reason must be the reference, not an unsaved open scene.
+        if r.returncode != 1 or res.get("Plan") or not on_disk(base, p) or "reference(s) remain" not in r.stdout:
+            return "DeleteAsset of %s, which the project names, exit %s, planned %s" % (p, r.returncode, res.get("Plan"))
     return None
 
 
@@ -1150,6 +1205,7 @@ def check_unused_asset(base, tmp):
     listed = set(i.get("Asset") for i in report.get("Issues", []) if i.get("Rule") == "U1")
     gone = [names[n] for n in ("Unused.mat", "Orphan.mat", "Orphan.prefab")]
     kept = [names["Resources/Keep.mat"], names["Editor/Tool.mat"], ROOT + "/Crate.prefab", ROOT + "/Smoke.unity"]
+    kept += [p for p in (BUNDLED,) if on_disk(base, p)]  # AssetBundle-tagged by "delete refuses project-named"
     if code != 3 or not fix or not set(gone) <= listed or listed & set(kept):
         return "AuditUnusedAsset exit %s, fix spec %s, listed %s" % (code, fix, sorted(listed))
     _, report, _ = audit(base, "AuditUnusedAsset", None, "-scandir=%s -buildonly -rules=U2" % ROOT)
@@ -1658,6 +1714,7 @@ def steps_of(specs):
         ("move keeps references", check_move, None),
         ("resave keeps content", check_resave, None),
         ("delete, refused if used", check_delete, None),
+        ("delete refuses project-named", check_project_named, None),
         ("audit missing refs clean", ["AuditMissingReference", ROOT], 0),
         ("audit missing refs seeded", check_audit_missing_reference, None),
         ("audit material and fix", check_audit_material, None),

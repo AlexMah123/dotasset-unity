@@ -9,8 +9,8 @@ using UnityEngine;
 
 namespace DotAsset
 {
-    // Renames a serialized field in the YAML of every component and ScriptableObject that uses one script, and in
-    // the prefab overrides that target them, through variants and nested prefabs. Run it after renaming the field in
+    // Renames a serialized field in the YAML of every component and ScriptableObject that uses one script, or a script
+    // that inherits the field, and in the prefab overrides that target them, through variants and nested prefabs. Run it after renaming the field in
     // C#, in place of [FormerlySerializedAs], or to bake one in before removing it. Top-level fields only, needs Force Text.
     // Usage: dotasset.py RenameField --args '-script=Assets/Scripts/Enemy.cs -from=hp -to=health -apply'
     // Docs/Migrate.md
@@ -103,29 +103,60 @@ namespace DotAsset
                 ctx.Log.Error("-script is neither a 32-digit GUID nor a script path: " + scriptArg);
                 return ExitCode.Refused;
             }
-            var script = AssetDatabase.LoadAssetAtPath<MonoScript>(AssetDatabase.GUIDToAssetPath(scriptGuid));
+            string scriptPath = AssetDatabase.GUIDToAssetPath(scriptGuid);
+            var script = AssetDatabase.LoadAssetAtPath<MonoScript>(scriptPath);
             Type type = script != null ? script.GetClass() : null;
+            var scriptGuids = new List<string> { scriptGuid };
             if (type != null)
             {
-                // Unity drops keys the class does not have on the next save, so the C# rename has to come first.
-                if (FieldOf(type, from) != null)
-                {
-                    ctx.Log.Error(type.Name + " still has a field named " + from + ", rename it in C# to " + to + " first");
-                    return ExitCode.Refused;
-                }
-                if (FieldOf(type, to) == null)
+                FieldInfo renamed = FieldOf(type, to);
+                if (renamed == null)
                 {
                     ctx.Log.Warn(type.Name + " has no field named " + to + ", Unity will drop the renamed values on the next save");
+                }
+                // Every script that inherits the field from the class declaring it carries the same key, siblings of
+                // the given script included: the C# rename in that class renamed it for all of them.
+                Type declaring = renamed != null ? renamed.DeclaringType : type;
+                var classes = new List<KeyValuePair<Type, string>> { new KeyValuePair<Type, string>(type, scriptPath) };
+                foreach (MonoScript s in MonoImporter.GetAllRuntimeMonoScripts())
+                {
+                    Type c = s.GetClass();
+                    string guid = AssetDatabase.AssetPathToGUID(AssetDatabase.GetAssetPath(s));
+                    if (c != null && c != type && declaring.IsAssignableFrom(c) && !string.IsNullOrEmpty(guid) && !scriptGuids.Contains(guid))
+                    {
+                        scriptGuids.Add(guid);
+                        classes.Add(new KeyValuePair<Type, string>(c, AssetDatabase.GUIDToAssetPath(guid)));
+                    }
+                }
+                foreach (var c in classes)
+                {
+                    // Unity drops keys the class does not have on the next save, so the C# rename has to come first.
+                    // A subclass that declares its own field of the old name makes the key ambiguous.
+                    if (FieldOf(c.Key, from) != null)
+                    {
+                        ctx.Log.Error(c.Key.Name + " still has a field named " + from + ", rename it in C# to " + to + " first");
+                        return ExitCode.Refused;
+                    }
+                    // All classes in a DLL share its GUID, so the documents cannot be told apart by script.
+                    if (c.Value.EndsWith(".dll", StringComparison.OrdinalIgnoreCase))
+                    {
+                        ctx.Log.Error(c.Key.Name + " is in " + c.Value + ", RenameField only handles scripts that are .cs files");
+                        return ExitCode.Refused;
+                    }
+                    if (c.Key != type)
+                    {
+                        ctx.Log.Info(c.Key.Name + " (" + c.Value + ") inherits " + to + " from " + declaring.Name + ", renaming its key too");
+                    }
                 }
             }
             else
             {
-                ctx.Log.Warn("no compiled class for " + scriptArg + ", the field names cannot be checked");
+                ctx.Log.Warn("no compiled class for " + scriptArg + ", the field names cannot be checked and subclasses are not followed");
             }
 
-            // Pass 1: every object that is a component of this script, by (file GUID, fileID). An object inside a prefab
+            // Pass 1: every object that is a component of these scripts, by (file GUID, fileID). An object inside a prefab
             // instance has fileID (source fileID ^ instance fileID) & long.MaxValue, stripped or not.
-            var scriptRef = new Regex(@"m_Script: \{fileID: \d+, guid: " + scriptGuid + ",");
+            var scriptRef = new Regex(@"m_Script: \{fileID: \d+, guid: (" + string.Join("|", scriptGuids) + "),");
             var targets = new Dictionary<string, HashSet<long>>();
             var instances = new List<KeyValuePair<string, KeyValuePair<long, string>>>();
             var strips = new List<KeyValuePair<string, KeyValuePair<long, KeyValuePair<long, string>>>>();
@@ -149,7 +180,7 @@ namespace DotAsset
                     ctx.FailTarget(path, e.Message);
                     continue;
                 }
-                bool uses = text.IndexOf(scriptGuid, StringComparison.Ordinal) >= 0;
+                bool uses = scriptGuids.Exists(g => text.IndexOf(g, StringComparison.Ordinal) >= 0);
                 bool overrides = text.IndexOf(overrideKey, StringComparison.Ordinal) >= 0;
                 if (uses || overrides)
                 {
@@ -220,7 +251,17 @@ namespace DotAsset
             foreach (string path in candidates)
             {
                 string abs = DotAssetPaths.Absolute(path);
-                string text = File.ReadAllText(abs);
+                string text;
+                try
+                {
+                    text = File.ReadAllText(abs);
+                }
+                catch (Exception e)
+                {
+                    // Thrown here it would end the run before the files already written are imported.
+                    ctx.FailTarget(path, e.Message);
+                    continue;
+                }
                 var sb = new StringBuilder(text.Length);
                 int hits = 0;
                 string conflict = null;

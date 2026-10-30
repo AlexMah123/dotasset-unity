@@ -8,11 +8,11 @@ Asset-level moves and project-wide reference changes, the repairs after a rename
 | --- | --- |
 | `MoveAsset` | moves or renames assets and folders, GUIDs kept, path strings in code flagged |
 | `DuplicateAsset` | copies an asset or folder with new GUIDs |
-| `DeleteAsset` | deletes only what nothing references (`-force` overrides), to the trash by default |
+| `DeleteAsset` | deletes only what no asset under `-scandir` and no project setting, Build Settings scene, Addressables entry or AssetBundle references (`-force` overrides), to the trash by default |
 | `ResaveAsset` | reserializes assets: after `[FormerlySerializedAs]`, after an upgrade, before a diff |
 | `RemapReference` | repoints every reference from one asset to another, prefab instances included |
 | `RemapScript` | repoints components and ScriptableObjects from one script GUID to another script |
-| `RenameField` | renames a serialized field of one script in assets and prefab overrides, values kept |
+| `RenameField` | renames a serialized field of a script and the scripts that inherit it, in assets and prefab overrides, values kept |
 | `RenameSerializeReferenceType` | repoints `[SerializeReference]` data from an old type name to a compiled type, values kept |
 | `RemoveMissingScripts` | removes Missing Script components from prefabs and scenes |
 | `RebindAnimation` | rewrites curve paths in `.anim` clips after a GameObject or bone was renamed or moved |
@@ -65,6 +65,10 @@ python dotasset.py DeleteAsset "Assets/Old/Unused.mat,Assets/Old/Props" --args "
 | `-spec=<file>` | `{"Assets": [...]}`, the fix spec of `AuditUnusedAsset`, in place of or beside AssetList |
 
 A folder counts as referenced when something outside it uses something inside it. Assets deleted in the same run do not count as referencers of each other. The dry run lists every referencer.
+
+Wherever `-scandir` points, an asset the project names outside any asset is refused too: what project settings reference (the render pipeline and its global settings, preloaded assets, config objects such as Input System settings), enabled Build Settings scenes, Build Profiles and the scenes they list (Unity 6), Addressables entries and AssetBundle-tagged assets. The warning names the setting. An asset in a `Resources` or `StreamingAssets` folder is deleted with a warning: code may load it by name, which no reference shows.
+
+Not seen: references from code (`Resources.Load`, `AssetDatabase.LoadAssetAtPath`, string paths), and references from assets outside `-scandir`. Leave `-scandir` at its default `Assets` unless you know nothing outside the folder uses the targets.
 
 A scene open in the editor with unsaved changes, the prefab open in Prefab Mode with unsaved changes, or any asset with unsaved changes in the editor (a material edited in the Inspector) is never deleted, also when it sits in a folder being deleted and with `-force`: the target fails with the reason. Save or discard the changes, then delete. `ResaveAsset` refuses such a target the same way and resaves the rest.
 
@@ -127,7 +131,9 @@ python dotasset.py RenameField --args '-script=Assets/Scripts/Enemy.cs -from=hp 
 
 Rename the field in C# first, then run this before Unity saves the assets: Unity drops keys the class no longer has on the next save. It is refused while the class still has a field named `-from`, and warns when it has none named `-to`.
 
-Rewrites the top-level key in every MonoBehaviour and ScriptableObject document that uses the script, and the `propertyPath` of prefab overrides that target one of its components, through variants, nested prefabs and scenes (`hp`, `hp.x` and `hp.Array.data[0]` alike). Overrides of other components with a field of the same name are left alone. An object that already has a `-to` key fails its file, so does a file loaded in the editor, as for `RemapScript`. Top-level fields only: a field inside a `[Serializable]` class, `[SerializeReference]` data and animation curves that name the field are not followed. Needs Asset Serialization Mode = Force Text.
+Every script whose class inherits the field from the class that declares it is renamed too, and logged: subclasses, the base class, and siblings of the given script. It is refused when one of those classes declares its own field named `-from`, or sits in a DLL (all classes in a DLL share one GUID). Without a compiled class, as when the script does not compile, only the given script is renamed and the run warns.
+
+Rewrites the top-level key in every MonoBehaviour and ScriptableObject document that uses one of those scripts, and the `propertyPath` of prefab overrides that target one of its components, through variants, nested prefabs and scenes (`hp`, `hp.x` and `hp.Array.data[0]` alike). Overrides of other components with a field of the same name are left alone. An object that already has a `-to` key fails its file, so does a file loaded in the editor, as for `RemapScript`. Top-level fields only: a field inside a `[Serializable]` class, `[SerializeReference]` data and animation curves that name the field are not followed. Needs Asset Serialization Mode = Force Text.
 
 ## RenameSerializeReferenceType
 

@@ -456,6 +456,7 @@ namespace DotAsset
         readonly Object target;
         readonly Object clone;
         readonly string json;
+        readonly SerializedObject saved;
         readonly string name;
         readonly HideFlags hideFlags;
         readonly bool wasDirty;
@@ -468,10 +469,16 @@ namespace DotAsset
             hideFlags = target.hideFlags;
             wasDirty = EditorUtility.IsDirty(target);
             var so = target as ScriptableObject;
-            if (target is AssetImporter || (so != null && MonoScript.FromScriptableObject(so) != null))
+            if (target is AssetImporter)
             {
-                // Importers cannot be cloned, and cloning a script's ScriptableObject would run its Awake,
-                // OnEnable and OnDestroy. Both are kept as their serialized JSON instead.
+                // Importers cannot be cloned, and their JSON does not bring texture settings back. A SerializedObject
+                // keeps the values it read until it is updated, so it is the copy.
+                saved = new SerializedObject(target);
+            }
+            else if (so != null && MonoScript.FromScriptableObject(so) != null)
+            {
+                // Cloning a script's ScriptableObject would run its Awake, OnEnable and OnDestroy, it is kept as
+                // its serialized JSON instead.
                 json = EditorJsonUtility.ToJson(target);
             }
             else
@@ -490,7 +497,21 @@ namespace DotAsset
         {
             if (!committed && target != null)
             {
-                if (json != null)
+                if (saved != null)
+                {
+                    var now = new SerializedObject(target);
+                    SerializedProperty p = saved.GetIterator();
+                    if (p.Next(true))
+                    {
+                        do
+                        {
+                            now.CopyFromSerializedProperty(p);
+                        }
+                        while (p.Next(false));
+                    }
+                    now.ApplyModifiedPropertiesWithoutUndo();
+                }
+                else if (json != null)
                 {
                     EditorJsonUtility.FromJsonOverwrite(json, target);
                 }
@@ -510,6 +531,10 @@ namespace DotAsset
             if (clone != null)
             {
                 Object.DestroyImmediate(clone);
+            }
+            if (saved != null)
+            {
+                saved.Dispose();
             }
         }
     }

@@ -277,10 +277,10 @@ DotAsset is a preview until 1.0.0, see [Version.md](Version.md) for each release
 
 | Unity | Version tested | Result | Date |
 | :-- | :-- | :-- | :-- |
-| 6.6 | 6000.6.7f1 | passes | 2026-10-25 |
-| 6.3 LTS | 6000.3.27f1 | passes | 2026-10-25 |
-| 6.0 LTS | 6000.0.85f1 | passes | 2026-10-25 |
-| 2022.3 LTS | 2022.3.18f1 | passes | 2026-10-25 |
+| 6.6 | 6000.6.7f1 | passes | 2026-10-30 |
+| 6.3 LTS | 6000.3.27f1 | passes | 2026-10-30 |
+| 6.0 LTS | 6000.0.85f1 | passes | 2026-10-30 |
+| 2022.3 LTS | 2022.3.18f1 | passes | 2026-10-30 |
 
 Each release also passes the smoke test in a 2,071-asset project (1,000 textures, 500 materials, 500 prefabs, 20 scenes with 100 instances each), where project-wide runs take 3.5 to 6 seconds headless and under 2 seconds with the editor open. Patches within a tested version are expected to work, Unity keeps the API stable within a version. Rerun the smoke test when moving to a new Unity version. The wrapper has its own unit tests (both routes, startup wait, fallback, quoting, timeouts, exit codes, log clean-up), see [Development](#development).
 

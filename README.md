@@ -231,12 +231,12 @@ Commands are plain classes: derive from `DotAssetCommand`, name the class `<RunN
 | Tool | Editor closed | Writes | Best for |
 | :-- | :-: | :-- | :-- |
 | **DotAsset** | ✓ (headless) | Fixed runs: dry run by default, all or nothing per asset, unknown keys refused, never over unsaved work in the editor | Reference-aware migrations (remap references and scripts, moves, deletes that check users), audits with fix specs, repeatable asset edits, in CI or by an agent |
-| [Unity CLI](https://unity.com/blog/meet-the-unity-cli) with `com.unity.pipeline` (Unity 6+) | Headless `unity run` | About 150 editor commands, `batch` of up to 200 ops on one undo with rollback and a dry run, `eval` for any C#, custom `[CliCommand]`s, `unity mcp` for agents | Editor installs, builds, tests, Project Auditor, general editor work |
+| [Unity CLI](https://unity.com/blog/meet-the-unity-cli) with `com.unity.pipeline` (Unity 6+) | Headless `unity cmd` | About 150 editor commands, `batch` of up to 200 ops on one undo (rollback covers Undo, not asset files; dry run validates only), `eval` for any C#, custom `[CliCommand]`s, `unity mcp` for agents | Editor installs, builds, tests, Project Auditor, general editor work |
 | MCP servers for Unity (e.g. [CoplayDev/unity-mcp](https://github.com/CoplayDev/unity-mcp), [IvanMurzak/Unity-MCP](https://github.com/IvanMurzak/Unity-MCP)) | ✗ | Editor tools, including editing prefab contents, some with all-or-nothing queries | Interactive work in an open editor |
 | [UniCli](https://github.com/yucchiy/UniCli) | ✗ | 80+ editor commands (GameObjects, scenes, prefabs, materials, builds, tests, packages, `Eval`), refuses dirty scenes by default | Driving the whole editor from a terminal: compile, test, build, inspect |
 | YAML parsers (e.g. [unityparser](https://pypi.org/project/unityparser)) | ✓ (no Unity at all) | Raw YAML, no validation, no reimport | Reading or patching files without Unity |
 
-Scene and prefab editing, headless runs and agent access are now common. What DotAsset adds is the migrations: none of the tools above repoints every reference to an asset or a script, or refuses to delete an asset still in use. The table reflects their docs as of October 2026, and the Unity CLI and Pipeline package are still in beta.
+Scene and prefab editing, headless runs and agent access are now common. What DotAsset adds is the migrations: none of the tools above repoints every reference to an asset or a script, or refuses to delete an asset still in use. The table reflects their docs as of October 2026, and the Unity CLI and Pipeline package are still in beta. The Unity CLI and `unity mcp` were also tested on a real editor: see [Docs/Unity-CLI-and-MCP.md](Docs/Unity-CLI-and-MCP.md).
 
 They combine well: an agent can drive the editor through the Unity CLI, an MCP server or UniCli (builds, tests, the Console), and call DotAsset for asset changes that must be safe and repeatable, with the editor open or closed.
 

@@ -14,7 +14,7 @@ python dotasset.py <RunName> "<AssetList>" --args "<-key=value ...>" --agent
 ```
 
 - `dotasset.py` sits in the package's `Scripts~/` or the project root. Run it inside the project, or pass `--project DIR`.
-- It uses the open editor when there is one, headless Unity otherwise. `--launch` opens the editor, `--quit` closes it.
+- It uses the open editor when there is one, headless Unity otherwise. `--launch` opens the editor, `--serve` starts a warm headless host for many runs in a row, `--quit` closes either.
 - Always pass `--agent`. A clean run prints one line, `exit <code> <summary>`. Lines that follow start with `error:`, `warning:`, `failed:`, `out:`, `plan:` or `log:`.
 - `--list` prints every run, project-specific ones included.
 

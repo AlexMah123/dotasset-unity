@@ -12,6 +12,12 @@ namespace DotAsset
     // The process exits with the run's ExitCode.
     public static class Cli
     {
+        // Entry for dotasset.py --serve: returns without exiting, so headless Unity stays up and serves the task queue.
+        public static void Serve()
+        {
+            TaskQueue.Serve();
+        }
+
         public static void Run()
         {
             int code = (int)ExitCode.Failed;

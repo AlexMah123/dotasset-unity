@@ -6,6 +6,12 @@ Defined in `Package/Editor/Core/DotAssetVersion.cs` and `Package/package.json`, 
 
 Versions follow one rule. A patch (0.1.x) holds fixes, test upgrades and docs. A minor version (0.x.0) adds something new to call: a run, an op, a spec key, an argument or a wrapper option. While on 0.x, a change that breaks existing calls is also a minor version, marked breaking here. 1.0.0 comes when runs, specs and export JSON are promised to stay stable.
 
+### 0.5.0
+
+- Wrapper `--serve`: starts a warm headless host, batchmode Unity that stays up and takes runs through the same task queue as an open editor, until `--quit`. Many headless steps in a row skip Unity's start-up without opening an editor window. Runs through the host report `inEditor` false, `--status` prints `host pid`
+- Smoke test: the headless route sends most steps through a `--serve` host. Create, a Prefab export, the first `-apply` edit, a failing edit and the two steps that need a fresh import still launch Unity per run
+- Release order, from this version on: implement, `gen_meta` if a file was added, `compile_check`, unit tests, bump the version, release notes and docs, commit and push, then the smoke matrix (3 clean passes on every tested Unity version, both routes), then the tag
+
 ### 0.4.0
 
 - Dry runs return a plan: `Plan` in the result JSON and `plan:` lines in the wrapper. Edit runs list each value change with its property path, before and after, every Edit and Migrate run lists the files it would write, copy, move, delete, rewrite or resave. At most 500 entries, then `PlanTruncated`. `PlanTotals` counts every change, file and target, past the 500 too, and the wrapper prints it as the first `plan:` line

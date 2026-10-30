@@ -88,12 +88,33 @@ namespace DotAsset
             }
         }
 
+        static bool hooked;
+
         static TaskQueue()
         {
-            if (Application.isBatchMode)
+            // Headless Unity serves the queue only when started through Serve. The flag survives domain reloads.
+            if (Application.isBatchMode && !SessionState.GetBool("DotAsset.Served", false))
             {
                 return;
             }
+            Hook();
+        }
+
+        // Keeps a headless Unity running as a warm host for the queue, until a quit request.
+        public static void Serve()
+        {
+            SessionState.SetBool("DotAsset.Served", true);
+            Hook();
+            UnityEngine.Debug.Log("[DotAsset] serving the task queue headless, pid " + Process.GetCurrentProcess().Id);
+        }
+
+        static void Hook()
+        {
+            if (hooked)
+            {
+                return;
+            }
+            hooked = true;
             EditorApplication.update += Tick;
             EditorApplication.quitting += OnQuitting;
             AssemblyReloadEvents.beforeAssemblyReload += OnBeforeReload;
@@ -398,7 +419,7 @@ namespace DotAsset
             SceneSession.SavedOpenScenes.Clear();
             try
             {
-                result = RunDispatcher.Run(runName, assets, extra, true);
+                result = RunDispatcher.Run(runName, assets, extra, !Application.isBatchMode);
             }
             catch (Exception e)
             {
@@ -619,6 +640,7 @@ namespace DotAsset
                 ["UnityVersion"] = Application.unityVersion,
                 ["DotAssetVersion"] = DotAssetVersion.Version,
                 ["ProjectPath"] = DotAssetPaths.ProjectRoot,
+                ["Served"] = Application.isBatchMode,
                 ["UpdatedUtc"] = DateTime.UtcNow.ToString("o", System.Globalization.CultureInfo.InvariantCulture),
             };
             return alive.ToString(Newtonsoft.Json.Formatting.None);

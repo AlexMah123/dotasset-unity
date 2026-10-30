@@ -57,7 +57,8 @@ The wrapper is `dotasset.py` (in the package's `Scripts~/`, or copied to the pro
 | `--agent` | compact output for agents, one fact per line: `exit <code> <summary>`, then `error:`, `warning:`, `failed:`, `out:`, `plan:` and, on failure, `log:`. Info lines and wrapper progress are dropped, lists stop at 10. A clean run is one line |
 | `--list`, `--status` | every run with its summary; what the editor's queue is doing |
 | `--launch` | open the project in the editor (no window interaction needed) and wait until its queue is `ready`. Exit 0 when ready, also when an editor was already open. The editor starts minimized and never takes the focus, `--visible` shows it |
-| `--quit [--force]` | close the editor that has the project open, once it is idle. Refused (exit 2) while a scene or Prefab Mode has unsaved changes, `--force` discards them |
+| `--serve` | start a warm headless host: batchmode Unity, no window, that takes runs through the same queue as an open editor until `--quit`. Exit 0 when ready. Runs report `inEditor` false, `--status` prints `host pid` |
+| `--quit [--force]` | close the editor or `--serve` host that has the project open, once it is idle. Refused (exit 2) while a scene or Prefab Mode has unsaved changes, `--force` discards them |
 | `--open-scene A.unity[,B.unity] [--force]` | open scenes in that editor: the first replaces what is open, the rest are added. Refused like `--quit`. The last line is `previously open: <paths>`, pass them back to `--open-scene` to restore the user's layout |
 
 Ctrl+C withdraws a task the editor has not taken, and stops a headless Unity.
@@ -148,7 +149,7 @@ Audit reports land in `Library/DotAsset/Audit/`, with `-report=` to choose the p
 | `DeleteAsset` refuses | Something under `-scandir` still references it, the warnings list what. Fix those first, or add `-force`. A scene open with unsaved changes, or the prefab in Prefab Mode with unsaved changes, is refused even with `-force`: ask the user to save or discard first. `ResaveAsset` refuses those too |
 | Treating exit code 3 as failure | 3 means the audit worked and found something |
 | Exports and reports in version control | `Library/` is ignored by Unity's default `.gitignore`. Copy what you need to keep |
-| Several headless calls at once | They take turns: a later call prints `another DotAsset headless run has the project, waiting` and starts when the one before ends. For many steps in a row, `--launch` the editor once instead, queued runs skip Unity's start-up |
+| Several headless calls at once | They take turns: a later call prints `another DotAsset headless run has the project, waiting` and starts when the one before ends. For many steps in a row, `--launch` the editor or `--serve` a headless host once instead, queued runs skip Unity's start-up |
 | Finding the latest export by listing the folder | Read the path from the run's `Outputs` (`--json`). Only the newest 10 exports per asset and 20 reports per audit are kept, older ones are deleted unless written with `-outdir` or `-report` |
 | Showing the user a scene, or editing one in their open editor | `--open-scene <path>` opens it, refused while the user has unsaved changes. Its last line is `previously open: <paths>`, pass those back to `--open-scene` when done |
 | A headless run times out on a large project | The first headless start imports or refreshes the project and can take minutes. Raise `--timeout` (default 600 seconds), or keep the editor open so runs go to its queue |

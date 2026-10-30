@@ -1071,11 +1071,20 @@ def run(args, tmp):
     install_helper(args.project)
     outside_before = outside_state(args.project)
     failed, skipped, not_run = 0, 0, 0
+    # Headless route: a warm --serve host takes most steps, the COLD ones still launch Unity per run.
+    headless = not editor_open(base)
+    hosted = [False]
     try:
         for name, argv, expected in steps:
             if failed and not args.keep_going:
                 not_run += 1
                 continue
+            if headless:
+                problem = host(base, hosted, not name.startswith(COLD))
+                if problem:
+                    failed += 1
+                    print("%-4s %-28s\n%s" % ("FAIL", "warm host for " + name, indent(problem)), flush=True)
+                    continue
             t0 = time.time()
             problem = run_step(base, tmp, argv, expected)
             took = "%5.1fs" % (time.time() - t0)
@@ -1095,6 +1104,12 @@ def run(args, tmp):
         if not args.keep and os.path.isdir(os.path.join(args.project, *ROOT.split("/"))):
             problem = check_cleanup(base, tmp)
             print("%-4s %-28s" % ("FAIL" if problem else "ok", "cleanup"), flush=True)
+            if problem:
+                failed += 1
+                print(indent(problem))
+        if hosted[0]:
+            problem = host(base, hosted, False)
+            print("%-4s %-28s" % ("FAIL" if problem else "ok", "warm host quits"), flush=True)
             if problem:
                 failed += 1
                 print(indent(problem))
@@ -1178,6 +1193,22 @@ def steps_of(specs):
     ]
 
 
+# Headless steps that launch Unity per run even with a warm host: create, an export, an edit with -apply, a failing
+# run, and the two that need a fresh start to import a file the test wrote.
+COLD = ("catalog", "create", "prefab export", "edit prefab apply", "bad op fails", "missing script", "texture audit")
+
+
+def host(base, hosted, want):
+    """Starts (--serve) or stops (--quit) the warm headless host so it matches want. A problem or None."""
+    if hosted[0] == want:
+        return None
+    r = subprocess.run(base + (["--serve"] if want else ["--quit"]), capture_output=True, text=True)
+    if r.returncode != 0:
+        return run_failed("--serve" if want else "--quit", r)
+    hosted[0] = want
+    return None
+
+
 def run_step(base, tmp, argv, expected):
     """One step: a check function, or a wrapper call with its expected exit code (None: 0 or 3). A problem or None."""
     if callable(argv):
@@ -1256,7 +1287,8 @@ def stray_logs(project, since):
         names = os.listdir(batch)
     except OSError:
         return []
-    return sorted(n for n in names if n.endswith(".unity.log") and n not in listed
+    # serve.unity.log is the warm host's, overwritten by the next --serve, so it never piles up.
+    return sorted(n for n in names if n.endswith(".unity.log") and n not in listed and n != "serve.unity.log"
                   and os.path.getmtime(os.path.join(batch, n)) >= since)
 
 

@@ -828,8 +828,8 @@ def status(project):
     alive = read_alive(queue_root)
     if alive and is_unity_process(int(alive.get("Pid", 0))):
         pending = len([f for f in os.listdir(os.path.join(queue_root, PENDING)) if f.endswith(".json")]) if os.path.isdir(os.path.join(queue_root, PENDING)) else 0
-        log("editor pid %s, state %s, heartbeat %.0fs ago, Unity %s, DotAsset %s, %d pending" % (
-            alive.get("Pid"), alive.get("State"), alive.get("_age", 0), alive.get("UnityVersion"), alive.get("DotAssetVersion"), pending))
+        log("%s pid %s, state %s, heartbeat %.0fs ago, Unity %s, DotAsset %s, %d pending" % (
+            "host" if alive.get("Served") else "editor", alive.get("Pid"), alive.get("State"), alive.get("_age", 0), alive.get("UnityVersion"), alive.get("DotAssetVersion"), pending))
         return EXIT_SUCCESS
     if project_locked(project):
         log("Unity has the project open, no task queue heartbeat")
@@ -874,9 +874,10 @@ def minimize_windows(pid):
     user32.EnumWindows(visit, 0)
 
 
-def launch(args, project):
+def launch(args, project, serve=False):
     """Opens the project in the editor, or finds it already open, and waits until its queue is ready. Holds the
-    headless lock meanwhile: a headless run waiting its turn must not start between the launch and the heartbeat."""
+    headless lock meanwhile: a headless run waiting its turn must not start between the launch and the heartbeat.
+    With serve, starts a warm headless host instead of the editor: batchmode Unity serving the same queue."""
     queue_root = os.path.join(project, QUEUE_RELATIVE)
     lock = BatchLock(queue_root)
     if not lock.try_acquire():
@@ -892,38 +893,45 @@ def launch(args, project):
         while project_locked(project) and live_editor(queue_root) is None and time.time() < deadline:
             time.sleep(0.5)
     try:
-        return launch_locked(args, project, queue_root)
+        return launch_locked(args, project, queue_root, serve)
     finally:
         lock.release()
 
 
-def launch_locked(args, project, queue_root):
+def launch_locked(args, project, queue_root, serve=False):
     proc = None
+    what = "host" if serve else "editor"
     if live_editor(queue_root) is None and not project_locked(project):
         unity = find_unity(args.unity, project)
         if not unity:
             log("error: no Unity %s found. Pass --unity <path to the editor executable> or set DOTASSET_UNITY" % (project_unity_version(project) or "?"))
             return EXIT_FAILED
+        if serve:
+            os.makedirs(os.path.join(queue_root, "batch"), exist_ok=True)
+            cmd = [unity, "-batchmode", "-nographics", "-projectPath", project, "-executeMethod", "DotAsset.Cli.Serve",
+                   "-logFile", os.path.join(queue_root, "batch", "serve.unity.log")]
+        else:
+            cmd = [unity, "-projectPath", project]
         try:
-            proc = start_detached([unity, "-projectPath", project], args.visible)
+            proc = start_detached(cmd, args.visible and not serve)
         except OSError as e:
             log("error: cannot start Unity: %s" % e)
             return EXIT_FAILED
-        log("launched %s (pid %d), waiting up to %ds for the editor to take tasks" % (unity, proc.pid, args.startup_wait))
+        log("launched %s (pid %d), waiting up to %ds for the %s to take tasks" % (unity, proc.pid, args.startup_wait, what))
     else:
-        log("an editor already has the project open, waiting for it to take tasks")
+        log("Unity already has the project open, waiting for it to take tasks")
     deadline = time.time() + args.startup_wait
     last_state = None
     while time.time() < deadline:
-        if proc is not None and not args.visible:
+        if proc is not None and not args.visible and not serve:
             minimize_windows(proc.pid)
         alive = live_editor(queue_root)
         state = alive.get("State") if alive else None
         if state and state != last_state:
-            log("editor state: " + state)
+            log("%s state: %s" % (what, state))
             last_state = state
         if state == "ready":
-            log("the editor is ready (pid %s)" % alive.get("Pid"))
+            log("the %s is ready (pid %s)" % (what, alive.get("Pid")))
             return EXIT_SUCCESS
         if state == "paused":
             log("error: the editor is open but its queue is paused (Window > DotAsset > Accept tasks)")
@@ -1096,7 +1104,8 @@ def main(argv=None):
     p.add_argument("--status", action="store_true", help="show what the editor's queue is doing")
     p.add_argument("--launch", action="store_true", help="open the project in the editor and wait until it takes tasks")
     p.add_argument("--visible", action="store_true", help="with --launch: show the editor window, by default it starts minimized and never takes the focus")
-    p.add_argument("--quit", action="store_true", help="close the editor that has the project open")
+    p.add_argument("--serve", action="store_true", help="start a warm headless host: batchmode Unity that stays up and takes runs like an open editor, until --quit")
+    p.add_argument("--quit", action="store_true", help="close the editor or headless host that has the project open")
     p.add_argument("--open-scene", help="open these scenes (comma-separated) in the editor that has the project open")
     p.add_argument("--force", action="store_true", help="with --quit or --open-scene: go ahead even when a scene has unsaved changes")
     argv = list(sys.argv[1:] if argv is None else argv)
@@ -1118,6 +1127,8 @@ def main(argv=None):
         return status(project)
     if args.launch:
         return launch(args, project)
+    if args.serve:
+        return launch(args, project, serve=True)
     if args.quit:
         return quit_editor(args, project)
     if args.open_scene is not None:

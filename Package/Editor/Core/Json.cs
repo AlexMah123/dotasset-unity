@@ -31,6 +31,7 @@ namespace DotAsset
             return sb.ToString();
         }
 
+        // Through a temp file and File.Replace, so a reader or a crash sees the old file or the new one, never none.
         public static void WriteFile(string path, JToken token)
         {
             DotAssetPaths.EnsureParent(path);
@@ -38,9 +39,12 @@ namespace DotAsset
             File.WriteAllText(tmp, Format(token), Utf8NoBom);
             if (File.Exists(path))
             {
-                File.Delete(path);
+                File.Replace(tmp, path, null);
             }
-            File.Move(tmp, path);
+            else
+            {
+                File.Move(tmp, path);
+            }
         }
 
         public static bool TryReadFile(string path, out JObject obj, out string error)

@@ -38,6 +38,7 @@ RUNS = sorted(n[:-len("Command.cs")] for g in ("Export", "Import", "Edit", "Migr
 ROOT = "Assets/DotAssetSmoke"
 BASE = []   # the wrapper command line, set by main
 SPECS = {}  # spec files shared between steps, set by main
+JOURNALED = {}  # run name: whether any of its -apply runs kept a journal
 
 
 def spec(name, data, tmp):
@@ -93,6 +94,9 @@ def call(base, argv):
         res = result_json(r.stdout)
     except ValueError:
         res = {}
+    args = argv[argv.index("--args") + 1] if "--args" in argv[:-1] else ""
+    if r.returncode == 0 and re.search(r"(^|\s)-apply(\s|$)", args):
+        JOURNALED[argv[0]] = JOURNALED.get(argv[0], False) or bool(journal_of(res))
     return r, res
 
 
@@ -1357,6 +1361,14 @@ def run(args, tmp):
     if leaks:
         failed += 1
         print(indent(leaks))
+
+    # Every run that wrote with -apply must keep a journal at least once in the whole test, or UndoRun cannot undo it.
+    # Once, not every time: an -apply that finds nothing to change keeps none.
+    unjournaled = sorted(n for n, kept in JOURNALED.items() if not kept)
+    print("%-4s %-28s %d run(s)" % ("FAIL" if unjournaled else "ok", "every -apply run journaled", len(JOURNALED)), flush=True)
+    if unjournaled:
+        failed += 1
+        print(indent("no journal from: " + ", ".join(unjournaled)))
 
     # Every headless run leaves a Unity log. The wrapper deletes it, or lists it while Unity's licensing client still
     # holds it, and the smoke test does the same for failures it expected. A log that is neither piles up for good.

@@ -1363,7 +1363,13 @@ def check_editor_states(base, tmp):
     # A paused queue refuses a run and withdraws its task, a compile and play mode make a run wait and then go through.
     if not editor_open(base):
         return "skip: needs the editor open, these are states of the editor"
-    for state, seconds, said, code in (("pause", 6, "queue is paused", 2), ("compile", 0, "editor is ", 0), ("play", 12, "playmode", 0)):
+    # A compile of one small script can end before the run lands, then the run goes straight through: up to 3 tries.
+    states = [("pause", 6, "queue is paused", 2)] + [("compile", 0, "editor is ", 0)] * 3 + [("play", 12, "playmode", 0)]
+    compiled = False
+    tries = 0
+    for state, seconds, said, code in states:
+        if state == "compile" and compiled:
+            continue
         r, _ = call(base, ["SmokeEditorState", "--args", "-%s -seconds=%d" % (state, seconds)])
         if r.returncode == 2 and "unknown run 'SmokeEditorState'" in r.stdout + r.stderr:
             drop_kept_log(r)
@@ -1380,6 +1386,11 @@ def check_editor_states(base, tmp):
                     return "the editor did not start %s within 8 s of SmokeEditorState -%s" % (state, state)
                 time.sleep(0.5)
         r, _ = call(base, ["CommandCatalogExport"])
+        if state == "compile":
+            tries += 1
+            compiled = r.returncode == 0 and said in r.stdout + r.stderr
+            if r.returncode == 0 and not compiled and tries < 3:
+                continue
         if r.returncode != code or said not in r.stdout + r.stderr:
             return "a run during -%s exit %s, expected %s with \"%s\"\n%s" % (state, r.returncode, code, said, (r.stdout + r.stderr)[-2000:])
         if code != 0:

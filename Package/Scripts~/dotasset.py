@@ -849,13 +849,15 @@ def hidden_console():
     return {"startupinfo": info}
 
 
-def start_detached(cmd, visible=True):
+def start_detached(cmd, visible=True, hidden=False):
     """Starts the editor so it outlives this script and the terminal that ran it. Not visible: it starts minimized
-    and never takes the focus."""
+    and never takes the focus. Hidden: for the batchmode host, whose windows Unity 6 activates even when minimized."""
     kwargs = {"stdin": subprocess.DEVNULL, "stdout": subprocess.DEVNULL, "stderr": subprocess.DEVNULL, "close_fds": True}
     if sys.platform == "win32":
         kwargs["creationflags"] = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
-        if not visible:
+        if hidden:
+            kwargs.update(hidden_console())
+        elif not visible:
             info = subprocess.STARTUPINFO()
             info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
             info.wShowWindow = 7  # SW_SHOWMINNOACTIVE
@@ -925,7 +927,7 @@ def launch_locked(args, project, queue_root, serve=False):
         else:
             cmd = [unity, "-projectPath", project]
         try:
-            proc = start_detached(cmd, args.visible and not serve)
+            proc = start_detached(cmd, args.visible and not serve, serve)
         except OSError as e:
             log("error: cannot start Unity: %s" % e)
             return EXIT_FAILED

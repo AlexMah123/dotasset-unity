@@ -1100,6 +1100,28 @@ def check_journal_undo(base, tmp):
     return None
 
 
+def check_editor_states(base, tmp):
+    # A paused queue refuses a run and withdraws its task, a compile and play mode make a run wait and then go through.
+    if not editor_open(base):
+        return "skip: needs the editor open, these are states of the editor"
+    for state, seconds, said, code in (("pause", 6, "queue is paused", 2), ("compile", 0, "editor is ", 0), ("play", 8, "editor is playmode", 0)):
+        r, _ = call(base, ["SmokeEditorState", "--args", "-%s -seconds=%d" % (state, seconds)])
+        if r.returncode == 2 and "unknown run 'SmokeEditorState'" in r.stdout + r.stderr:
+            drop_kept_log(r)
+            return "skip: the smoke helper compiles at the next Unity start, the headless run starts one"
+        if r.returncode != 0:
+            return run_failed("SmokeEditorState -" + state, r)
+        r, _ = call(base, ["CommandCatalogExport"])
+        if r.returncode != code or said not in r.stdout + r.stderr:
+            return "a run during -%s exit %s, expected %s with \"%s\"\n%s" % (state, r.returncode, code, said, (r.stdout + r.stderr)[-2000:])
+        if code != 0:
+            drop_kept_log(r)
+            time.sleep(seconds + 2)
+        if not export_of("CommandCatalogExport", base).get("Commands"):
+            return "after -%s the catalog lists no runs" % state
+    return None
+
+
 def project_of(base):
     return base[base.index("--project") + 1]
 
@@ -1402,6 +1424,7 @@ def steps_of(specs):
         ("rebind animation", check_rebind_animation, None),
         ("remap script by guid", check_remap_script, None),
         ("journal, undo, -atomic", check_journal_undo, None),
+        ("editor states: pause, compile, play", check_editor_states, None),
     ]
 
 

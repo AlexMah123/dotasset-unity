@@ -793,9 +793,9 @@ def check_delete(base, tmp):
     return None
 
 
-def audit(base, run, target):
+def audit(base, run, target, args=None):
     """Runs an audit and returns (exit code, report, fix spec path or None)."""
-    r, res = call(base, [run, target])
+    r, res = call(base, [run] + ([target] if target else []) + (["--args", args] if args else []))
     if r.returncode not in (0, 3):
         raise RuntimeError(run_failed(run, r))
     reports = [o for o in res.get("Outputs") or [] if not o.endswith(".fix.json")]
@@ -1090,6 +1090,44 @@ def check_rename_field(base, tmp):
     want = {"prefab": ["7"], "variant": ["9"], "nested": ["11"], "scene": ["13"]}
     if got != want:
         return "after RenameField -apply health is %s, expected %s" % (got, want)
+    return None
+
+
+def check_unused_asset(base, tmp):
+    # An orphan prefab with its own material, a lone material, and materials kept by a Resources and an Editor folder.
+    # The audit must list the first three only, and its fix spec must delete them through DeleteAsset. It runs last:
+    # the fix spec also takes whatever earlier steps left unused in the folder.
+    names = {n: ROOT + "/" + n for n in ("Unused.mat", "Orphan.mat", "Orphan.prefab", "Resources/Keep.mat", "Editor/Tool.mat")}
+    seed = spec("unused", {"Assets": [
+        {"Kind": "Folder", "Path": ROOT + "/Resources"}, {"Kind": "Folder", "Path": ROOT + "/Editor"},
+        {"Kind": "Material", "Path": names["Unused.mat"], "Properties": {}},
+        {"Kind": "Material", "Path": names["Orphan.mat"], "Properties": {}},
+        {"Kind": "Material", "Path": names["Resources/Keep.mat"], "Properties": {}},
+        {"Kind": "Material", "Path": names["Editor/Tool.mat"], "Properties": {}},
+        {"Kind": "Prefab", "Path": names["Orphan.prefab"], "Root": "Orphan",
+         "Components": ["MeshFilter", {"Type": "MeshRenderer", "Properties": {"m_Materials": [names["Orphan.mat"]]}}]}]}, tmp)
+    problem = expect(base, "CreateAsset the unused assets", ["CreateAsset", "--args", '-spec="%s"' % seed], 0)
+    if problem:
+        return problem
+    code, report, fix = audit(base, "AuditUnusedAsset", None, "-scandir=" + ROOT)
+    listed = set(i.get("Asset") for i in report.get("Issues", []) if i.get("Rule") == "U1")
+    gone = [names[n] for n in ("Unused.mat", "Orphan.mat", "Orphan.prefab")]
+    kept = [names["Resources/Keep.mat"], names["Editor/Tool.mat"], ROOT + "/Red.mat", ROOT + "/Crate.prefab", ROOT + "/Smoke.unity"]
+    if code != 3 or not fix or not set(gone) <= listed or listed & set(kept):
+        return "AuditUnusedAsset exit %s, fix spec %s, listed %s" % (code, fix, sorted(listed))
+    _, report, _ = audit(base, "AuditUnusedAsset", None, "-scandir=%s -buildonly -rules=U2" % ROOT)
+    if not issues(report, "U2", ROOT + "/Smoke.unity"):
+        return "AuditUnusedAsset -buildonly did not list Smoke.unity as outside Build Settings: %s" % report.get("Counts")
+    r, res = call(base, ["DeleteAsset", "--args", '-spec="%s" -permanent' % fix])
+    planned = set(p.get("Path") for p in res.get("Plan") or [] if p.get("Action") == "delete")
+    if r.returncode != 0 or not set(gone) <= planned or not all(on_disk(base, p) for p in gone):
+        return "the DeleteAsset dry run of the fix spec exit %s, planned %s" % (r.returncode, sorted(planned))
+    problem = expect(base, "DeleteAsset the fix spec -apply", ["DeleteAsset", "--args", '-spec="%s" -permanent -apply' % fix], 0)
+    if problem:
+        return problem
+    left = [p for p in gone if on_disk(base, p)] + ["missing " + p for p in kept if not on_disk(base, p)]
+    if left:
+        return "after DeleteAsset of the fix spec: %s" % left
     return None
 
 
@@ -1518,6 +1556,7 @@ def steps_of(specs):
         ("rename field", check_rename_field, None),
         ("journal, undo, -atomic", check_journal_undo, None),
         ("editor states: pause, compile, play", check_editor_states, None),
+        ("unused assets, audit and delete", check_unused_asset, None),
     ]
 
 

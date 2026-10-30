@@ -37,6 +37,7 @@ python dotasset.py <RunName> "<AssetList>" --args "<-key=value ...>" --agent
 | Renamed a serialized field | `[FormerlySerializedAs("old")]`, then `ResaveAsset --args "-dependson=<script>"` |
 | Take back a writing run | `UndoRun --args "-run=last"` (or the id from its `out:` journal line) |
 | Find broken textures, materials, references | `AuditTexture`, `AuditMaterial`, `AuditMissingReference` |
+| Find unused assets | `AuditUnusedAsset`, then `DeleteAsset -spec=<fix spec>` |
 
 ## Workflow
 

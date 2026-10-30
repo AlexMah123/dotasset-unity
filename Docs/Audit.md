@@ -9,6 +9,7 @@ Read-only checks that write a report JSON, and a fix spec where a fix is mechani
 | `AuditMissingReference` | references to deleted assets, Missing Scripts, missing sub-objects, missing prefab sources (R1-R4) |
 | `AuditTexture` | texture import settings against how the texture is used (T1-T8) |
 | `AuditMaterial` | missing, broken or unsupported shaders, stale properties, stray keywords (M1-M5) |
+| `AuditUnusedAsset` | assets nothing in the project reaches, scenes outside Build Settings (U1-U2) |
 
 ```bash
 python dotasset.py AuditTexture --args "-scandir=Assets"
@@ -51,6 +52,7 @@ When issues have a mechanical fix the audit writes `<report>.fix.json` next to t
 | --- | --- | --- |
 | `AuditTexture` | `EditImporter` | T1 T2 T3 T4 T5 T6 T8 |
 | `AuditMaterial` | `EditMaterial` | M4 M5 |
+| `AuditUnusedAsset` | `DeleteAsset` | U1, as `{"Assets": [...]}`. `DeleteAsset` checks the references again and refuses anything still used |
 | `AuditMissingReference` | `RemoveMissingScripts` | R2 on ordinary objects. Missing scripts added on prefab instances (variants included) are listed but left, with a warning. The report's `MissingScripts` lists each GUID for `RemapScript`, which fixes both |
 
 Read it, delete what should stay, run `FixRun` without `-apply`, then with it:
@@ -118,3 +120,23 @@ Names are matched at the end of the file name, case-insensitive.
 | `-rules=M1,M3` | only these rules |
 
 The report's `RenderPipeline` names the active pipeline the M3 check used. Headless runs have no graphics device (`-nographics`), so there M3 only catches Built-in shaders under a render pipeline; run with the editor open, or pass `--graphics` to the wrapper, for the GPU support check. Converting Built-in materials to URP or HDRP is the render pipeline's converter's job; the report lists which materials need it.
+
+## AuditUnusedAsset
+
+```bash
+python dotasset.py AuditUnusedAsset --args "-scandir=Assets/Art"
+python dotasset.py DeleteAsset --args '-spec="Library/DotAsset/Audit/<report>.fix.json"'          # dry run, then -apply
+```
+
+| Rule | Severity | Finds | Fix |
+| --- | --- | --- | --- |
+| U1 | Warning | an asset nothing reachable uses | `DeleteAsset` with the fix spec |
+| U2 | Info | a scene outside Build Settings that nothing in the build uses, with `-buildonly` | add it to Build Settings, or delete it |
+
+| Argument | Effect |
+| --- | --- |
+| `-scandir=<dirs>` | which assets to list, default `Assets`. The roots always come from the whole project |
+| `-buildonly` | only the enabled Build Settings scenes are roots, instead of every scene |
+| `-rules=U1` | only these rules |
+
+An asset is used when a root reaches it, directly or through other assets. Roots: every scene (the enabled Build Settings scenes with `-buildonly`), everything under a `Resources`, `StreamingAssets`, `Editor`, `Editor Default Resources` or `Gizmos` folder, every asset `ProjectSettings/*.asset` names (render pipeline, preloaded assets, package settings), and Addressables entries, folders included. Code, shaders, shader includes, plugins and files Unity imports as no asset type are never listed, because code loads them by name. An asset loaded only by a path or name string from code (`AssetDatabase.LoadAssetAtPath`, `Shader.Find`, an address string) is listed too: read the list before deleting. The report's `UnusedBytes` adds up the file sizes. Addressables entries are read from the YAML, so Force Text is needed for them.

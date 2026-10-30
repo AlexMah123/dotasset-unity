@@ -60,6 +60,7 @@ python dotasset.py DeleteAsset "Assets/Old/Unused.mat,Assets/Old/Props" --args "
 | `-scandir=<dirs>` | where to look for referencers, default `Assets` |
 | `-force` | delete even when referenced |
 | `-permanent` | delete outright instead of moving to the OS trash |
+| `-spec=<file>` | `{"Assets": [...]}`, the fix spec of `AuditUnusedAsset`, in place of or beside AssetList |
 
 A folder counts as referenced when something outside it uses something inside it. Assets deleted in the same run do not count as referencers of each other. The dry run lists every referencer.
 

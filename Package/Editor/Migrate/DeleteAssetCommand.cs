@@ -1,12 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using Newtonsoft.Json.Linq;
 using UnityEditor;
 
 namespace DotAsset
 {
     // Deletes assets only when nothing under -scandir still references them (-force overrides).
-    // Goes to the OS trash by default, -permanent deletes outright.
+    // Goes to the OS trash by default, -permanent deletes outright. -spec takes {"Assets": [...]}, the fix spec of
+    // AuditUnusedAsset, in place of or beside AssetList.
     // Usage: dotasset.py DeleteAsset Assets/Old/Unused.mat[,Assets/Old/Folder] --args "-apply"
     // Docs/Migrate.md
     public sealed class DeleteAssetCommand : DotAssetCommand
@@ -18,18 +20,39 @@ namespace DotAsset
 
         public override IEnumerable<string> Arguments
         {
-            get { return new[] { "scandir", "force", "permanent" }; }
+            get { return new[] { "scandir", "force", "permanent", "spec" }; }
         }
 
         public override ExitCode Execute(RunContext ctx)
         {
-            if (ctx.Assets.Count == 0)
+            var given = new List<string>(ctx.Assets);
+            if (ctx.Args.Has("spec"))
             {
-                ctx.Log.Error("DeleteAsset needs the assets to delete in AssetList");
+                JObject spec;
+                if (!Spec.Load(ctx, out spec))
+                {
+                    return ExitCode.Refused;
+                }
+                var list = spec["Assets"] as JArray;
+                if (list == null || list.Any(t => t.Type != JTokenType.String))
+                {
+                    ctx.Log.Error("-spec needs {\"Assets\": [\"Assets/...\", ...]}");
+                    return ExitCode.Refused;
+                }
+                given.AddRange(list.Select(t => (string)t));
+                if (given.Count == 0)
+                {
+                    ctx.Log.Info("the spec lists no assets, nothing to delete");
+                    return ExitCode.Success;
+                }
+            }
+            if (given.Count == 0)
+            {
+                ctx.Log.Error("DeleteAsset needs the assets to delete in AssetList or -spec");
                 return ExitCode.Refused;
             }
             var targets = new List<string>();
-            foreach (string raw in ctx.Assets)
+            foreach (string raw in given)
             {
                 string path = DotAssetPaths.Normalize(raw).TrimEnd('/');
                 if (!AssetDatabase.IsValidFolder(path) && AssetDatabase.GetMainAssetTypeAtPath(path) == null)

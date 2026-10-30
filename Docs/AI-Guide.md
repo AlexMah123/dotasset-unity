@@ -27,6 +27,7 @@ The call manual for agents. Arguments, spec shapes, exit codes and JSON fields a
 | Move or rename assets and folders without breaking references | `MoveAsset` | Migrate |
 | Copy an asset or folder before a risky change | `DuplicateAsset` | Migrate |
 | Delete assets, refusing while something still uses them | `DeleteAsset` | Migrate |
+| Find assets nothing uses, then delete them | `AuditUnusedAsset`, then `DeleteAsset -spec=<fix spec>` | Audit |
 | Replace every use of one asset with another (material, texture, prefab, ScriptableObject) | `RemapReference` | Migrate |
 | Fix "Missing Script" after a `.meta` was lost or a class moved to another file | `RemapScript` (GUIDs from `AuditMissingReference`) | Migrate |
 | Keep values after renaming a serialized C# field | `RenameField` (after the C# rename, before Unity saves) | Migrate |

@@ -207,6 +207,7 @@ Every writing run keeps the files it touches, as they were before it, in `Librar
 - Refused as a whole, nothing restored, when any of those paths changed after the run (an edit by hand, a later run), is a scene open in the editor or the prefab in Prefab Mode, or has unsaved changes in the editor.
 - A run is undone once. The dry run lists each path as `rewrite`, `restore` (absent now) or `delete` (created by the run).
 - The undo writes a journal of its own.
+- A run that stopped before it finished (Unity crashed or was killed) still has its journal: each path is logged to `journal.log` as it is kept, and the next run turns that into `journal.json` marked `"Interrupted": true`. Undo it as any other run, the log says it stopped before it finished.
 
 `-atomic`, accepted by every Edit, Migrate and Import run, applies the same restore at the end of the run when a target failed: all or nothing across targets instead of per target. A scene open in the editor cannot be restored from disk, the run warns and its edit stays, one Ctrl+Z in the editor takes it back.
 

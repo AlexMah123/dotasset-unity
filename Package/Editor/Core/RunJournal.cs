@@ -14,10 +14,13 @@ namespace DotAsset
     // or undone later (UndoRun). Lives in Library/DotAsset/Journal/<id>, the newest KeepJournals are kept.
     // A file reaches the journal before it is written: through JournalHook for writes that go through the
     // AssetDatabase, through an explicit Keep for those that do not (text rewrites, reserialization, importers).
+    // Each entry is also appended to journal.log once its copies are made. A run that dies before Close leaves only the
+    // log, and the next run finalizes it into journal.json marked Interrupted, so UndoRun can restore it.
     public sealed class RunJournal
     {
         const int KeepJournals = 30;
         public const string FileName = "journal.json";
+        const string LogName = "journal.log";
 
         // The journal of the run executing now. Null outside a writing run and while a rollback restores files.
         public static RunJournal Current { get; internal set; }
@@ -50,6 +53,7 @@ namespace DotAsset
             {
                 Id += "x";
             }
+            Recover();
         }
 
         public static string Root
@@ -121,6 +125,72 @@ namespace DotAsset
                 Copy(abs, entry.Backup);
                 entry.HadMeta = Copy(abs + ".meta", entry.Backup + ".meta");
             }
+            Append(entry);
+        }
+
+        // One line per entry, written after its copies, so a line always has its backup. A folder's line comes before
+        // its children's, which Restore handles newest first.
+        void Append(Entry entry)
+        {
+            Directory.CreateDirectory(Dir);
+            string file = DotAssetPaths.Combine(Dir, LogName);
+            if (!File.Exists(file))
+            {
+                File.WriteAllText(file, new JObject { ["Id"] = Id, ["RunName"] = runName }.ToString(Newtonsoft.Json.Formatting.None) + "\n");
+            }
+            File.AppendAllText(file, JObject.FromObject(entry).ToString(Newtonsoft.Json.Formatting.None) + "\n");
+        }
+
+        // Finalizes the journals of runs that died before Close: journal.json from the log, each path's state now as
+        // After, marked Interrupted. The journal of the run executing now is left alone.
+        static void Recover()
+        {
+            if (!Directory.Exists(Root))
+            {
+                return;
+            }
+            string current = Current == null ? null : DotAssetPaths.Normalize(Current.Dir);
+            foreach (string dir in Directory.GetDirectories(Root).Select(DotAssetPaths.Normalize))
+            {
+                string log = DotAssetPaths.Combine(dir, LogName);
+                if (dir == current || !File.Exists(log) || File.Exists(DotAssetPaths.Combine(dir, FileName)))
+                {
+                    continue;
+                }
+                try
+                {
+                    string[] lines = File.ReadAllLines(log);
+                    JObject header = JObject.Parse(lines[0]);
+                    var list = new JArray();
+                    for (int i = 1; i < lines.Length; i++)
+                    {
+                        JObject e;
+                        try
+                        {
+                            e = JObject.Parse(lines[i]);
+                        }
+                        catch (Exception)
+                        {
+                            // The last line, cut off by the crash: its file was not written yet.
+                            continue;
+                        }
+                        e["After"] = Hash((string)e["Path"]);
+                        list.Add(e);
+                    }
+                    Json.WriteFile(DotAssetPaths.Combine(dir, FileName), new JObject
+                    {
+                        ["Id"] = header["Id"],
+                        ["RunName"] = header["RunName"],
+                        ["Interrupted"] = true,
+                        ["Entries"] = list,
+                    });
+                    File.Delete(log);
+                }
+                catch (Exception)
+                {
+                    // An unreadable log stays, pruned with its folder later.
+                }
+            }
         }
 
         bool Copy(string abs, string name)
@@ -149,6 +219,7 @@ namespace DotAsset
                 ["RunName"] = runName,
                 ["Entries"] = new JArray(entries.Select(e => (object)JObject.FromObject(e)).ToArray()),
             });
+            File.Delete(DotAssetPaths.Combine(Dir, LogName));
             lastClosed = Dir;
             Prune();
             return file;
@@ -298,6 +369,7 @@ namespace DotAsset
             {
                 return null;
             }
+            Recover();
             if (id == "last")
             {
                 return Directory.GetDirectories(Root).Select(DotAssetPaths.Normalize)

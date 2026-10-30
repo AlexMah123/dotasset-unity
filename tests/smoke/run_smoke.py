@@ -1356,6 +1356,27 @@ def check_journal_undo(base, tmp):
         return problem
     if queue() != 2491:
         return "a refused UndoRun changed Journal.mat"
+
+    # A run that died before it closed its journal: only journal.log is left, its last line cut off. UndoRun must
+    # finalize it and restore what the log names.
+    r, res = edit(2500)
+    cut = journal_of(res)
+    folder = os.path.join(project_of(base), "Library", "DotAsset", "Journal", cut or "?")
+    try:
+        with open(os.path.join(folder, "journal.json"), encoding="utf-8") as f:
+            closed = json.load(f)
+    except (OSError, ValueError) as e:
+        return "no journal.json for EditMaterial run %s: %s" % (cut, e)
+    lines = [json.dumps({"Id": closed["Id"], "RunName": closed["RunName"]})]
+    lines += [json.dumps({k: v for k, v in e.items() if k != "After"}) for e in closed["Entries"]]
+    with open(os.path.join(folder, "journal.log"), "w", encoding="utf-8", newline="\n") as f:
+        f.write("\n".join(lines) + '\n{"Path": "Assets/cut off')
+    os.remove(os.path.join(folder, "journal.json"))
+    r, res = call(base, ["UndoRun", "--args", "-run=%s -apply" % cut])
+    if r.returncode != 0 or "stopped before it finished" not in r.stdout:
+        return run_failed("UndoRun of an interrupted run", r)
+    if queue() != 2491:
+        return "after undoing the interrupted run the render queue is %s, expected 2491" % queue()
     return None
 
 

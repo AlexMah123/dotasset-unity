@@ -48,7 +48,8 @@ namespace DotAsset
             }
             string runName = (string)json["RunName"];
             List<RunJournal.Entry> entries = RunJournal.EntriesOf(json);
-            ctx.Log.Info((ctx.DryRun ? "would undo " : "undoing ") + runName + " run " + json["Id"] + ", " + entries.Count + " path(s)");
+            ctx.Log.Info((ctx.DryRun ? "would undo " : "undoing ") + runName + " run " + json["Id"] + ", " + entries.Count + " path(s)"
+                + ((bool?)json["Interrupted"] == true ? ", a run that stopped before it finished" : string.Empty));
 
             // Every path must still be as the run left it, and free to write.
             foreach (RunJournal.Entry e in entries)

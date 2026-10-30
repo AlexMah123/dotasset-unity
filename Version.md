@@ -6,6 +6,13 @@ Defined in `Package/Editor/Core/DotAssetVersion.cs` and `Package/package.json`, 
 
 Versions follow one rule. A patch (0.1.x) holds fixes, test upgrades and docs. A minor version (0.x.0) adds something new to call: a run, an op, a spec key, an argument or a wrapper option. While on 0.x, a change that breaks existing calls is also a minor version, marked breaking here. 1.0.0 comes when runs, specs and export JSON are promised to stay stable.
 
+### 0.9.1
+
+- Headless runs on Unity 6 no longer take the keyboard focus. Unity 6 opens a console window in batchmode, the wrapper now starts it hidden. While `--launch` waits for the editor, its windows are minimized every 0.1 s instead of every second
+- `EditImporter` dry runs in an open editor or a `--serve` host left the importer changed in memory, and the next save of it wrote the dry run's settings. Importers are now restored from a `SerializedObject` copy
+- `EditPrefab`, `EditScene` and `EditAsset` no longer save a target whose values are already there, a rerun of a spec leaves the files alone
+- Smoke test: steps that write files restart the warm host instead of launching Unity per call, about a third faster headless. `RenameField -apply` stays on the cold batch route. New step: an `-apply` with no change must leave the files alone
+
 ### 0.9.0
 
 - `RenameSerializeReferenceType` (Migrate): repoints `[SerializeReference]` data from an old type name to a compiled type after the class was renamed or moved, `-from="Assembly-CSharp Game.OldEffect" -to=Game.Effects.Burn`. Rewrites `type: {class, ns, asm}` in the YAML, field values kept

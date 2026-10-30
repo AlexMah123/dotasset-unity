@@ -20,6 +20,8 @@ python dotasset.py EditPrefab --args '-spec="C:/temp/player.json" -apply'    # w
 
 Every property written is read back once Unity has applied it. When a value is not what the spec wrote, because `OnValidate`, a setter or a range check changed it, the target fails with both values and nothing of it is saved. Write a value the object keeps, or fix the `OnValidate`.
 
+A target whose values are already what the spec says is not saved: `EditPrefab`, `EditScene` and `EditAsset` log "the values are already there, not saved", so rerunning a spec leaves the files and their modification times alone.
+
 Every Edit run takes `-spec=<path>` and `-apply`, nothing else. The spec is `{"Targets": [ ... ]}`. Unknown keys in a target are refused (exit 2) before anything runs.
 
 A dry run executes everything a real run does and checks it just as hard; it only skips the save and then drops the changes. It works on both routes, including a scene open in the editor (the changes are reverted through undo).

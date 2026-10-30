@@ -8,7 +8,7 @@ Versions follow one rule. A patch (0.1.x) holds fixes, test upgrades and docs. A
 
 ### 0.9.2
 
-- The `--serve` host no longer takes the keyboard focus. It started minimized, but Unity 6 still activated its hidden window, the wrapper now starts it hidden
+- The `--serve` host starts hidden instead of minimized. This does not yet stop it taking the keyboard focus: on Unity 6.3 and later its window still comes to the front once per host start. Unity 6.0 and 2022.3 hosts never did
 - Smoke test: "create wrote the assets" and "create again skips" ran on the cold route because their names start with a cold step's name, they now go through the host
 - Smoke test: "editor states" waits for the compile to start before it sends a run, as it already did for play mode. A run sent sooner went through before the compile
 

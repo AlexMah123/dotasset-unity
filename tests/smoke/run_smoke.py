@@ -973,6 +973,49 @@ def check_rebind_animation(base, tmp):
     return None
 
 
+SCRIPT_GUIDS = {"DotAssetSmokeOld": "5c0a7e01d07a55e75c0a7e01d07a55e7", "DotAssetSmokeNew": "5c0a7e02d07a55e75c0a7e02d07a55e7"}
+
+
+def check_remap_script(base, tmp):
+    # Two scripts with known GUIDs and the same field, a prefab using the old one, then RemapScript by GUID. The
+    # component must become the new script with its field value kept. New scripts only compile when Unity starts.
+    if editor_open(base):
+        return "skip: needs the editor closed, scripts written to disk only compile when Unity starts"
+    for name, guid in SCRIPT_GUIDS.items():
+        path = os.path.join(project_of(base), *(ROOT + "/" + name + ".cs").split("/"))
+        with open(path, "w", encoding="utf-8", newline="\n") as f:
+            f.write("using UnityEngine;\n\npublic class %s : MonoBehaviour\n{\n    public int hp = 3;\n}\n" % name)
+        with open(path + ".meta", "w", encoding="utf-8", newline="\n") as f:
+            f.write("fileFormatVersion: 2\nguid: %s\nMonoImporter:\n  externalObjects: {}\n  serializedVersion: 2\n"
+                    "  defaultReferences: []\n  executionOrder: 0\n  icon: {instanceID: 0}\n  userData: \n"
+                    "  assetBundleName: \n  assetBundleVariant: \n" % guid)
+    unit = ROOT + "/Unit.prefab"
+    seed = spec("unit", {"Assets": [{"Kind": "Prefab", "Path": unit, "Root": "Unit",
+                                     "Components": [{"Type": "DotAssetSmokeOld", "Properties": {"hp": 7}}]}]}, tmp)
+    problem = expect(base, "CreateAsset Unit.prefab", ["CreateAsset", "--args", '-spec="%s"' % seed], 0)
+    if problem:
+        return problem
+    argv = ["RemapScript", "--args", "-from=%s -to=%s/DotAssetSmokeNew.cs -scandir=%s" % (SCRIPT_GUIDS["DotAssetSmokeOld"], ROOT, ROOT)]
+    r, res = call(base, argv)
+    if r.returncode != 0:
+        return run_failed("RemapScript dry run", r)
+    if not any(p.get("Action") == "rewrite" and p.get("Path") == unit for p in res.get("Plan") or []):
+        return "the RemapScript dry run's plan does not list Unit.prefab: %s" % res.get("Plan")
+    if component(export_of("PrefabExport", base, unit), "Unit", "DotAssetSmokeOld") is None:
+        return "the RemapScript dry run changed Unit.prefab's script"
+    argv[-1] += " -apply"
+    problem = expect(base, "RemapScript -apply", argv, 0)
+    if problem:
+        return problem
+    export = export_of("PrefabExport", base, unit)
+    moved = component(export, "Unit", "DotAssetSmokeNew")
+    if moved is None or component(export, "Unit", "DotAssetSmokeOld") is not None:
+        return "after RemapScript -apply Unit.prefab's components are %s" % [c.get("Type") for c in (node(export, "Unit") or {}).get("Components", [])]
+    if (moved.get("Properties") or {}).get("hp") != 7:
+        return "after RemapScript -apply hp is %s, expected 7" % (moved.get("Properties") or {}).get("hp")
+    return None
+
+
 def project_of(base):
     return base[base.index("--project") + 1]
 
@@ -1273,12 +1316,13 @@ def steps_of(specs):
         ("texture audit, export, fix", check_importer, None),
         ("rename shader property", check_rename_shader_property, None),
         ("rebind animation", check_rebind_animation, None),
+        ("remap script by guid", check_remap_script, None),
     ]
 
 
 # Headless steps that launch Unity per run even with a warm host: create, an export, an edit with -apply, a failing
 # run, and the two that need a fresh start to import a file the test wrote.
-COLD = ("catalog", "create", "prefab export", "edit prefab apply", "bad op fails", "missing script", "texture audit", "rebind")
+COLD = ("catalog", "create", "prefab export", "edit prefab apply", "bad op fails", "missing script", "texture audit", "rebind", "remap script")
 
 
 def host(base, hosted, want):

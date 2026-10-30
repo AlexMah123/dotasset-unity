@@ -2,7 +2,7 @@
 
 ![Unity](https://img.shields.io/badge/Unity-2022.3%20%7C%206000.x-black?logo=unity)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-![Status](https://img.shields.io/badge/status-0.x%20preview-orange)
+![Status](https://img.shields.io/github/v/tag/AlexMah123/dotasset-unity?sort=semver&label=preview&color=orange)
 
 An editor package that lets scripts and AI agents read, write, edit and audit Unity assets — with the editor open or closed, through one command line.
 

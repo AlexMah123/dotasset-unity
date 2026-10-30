@@ -14,6 +14,7 @@ Asset-level moves and project-wide reference changes, the repairs after a rename
 | `RemapScript` | repoints components and ScriptableObjects from one script GUID to another script |
 | `RemoveMissingScripts` | removes Missing Script components from prefabs and scenes |
 | `RebindAnimation` | rewrites curve paths in `.anim` clips after a GameObject or bone was renamed or moved |
+| `RenameShaderProperty` | renames a saved shader property in `.mat` files, values kept |
 
 ## Which one after a change
 
@@ -27,6 +28,7 @@ Asset-level moves and project-wide reference changes, the repairs after a rename
 | A prefab is replaced by another | `RemapReference` swaps its instances through Unity's Replace Prefab Asset and repoints fields that reference it |
 | Leftover Missing Script components | `RemoveMissingScripts` |
 | A GameObject or bone under an Animator was renamed or moved, clips show "(Missing!)" | `RebindAnimation -from=Body/Arm -to=Body/ArmL -apply` |
+| A shader renamed a property, materials fall back to the default | `RenameShaderProperty -from=_Color -to=_BaseColor -apply` |
 
 ## MoveAsset
 
@@ -133,6 +135,22 @@ python dotasset.py RebindAnimation --args '-from=Body/Arm -to=Body/ArmL -scandir
 | `-scandir=<dirs>` | default `Assets`. An AssetList of clips or folders replaces the scan |
 
 Curves on `-from` and everything beneath it move: `Body/Arm` -> `Body/ArmL` also rewrites `Body/Arm/Hand`. Float and object reference curves (sprite swaps) both move, keys and tangents unchanged. A clip that already animates the same property at the new path fails its target instead of overwriting it. Clips inside model files are read-only and skipped, extract them to `.anim` first. The dry run plans one change per old path with its curve count. `AssetExport` on a clip shows the paths under `m_FloatCurves`, `m_PPtrCurves` and `m_EditorCurves`.
+
+## RenameShaderProperty
+
+```bash
+python dotasset.py RenameShaderProperty --args '-from=_Color -to=_BaseColor -shader=Custom/Toon -apply'
+```
+
+| Argument | Effect |
+| --- | --- |
+| `-from` | the old property name, as the material saved it |
+| `-to` | the new property name |
+| `-shader=<name>` | only materials using this shader (exact name, `Universal Render Pipeline/Lit`) |
+| `-overwrite` | replace a value the material already saves under `-to` |
+| `-scandir=<dirs>` | default `Assets`. An AssetList of materials or folders replaces the scan |
+
+Renames the entry in `m_SavedProperties` (textures with their scale and offset, floats, ints, colors), so the value and its type stay. A material that already saves `-to` fails its target unless `-overwrite`, and always when the two are of different types. A warning names materials whose shader does not declare `-to`. Only `.mat` files are written. After the run, scripts under `Assets` that mention `"<from>"` and clips that animate `material.<from>` are listed, change those by hand. `MaterialExport` shows the saved names.
 
 ## RemoveMissingScripts
 

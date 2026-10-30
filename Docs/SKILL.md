@@ -32,6 +32,7 @@ python dotasset.py <RunName> "<AssetList>" --args "<-key=value ...>" --agent
 | Swap every use of one asset for another | `RemapReference` |
 | Fix Missing Script | `AuditMissingReference`, then `RemapScript` or `RemoveMissingScripts` |
 | Renamed or moved a GameObject or bone, clips show "(Missing!)" | `RebindAnimation --args "-from=Body/Arm -to=Body/ArmL"` |
+| A shader renamed a property, materials lost their values | `RenameShaderProperty --args "-from=_Color -to=_BaseColor"` |
 | Renamed a serialized field | `[FormerlySerializedAs("old")]`, then `ResaveAsset --args "-dependson=<script>"` |
 | Find broken textures, materials, references | `AuditTexture`, `AuditMaterial`, `AuditMissingReference` |
 

@@ -30,6 +30,7 @@ The call manual for agents. Arguments, spec shapes, exit codes and JSON fields a
 | Replace every use of one asset with another (material, texture, prefab, ScriptableObject) | `RemapReference` | Migrate |
 | Fix "Missing Script" after a `.meta` was lost or a class moved to another file | `RemapScript` (GUIDs from `AuditMissingReference`) | Migrate |
 | Fix animation clips after a GameObject or bone was renamed or moved | `RebindAnimation` | Migrate |
+| Keep material values after a shader renamed a property | `RenameShaderProperty` | Migrate |
 | Remove Missing Script components | `RemoveMissingScripts` | Migrate |
 | Rename a serialized field without losing data | add `[FormerlySerializedAs("old")]`, then `ResaveAsset -dependson=<script>` | Migrate |
 | Normalize YAML after a Unity or package upgrade | `ResaveAsset` | Migrate |

@@ -1,6 +1,6 @@
 # AI Guide
 
-The call manual for agents. Arguments, spec shapes, exit codes and JSON fields are defined in the group docs (`Export.md`, `Import.md`, `Edit.md`, `Migrate.md`, `Audit.md`); this page is the way in.
+The call manual for agents. Arguments, spec shapes, exit codes and JSON fields are defined in the group docs (`Export.md`, `Import.md`, `Edit.md`, `Migrate.md`, `Audit.md`); this page is the way in. For a short version to load as an agent skill, copy `SKILL.md` to `.claude/skills/dotasset/SKILL.md` in the Unity project.
 
 ## Decision table
 

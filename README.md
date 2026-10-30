@@ -2,7 +2,7 @@
 
 ![Unity](https://img.shields.io/badge/Unity-2022.3%20%7C%206000.x-black?logo=unity)
 ![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)
-![Status](https://img.shields.io/badge/status-0.3.0%20preview-orange)
+![Status](https://img.shields.io/badge/status-0.x%20preview-orange)
 
 An editor package that lets scripts and AI agents read, write, edit and audit Unity assets — with the editor open or closed, through one command line.
 
@@ -29,12 +29,12 @@ Every write goes through Unity's own API (`SerializedObject`, `PrefabUtility`, `
 | **Export** | `PrefabExport` `SceneExport` `AssetExport` `MaterialExport` `AnimatorControllerExport` `ImporterExport` `AssetReferenceExport` `TypeCatalogExport` `CommandCatalogExport` |
 | **Import** | `CreateAsset` (folders, ScriptableObjects, materials, prefabs, prefab variants, Animator Controllers, scenes) |
 | **Edit** | `EditPrefab` `EditScene` `EditAsset` `EditMaterial` `EditImporter` `EditAnimatorController` |
-| **Migrate** | `MoveAsset` `DuplicateAsset` `DeleteAsset` `ResaveAsset` `RemapReference` `RemapScript` `RemoveMissingScripts` |
+| **Migrate** | `MoveAsset` `DuplicateAsset` `DeleteAsset` `ResaveAsset` `RemapReference` `RemapScript` `RemoveMissingScripts` `RebindAnimation` `RenameShaderProperty` |
 | **Audit** | `AuditMissingReference` `AuditTexture` `AuditMaterial` |
 
 - **Closed loop**: an export's `Properties` block is what `Set` ops and `EditAsset` take; `ImporterExport`'s texture `Summary` is what `EditImporter`'s `Texture` block takes; audits write a `.fix.json` the matching Edit or Migrate run takes as is
 - **Editor open**: the task goes to the editor's queue and runs on its main thread, the editor stays open, a scene open in the editor is edited on one undo group (one Ctrl+Z)
-- **Editor closed**: Unity starts with `-batchmode -nographics`, runs the task, exits
+- **Editor closed**: Unity starts with `-batchmode -nographics`, runs the task, exits. For many runs in a row, `--serve` keeps one headless Unity up until `--quit`
 - **Writes**: all or nothing per target, Edit and Migrate are dry runs until `-apply`, unknown spec keys and arguments are refused rather than ignored
 
 ## Supported assets
@@ -46,6 +46,7 @@ Every write goes through Unity's own API (`SerializedObject`, `PrefabUtility`, `
 | ScriptableObject | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Material | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Animator Controller | ✓ | ✓ | ✓ | ✓ | ✓ |
+| Animation clip (`.anim`) | ✓ | | ✓ | ✓ | ✓ (references) |
 | Texture, model, audio import settings | ✓ | | ✓ | | ✓ (textures) |
 | Any other asset (sub-assets included) | ✓ | | ✓ | ✓ | ✓ (references) |
 
@@ -272,7 +273,7 @@ tools/gen_meta.py         writes missing .meta files
 
 ## Status
 
-0.3.0 is a preview. Tested Unity versions, each with the smoke test both with the editor closed and open:
+DotAsset is a preview until 1.0.0, see [Version.md](Version.md) for each release. Tested Unity versions, each with the smoke test both with the editor closed and open:
 
 | Unity | Version tested | Result | Date |
 | :-- | :-- | :-- | :-- |
@@ -295,13 +296,13 @@ Every write is read back through an export. An exit code alone never counts as a
 | Edit | `EditPrefab` adds, sets and removes. `EditScene` adds a Light and overrides an instance. `EditMaterial` and `EditAsset` set a render queue. `EditAnimatorController` adds a transition and renames a parameter, along with every condition that reads it. `ArrayOps` Append, Insert and Remove land where they should. A Particle System's start lifetime and emission rate are set through their module paths |
 | Dry runs | Every Edit and Migrate run without `-apply` leaves the files as they were. A dry run in the open editor leaves nothing behind for the next run to save |
 | All or nothing | An edit with one bad op fails the target and saves none of it. A misspelt argument (`-aply`) is refused |
-| Migrate | `DuplicateAsset` copies, `RemapReference` swaps the reference, `MoveAsset` keeps it working, `ResaveAsset` rewrites the files without changing what they hold, and `DeleteAsset` deletes an unused asset but refuses one still in use |
+| Migrate | `DuplicateAsset` copies, `RemapReference` swaps the reference, `MoveAsset` keeps it working, `ResaveAsset` rewrites the files without changing what they hold, and `DeleteAsset` deletes an unused asset but refuses one still in use. `RemapScript` moves a prefab's component to another script by GUID with its field value kept, `RebindAnimation` moves a clip's curves to a renamed path and its children, leaving other paths alone, and `RenameShaderProperty` renames a material's saved color and back with the value kept |
 | Audit | Each audit gets a seeded issue to find: a reference to a deleted material (R1), a Missing Script written into a prefab (R2), a keyword the shader does not declare (M5), and a texture named like a normal map but not imported as one (T1). The audit's own fix spec, run dry and then with `-apply`, must clear it, and `RemoveMissingScripts` must leave the prefab's other components alone |
 | Read only | A full set of exports over the edited assets changes no byte on disk |
 | Unsaved work | With the editor open, a material, a controller and a prefab are given unsaved changes. Every run that writes refuses them, the files stay byte-identical, and the changes are still there to save afterwards. The changes are made by a small helper run the smoke test installs as `Packages/com.alexmah.dotasset.smoke` in the test project, compiled at the next Unity start |
 | Your project | The run fails if anything in `Assets/` outside `Assets/DotAssetSmoke` changed, or if it leaves a Unity log behind. It stops at the first failure (`--keep-going` runs the rest, `--only "edit asset,delete"` runs just the named steps after `create`) and removes its folder however the run ends, Ctrl+C included |
 
-With the editor open, the texture and Missing Script steps are skipped: Unity only reads a new or edited file when it starts. The run with the editor closed covers them.
+With the editor open, the texture, Missing Script, `RebindAnimation` and `RemapScript` steps are skipped: Unity only reads a new or edited file when it starts. The run with the editor closed covers them.
 
 Still to be confirmed, because the smoke test cannot set it up: edits to a scene that is open in the editor, which go through one undo group, `RemoveMissingScripts` included. The smoke test never opens a scene in your editor. Please open issues with the Console output.
 

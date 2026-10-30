@@ -1,6 +1,6 @@
 # Migrate
 
-Asset-level moves and project-wide reference changes, the repairs after a rename or a script change. Every Migrate run is a dry run until `-apply`. A dry run returns its plan, one `{Action, Path, Detail}` entry per file it would `copy`, `move`, `delete`, `rewrite` or `resave` (`Plan` in `--json`, `plan:` lines otherwise, at most 500 entries, then `PlanTruncated`).
+Asset-level moves and project-wide reference changes, the repairs after a rename or a script change. Every Migrate run is a dry run until `-apply`. A dry run returns its plan, one `{Action, Path, Detail}` entry per file it would `copy`, `move`, `delete`, `rewrite` or `resave` (`Plan` in `--json`, `plan:` lines otherwise, at most 500 entries, then `PlanTruncated`, while `PlanTotals` and the first `plan:` line count them all).
 
 ## Runs
 

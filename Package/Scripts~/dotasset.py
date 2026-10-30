@@ -384,6 +384,8 @@ def print_result(result, quiet):
             print("warning: " + text, flush=True)
         elif not quiet:
             print(text, flush=True)
+    if plan_totals(result):
+        print("plan: " + plan_totals(result), flush=True)
     for entry in result.get("Plan") or []:
         print("plan: " + plan_line(entry), flush=True)
     if result.get("PlanTruncated"):
@@ -411,6 +413,8 @@ def print_agent(result):
         print("failed: " + ", ".join(result["FailedTargets"]), flush=True)
     for out in result.get("Outputs") or []:
         print(("out: " if os.path.exists(out) else "missing output: ") + out, flush=True)
+    if plan_totals(result):
+        print("plan: " + plan_totals(result), flush=True)
     capped("plan: ", [plan_line(e) for e in result.get("Plan") or []], result.get("PlanTruncated"))
     if code not in (EXIT_SUCCESS, EXIT_ISSUES) and result.get("LogFile"):
         print("log: " + result["LogFile"], flush=True)
@@ -422,6 +426,21 @@ def capped(prefix, items, truncated=False):
     rest = len(items) - AGENT_MAX_LINES
     if rest > 0 or truncated:
         print(prefix + ("%d more" % rest if rest > 0 else "more") + ", --json for all", flush=True)
+
+
+def plan_totals(result):
+    # The complete count, past the 500 listed entries too: "12 changes, 3 files in 4 targets". None when nothing is planned.
+    totals = result.get("PlanTotals") or {}
+    changes, files = totals.get("Changes") or 0, totals.get("Files") or 0
+    if not changes and not files:
+        return None
+    parts = []
+    if changes:
+        parts.append("%d change%s" % (changes, "" if changes == 1 else "s"))
+    if files:
+        parts.append("%d file%s" % (files, "" if files == 1 else "s"))
+    targets = totals.get("Targets") or 0
+    return "%s in %d target%s" % (", ".join(parts), targets, "" if targets == 1 else "s")
 
 
 def plan_line(entry):

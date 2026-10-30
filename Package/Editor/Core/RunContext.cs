@@ -29,6 +29,16 @@ namespace DotAsset
         public const int MaxPlan = 500;
         public bool PlanTruncated { get; private set; }
 
+        // Totals over every planned entry, the ones past MaxPlan included.
+        public int PlanChangeCount { get; private set; }
+        public int PlanFileCount { get; private set; }
+        readonly HashSet<string> planTargets = new HashSet<string>();
+
+        public int PlanTargetCount
+        {
+            get { return planTargets.Count; }
+        }
+
         // Edit and Migrate write only with -apply. Import and Audit accept it and ignore it.
         public bool Apply
         {
@@ -102,6 +112,8 @@ namespace DotAsset
             {
                 var entry = new JObject { ["Target"] = target };
                 entry.Merge(change);
+                PlanChangeCount++;
+                planTargets.Add(target);
                 AddPlan(entry);
             }
         }
@@ -118,6 +130,8 @@ namespace DotAsset
             {
                 entry["Detail"] = detail;
             }
+            PlanFileCount++;
+            planTargets.Add(path);
             AddPlan(entry);
         }
 

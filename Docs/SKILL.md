@@ -45,7 +45,7 @@ python dotasset.py <RunName> "<AssetList>" --args "<-key=value ...>" --agent
 ] } ] }
 ```
 
-3. Dry run, `--args '-spec="C:/temp/player.json"'`, then read the `plan:` lines (before and after values, files it would write).
+3. Dry run, `--args '-spec="C:/temp/player.json"'`, then read the `plan:` lines: the first is the totals, the rest are examples (before and after values, files it would write).
 4. Apply with `--args '-spec="C:/temp/player.json" -apply'`. Edit and Migrate runs never write without `-apply`.
 5. Export again to confirm the change. Do not trust the exit code alone.
 

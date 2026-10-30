@@ -241,6 +241,15 @@ class AgentOutput(unittest.TestCase):
         self.assertIn("failed: Assets/A.prefab", lines)
         self.assertEqual(lines[-1], "log: x.log")
 
+    def test_plan_totals_come_first_and_count_past_the_list(self):
+        res = {"ExitCode": 0, "Summary": "dry run", "DryRun": True, "PlanTruncated": True,
+               "PlanTotals": {"Changes": 1000, "Files": 1, "Targets": 120},
+               "Plan": [{"Target": "Assets/A.prefab", "Property": "m_Speed", "Before": 1, "After": 2}] * 12}
+        lines = self.capture(ops.print_agent, res).splitlines()
+        self.assertEqual(lines[1], "plan: 1000 changes, 1 file in 120 targets")
+        self.assertEqual(len(lines), 2 + 10 + 1)
+        self.assertIsNone(ops.plan_totals({"PlanTotals": {"Changes": 0, "Files": 0, "Targets": 0}}))
+
     def test_wrapper_progress_is_muted(self):
         self.assertEqual(self.capture(ops.log, "route: editor"), "")
         self.assertIn("error: x", self.capture(ops.log, "error: x"))

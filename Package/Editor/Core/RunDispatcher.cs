@@ -27,6 +27,7 @@ namespace DotAsset
         public List<string> Lines = new List<string>();
         public List<JObject> Plan = new List<JObject>();
         public bool PlanTruncated;
+        public JObject PlanTotals;
 
         public JObject ToJson()
         {
@@ -51,6 +52,7 @@ namespace DotAsset
             {
                 json["Plan"] = new JArray(Plan.Select(o => (object)o).ToArray());
                 json["PlanTruncated"] = PlanTruncated;
+                json["PlanTotals"] = PlanTotals;
             }
             return json;
         }
@@ -121,6 +123,12 @@ namespace DotAsset
             result.FailedTargets.AddRange(ctx.FailedTargets);
             result.Plan.AddRange(ctx.Plan);
             result.PlanTruncated = ctx.PlanTruncated;
+            result.PlanTotals = new JObject
+            {
+                ["Changes"] = ctx.PlanChangeCount,
+                ["Files"] = ctx.PlanFileCount,
+                ["Targets"] = ctx.PlanTargetCount,
+            };
             result.Seconds = watch.Elapsed.TotalSeconds;
             result.Summary = BuildSummary(ctx, code, result.Seconds);
             log.Info(result.Summary);

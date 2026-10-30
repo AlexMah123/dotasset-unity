@@ -489,6 +489,7 @@ namespace DotAsset
                     {
                         settling.SavedAgain.Add(path);
                     }
+                    RunJournal.Rehash(path);
                 }
             }
             if (!edited && now - settling.LastDirty < SettleQuietSeconds && now - settling.Started < SettleMaxSeconds)

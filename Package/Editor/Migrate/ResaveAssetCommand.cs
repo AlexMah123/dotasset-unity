@@ -120,6 +120,11 @@ namespace DotAsset
                 return ctx.FailedTargets.Count > 0 ? ExitCode.Failed : ExitCode.Success;
             }
             var options = ctx.Args.Has("metaonly") ? ForceReserializeAssetsOptions.ReserializeMetadata : ForceReserializeAssetsOptions.ReserializeAssetsAndMetadata;
+            // Reserializing bypasses the AssetDatabase save hooks.
+            foreach (string path in list)
+            {
+                RunJournal.Keep(path);
+            }
             AssetDatabase.ForceReserializeAssets(list, options);
             ctx.Log.Info("resaved " + list.Count + " asset(s)");
             return ctx.FailedTargets.Count > 0 ? ExitCode.Failed : ExitCode.Success;

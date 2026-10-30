@@ -243,6 +243,14 @@ namespace DotAsset
                 }
             };
 
+            // Writing runs keep every file they touch as it was, for -atomic and UndoRun.
+            RunJournal journal = null;
+            if (!ctx.DryRun && cmd.Group != CommandGroup.Export && cmd.Group != CommandGroup.Audit)
+            {
+                journal = new RunJournal(ctx.RunName);
+                RunJournal.Current = journal;
+            }
+
             IsRunning = true;
             Application.logMessageReceived += hook;
             ExitCode code;
@@ -259,6 +267,7 @@ namespace DotAsset
             finally
             {
                 Application.logMessageReceived -= hook;
+                RunJournal.Current = null;
                 IsRunning = false;
                 ctx.ClearProgress();
             }
@@ -269,6 +278,31 @@ namespace DotAsset
             {
                 ctx.Log.Info("the run logged " + ctx.Log.OwnErrors + " error(s), exit code 1");
                 code = ExitCode.Failed;
+            }
+
+            if (journal != null && journal.Count > 0)
+            {
+                if (code == ExitCode.Failed && ctx.Args.Has("atomic"))
+                {
+                    // Rollback writes are not counted against the run, it has failed already.
+                    List<string> left;
+                    using (MuteEngineLog())
+                    {
+                        left = journal.RollBack(ctx.Log);
+                    }
+                    foreach (string problem in left)
+                    {
+                        ctx.Log.Warn("-atomic could not roll back " + problem);
+                    }
+                    ctx.Log.Info(left.Count == 0
+                        ? "-atomic: a target failed, every file the run wrote is back as it was"
+                        : "-atomic: a target failed, files rolled back except the " + left.Count + " above");
+                }
+                else
+                {
+                    ctx.AddOutput(DotAssetPaths.Absolute(journal.Close()));
+                    ctx.Log.Info("undo with: UndoRun --args \"-run=" + journal.Id + " -apply\"");
+                }
             }
 
             if (cmd.Group == CommandGroup.Export && code == ExitCode.Success)

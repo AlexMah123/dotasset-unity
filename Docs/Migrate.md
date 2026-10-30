@@ -15,6 +15,7 @@ Asset-level moves and project-wide reference changes, the repairs after a rename
 | `RemoveMissingScripts` | removes Missing Script components from prefabs and scenes |
 | `RebindAnimation` | rewrites curve paths in `.anim` clips after a GameObject or bone was renamed or moved |
 | `RenameShaderProperty` | renames a saved shader property in `.mat` files, values kept |
+| `UndoRun` | puts back every file an earlier writing run wrote, from its journal |
 
 ## Which one after a change
 
@@ -151,6 +152,22 @@ python dotasset.py RenameShaderProperty --args '-from=_Color -to=_BaseColor -sha
 | `-scandir=<dirs>` | default `Assets`. An AssetList of materials or folders replaces the scan |
 
 Renames the entry in `m_SavedProperties` (textures with their scale and offset, floats, ints, colors), so the value and its type stay. A material that already saves `-to` fails its target unless `-overwrite`, and always when the two are of different types. A warning names materials whose shader does not declare `-to`. Only `.mat` files are written. After the run, scripts under `Assets` that mention `"<from>"` and clips that animate `material.<from>` are listed, change those by hand. `MaterialExport` shows the saved names.
+
+## UndoRun
+
+```bash
+python dotasset.py UndoRun --args "-run=20261031-101500-123"
+python dotasset.py UndoRun --args "-run=last -apply"
+```
+
+Every writing run keeps the files it touches, as they were before it, in `Library/DotAsset/Journal/<id>`. The run prints `out: .../Journal/<id>/journal.json` and logs `undo with: UndoRun --args "-run=<id> -apply"`. The newest 30 journals are kept. `-run=last` takes the newest, which is the undo itself after an undo: undoing an undo redoes the run.
+
+- Files the run wrote come back with their old content and `.meta`, files it created are deleted, moved files return to their old path with their GUID, deleted files come back.
+- Refused as a whole, nothing restored, when any of those paths changed after the run (an edit by hand, a later run), is a scene open in the editor or the prefab in Prefab Mode, or has unsaved changes in the editor.
+- A run is undone once. The dry run lists each path as `rewrite`, `restore` (absent now) or `delete` (created by the run).
+- The undo writes a journal of its own.
+
+`-atomic`, accepted by every Edit, Migrate and Import run, applies the same restore at the end of the run when a target failed: all or nothing across targets instead of per target. A scene open in the editor cannot be restored from disk, the run warns and its edit stays, one Ctrl+Z in the editor takes it back.
 
 ## RemoveMissingScripts
 

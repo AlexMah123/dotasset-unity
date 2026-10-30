@@ -218,6 +218,7 @@ namespace DotAsset
             {
                 return false;
             }
+            RunJournal.Keep(path);
             string guid = AssetDatabase.CreateFolder(parent, Path.GetFileName(path));
             if (string.IsNullOrEmpty(guid))
             {
@@ -265,6 +266,7 @@ namespace DotAsset
                 Object.DestroyImmediate(instance);
                 return false;
             }
+            RunJournal.Keep(path);
             AssetDatabase.CreateAsset(instance, path);
             // Saved now for the same reason as a new material.
             AssetDatabase.SaveAssetIfDirty(instance);
@@ -307,6 +309,7 @@ namespace DotAsset
                 Object.DestroyImmediate(mat);
                 return false;
             }
+            RunJournal.Keep(path);
             AssetDatabase.CreateAsset(mat, path);
             // Unity 6.6 can leave the new material marked dirty, which later writing runs take as unsaved work.
             AssetDatabase.SaveAssetIfDirty(mat);
@@ -389,6 +392,7 @@ namespace DotAsset
                 bool success;
                 try
                 {
+                    RunJournal.Keep(path);
                     PrefabUtility.SaveAsPrefabAsset(root, path, out success);
                 }
                 catch (Exception e)
@@ -444,6 +448,7 @@ namespace DotAsset
                 bool success;
                 try
                 {
+                    RunJournal.Keep(path);
                     PrefabUtility.SaveAsPrefabAsset(instance, path, out success);
                 }
                 catch (Exception e)

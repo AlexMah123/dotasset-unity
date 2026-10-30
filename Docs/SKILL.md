@@ -34,6 +34,7 @@ python dotasset.py <RunName> "<AssetList>" --args "<-key=value ...>" --agent
 | Renamed or moved a GameObject or bone, clips show "(Missing!)" | `RebindAnimation --args "-from=Body/Arm -to=Body/ArmL"` |
 | A shader renamed a property, materials lost their values | `RenameShaderProperty --args "-from=_Color -to=_BaseColor"` |
 | Renamed a serialized field | `[FormerlySerializedAs("old")]`, then `ResaveAsset --args "-dependson=<script>"` |
+| Take back a writing run | `UndoRun --args "-run=last"` (or the id from its `out:` journal line) |
 | Find broken textures, materials, references | `AuditTexture`, `AuditMaterial`, `AuditMissingReference` |
 
 ## Workflow
@@ -66,5 +67,5 @@ Audits write `<report>.fix.json` for the matching fix run (`EditImporter`, `Edit
 
 - Never hand-edit `.prefab`, `.unity`, `.asset` or `.meta` files, and never call `AssetDatabase.SaveAssets`.
 - Spec paths are absolute or relative to the project root. Quote values that contain spaces.
-- Writes are all or nothing per target, so a failed target leaves its file unchanged.
+- Writes are all or nothing per target, so a failed target leaves its file unchanged. Add `-atomic` for all or nothing across every target of the run.
 - `--quit` and `--open-scene` refuse while there are unsaved changes. Ask the user before adding `--force`.

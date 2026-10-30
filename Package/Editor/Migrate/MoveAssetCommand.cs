@@ -102,6 +102,8 @@ namespace DotAsset
                     continue;
                 }
                 ctx.BeginTarget();
+                RunJournal.Keep(from);
+                RunJournal.Keep(to);
                 string result = AssetDatabase.MoveAsset(from, to);
                 if (!string.IsNullOrEmpty(result))
                 {

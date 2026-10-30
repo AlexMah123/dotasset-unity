@@ -94,6 +94,7 @@ namespace DotAsset
                     ctx.PlanFile("delete", path, inside.Count > 1 ? inside.Count + " assets" : null);
                     continue;
                 }
+                RunJournal.Keep(path);
                 bool ok = ctx.Args.Has("permanent") ? AssetDatabase.DeleteAsset(path) : AssetDatabase.MoveAssetToTrash(path);
                 if (!ok)
                 {

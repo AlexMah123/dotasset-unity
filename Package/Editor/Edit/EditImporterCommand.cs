@@ -172,6 +172,7 @@ namespace DotAsset
                 }
                 snapshot.Commit();
                 EditorUtility.SetDirty(importer);
+                RunJournal.Keep(importer.assetPath);
                 importer.SaveAndReimport();
                 ctx.WarnIfSavedWithErrors(path);
                 ctx.Log.Info("reimported " + path);

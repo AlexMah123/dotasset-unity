@@ -157,6 +157,7 @@ namespace DotAsset
                 }
                 try
                 {
+                    RunJournal.Keep(path);
                     File.WriteAllText(abs, pattern.Replace(text, replacement), new UTF8Encoding(false));
                     toImport.Add(path);
                 }

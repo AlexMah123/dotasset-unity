@@ -80,6 +80,7 @@ namespace DotAsset
             try
             {
                 // Throws on cyclic nesting and on immutable folders, which a dry run never reaches.
+                RunJournal.Keep(Path);
                 PrefabUtility.SaveAsPrefabAsset(Root, Path, out success);
             }
             catch (Exception e)
@@ -184,6 +185,7 @@ namespace DotAsset
         public bool Save(out string error)
         {
             error = null;
+            RunJournal.Keep(Scene.path);
             if (!EditorSceneManager.SaveScene(Scene))
             {
                 error = "Unity refused to save " + Scene.path;

@@ -101,13 +101,13 @@ namespace DotAsset
                     return new[] { "outdir", "full", "maxarray", "maxstring" };
                 case CommandGroup.Edit:
                 case CommandGroup.Migrate:
-                    return new[] { "apply" };
+                    return new[] { "apply", "atomic" };
                 case CommandGroup.Audit:
                     // -apply is accepted and ignored: audits never write, so a habitual -apply must not refuse the run.
                     return new[] { "report", "apply" };
                 default:
                     // Import writes without -apply, and accepts it for the same reason.
-                    return new[] { "apply" };
+                    return new[] { "apply", "atomic" };
             }
         }
     }

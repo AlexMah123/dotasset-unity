@@ -34,11 +34,14 @@ The call manual for agents. Arguments, spec shapes, exit codes and JSON fields a
 | Remove Missing Script components | `RemoveMissingScripts` | Migrate |
 | Rename a serialized field without losing data | add `[FormerlySerializedAs("old")]`, then `ResaveAsset -dependson=<script>` | Migrate |
 | Normalize YAML after a Unity or package upgrade | `ResaveAsset` | Migrate |
+| Take back an earlier writing run, every file it wrote, created, moved or deleted | `UndoRun -run=<id>` or `-run=last` | Migrate |
 | References to deleted assets, missing scripts, missing prefab sources | `AuditMissingReference` | Audit |
 | Textures with wrong type, sRGB, compression, mipmaps or size | `AuditTexture` | Audit |
 | Materials that render pink, stale properties, stray keywords | `AuditMaterial` | Audit |
 
 Before editing, export. The export shows the exact property names (`m_Mass`, not `mass`), paths (`Player/Model/Hand.R`) and reference forms the Edit spec needs. When a property name is unknown, `TypeCatalogExport -filter=<type>` lists them without touching any asset.
+
+Every writing run (Import, and Edit or Migrate with `-apply`) keeps the files it touches, as they were, in a journal: `Library/DotAsset/Journal/<id>/journal.json`, printed as an `out:` line. `UndoRun --args "-run=<id> -apply"` puts them all back, and refuses as a whole when one of them changed after the run. Add `-atomic` to an Edit, Migrate or Import run to make it all or nothing across every target: when one target fails, the targets already written are restored and the run leaves no journal. Without `-atomic` the other targets stay written, as before.
 
 Audit first, then fix with the spec the audit wrote: `AuditTexture` writes `<report>.fix.json` for `EditImporter`, `AuditMaterial` for `EditMaterial`, `AuditMissingReference` for `RemoveMissingScripts`. Review it, run once without `-apply`, then with it.
 

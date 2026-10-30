@@ -1016,6 +1016,90 @@ def check_remap_script(base, tmp):
     return None
 
 
+def journal_of(res):
+    """The journal id a writing run printed as an output, or None."""
+    for out in res.get("Outputs") or []:
+        if out.replace("\\", "/").endswith("/journal.json"):
+            return out.replace("\\", "/").split("/")[-2]
+    return None
+
+
+def check_journal_undo(base, tmp):
+    # A material edited, undone, moved and moved back by UndoRun with its GUID, then -atomic across two targets.
+    mat = ROOT + "/Journal.mat"
+    seed = spec("journal_mat", {"Assets": [{"Kind": "Material", "Path": mat, "Properties": {}}]}, tmp)
+    problem = expect(base, "CreateAsset Journal.mat", ["CreateAsset", "--args", '-spec="%s"' % seed], 0)
+    if problem:
+        return problem
+    queue = lambda: export_of("MaterialExport", base, mat).get("RenderQueue")
+    before = queue()
+
+    def edit(value, extra=""):
+        path = spec("journal_edit_%d" % value, {"Targets": [{"AssetPath": mat, "RenderQueue": value}]}, tmp)
+        return call(base, ["EditMaterial", "--args", '-spec="%s" -apply%s' % (path, extra)])
+
+    r, res = edit(2470)
+    run_id = journal_of(res)
+    if r.returncode != 0 or not run_id:
+        return "EditMaterial -apply exit %s, journal %s: %s" % (r.returncode, run_id, res.get("Outputs"))
+    r, res = call(base, ["UndoRun", "--args", "-run=" + run_id])
+    if r.returncode != 0 or not any(p.get("Path") == mat and p.get("Action") == "rewrite" for p in res.get("Plan") or []):
+        return "the UndoRun dry run exit %s, plan %s" % (r.returncode, res.get("Plan"))
+    if queue() != 2470:
+        return "the UndoRun dry run changed Journal.mat"
+    problem = expect(base, "UndoRun -apply", ["UndoRun", "--args", "-run=%s -apply" % run_id], 0)
+    if problem:
+        return problem
+    if queue() != before:
+        return "after UndoRun the render queue is %s, expected %s" % (queue(), before)
+    problem = expect(base, "UndoRun twice", ["UndoRun", "--args", "-run=%s -apply" % run_id], 2)
+    if problem:
+        return problem
+
+    # A move undone: the file returns to its path with its GUID, the folder the move created goes.
+    meta = os.path.join(project_of(base), *(mat + ".meta").split("/"))
+    with open(meta, encoding="utf-8") as f:
+        guid = re.search(r"guid: (\w+)", f.read()).group(1)
+    moved = ROOT + "/Moved/Journal.mat"
+    problem = expect(base, "MoveAsset -apply", ["MoveAsset", "--args", "-from=%s -to=%s -apply" % (mat, moved)], 0)
+    if problem:
+        return problem
+    problem = expect(base, "UndoRun last", ["UndoRun", "--args", "-run=last -apply"], 0)
+    if problem:
+        return problem
+    if not on_disk(base, mat) or on_disk(base, ROOT + "/Moved"):
+        return "after undoing the move Journal.mat is %s at its old path and Moved/ %s" % (
+            "back" if on_disk(base, mat) else "not", "is left" if on_disk(base, ROOT + "/Moved") else "is gone")
+    with open(meta, encoding="utf-8") as f:
+        if guid not in f.read():
+            return "undoing the move gave Journal.mat a new GUID"
+
+    # -atomic: the second target fails, the first one is restored. Without it the first stays written.
+    both = spec("journal_atomic", {"Targets": [{"AssetPath": mat, "RenderQueue": 2480},
+                                                 {"AssetPath": ROOT + "/Missing.mat", "RenderQueue": 2480}]}, tmp)
+    problem = expect(base, "EditMaterial -atomic", ["EditMaterial", "--args", '-spec="%s" -apply -atomic' % both], 1)
+    if problem:
+        return problem
+    if queue() != before:
+        return "after a failed -atomic run the render queue is %s, expected %s" % (queue(), before)
+    problem = expect(base, "EditMaterial without -atomic", ["EditMaterial", "--args", '-spec="%s" -apply' % both], 1)
+    if problem:
+        return problem
+    if queue() != 2480:
+        return "without -atomic the target that worked was not written"
+
+    # A later change refuses the undo of the earlier run, nothing restored.
+    r, res = edit(2490)
+    first = journal_of(res)
+    edit(2491)
+    problem = expect(base, "UndoRun after a later change", ["UndoRun", "--args", "-run=%s -apply" % first], 1)
+    if problem:
+        return problem
+    if queue() != 2491:
+        return "a refused UndoRun changed Journal.mat"
+    return None
+
+
 def project_of(base):
     return base[base.index("--project") + 1]
 
@@ -1317,6 +1401,7 @@ def steps_of(specs):
         ("rename shader property", check_rename_shader_property, None),
         ("rebind animation", check_rebind_animation, None),
         ("remap script by guid", check_remap_script, None),
+        ("journal, undo, -atomic", check_journal_undo, None),
     ]
 
 

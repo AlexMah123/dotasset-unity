@@ -71,6 +71,7 @@ namespace DotAsset
                     continue;
                 }
                 ctx.BeginTarget();
+                RunJournal.Keep(copy.Value);
                 if (!AssetDatabase.CopyAsset(copy.Key, copy.Value))
                 {
                     CreateAssetCommand.RemoveCreatedFolders(ctx);

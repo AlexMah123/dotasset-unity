@@ -1541,7 +1541,7 @@ def run(args, tmp):
                 not_run += 1
                 continue
             if headless:
-                problem = host(base, hosted, not name.startswith(COLD))
+                problem = host(base, hosted, name not in COLD)
                 if problem:
                     failed += 1
                     print("%-4s %-28s\n%s" % ("FAIL", "warm host for " + name, indent(problem)), flush=True)
@@ -1674,7 +1674,7 @@ def steps_of(specs):
 
 # Headless steps that launch Unity per run even with a warm host, so the batch route stays tested: create, an
 # export, an edit with -apply and a failing run. Steps that write files restart the host instead (fresh_host).
-COLD = ("catalog", "create", "prefab export", "edit prefab apply", "bad op fails")
+COLD = ("catalog: every run, this repo", "create", "prefab export", "edit prefab apply", "bad op fails, saves nothing")
 
 
 HOSTED = [False]

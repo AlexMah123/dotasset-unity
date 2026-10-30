@@ -908,6 +908,7 @@ def launch_locked(args, project, queue_root, serve=False):
             return EXIT_FAILED
         if serve:
             os.makedirs(os.path.join(queue_root, "batch"), exist_ok=True)
+            keep_scene_setup(project, queue_root)
             cmd = [unity, "-batchmode", "-nographics", "-projectPath", project, "-executeMethod", "DotAsset.Cli.Serve",
                    "-logFile", os.path.join(queue_root, "batch", "serve.unity.log")]
         else:
@@ -943,6 +944,29 @@ def launch_locked(args, project, queue_root, serve=False):
     log("error: the editor did not take tasks within %ds (last state: %s). Compile errors, a Safe Mode prompt or a license "
         "dialog can hold it, check %s" % (args.startup_wait, last_state or "no heartbeat", editor_log_hint()))
     return EXIT_FAILED
+
+
+def served_scene_copy(queue_root):
+    return os.path.join(queue_root, "batch", "serve.scenes.txt")
+
+
+def keep_scene_setup(project, queue_root):
+    # A --serve host empties the scene setup on quit like any batch run, keep it for quit_editor
+    saved = read_scene_setup(project)
+    if saved is not None:
+        with open(served_scene_copy(queue_root), "wb") as f:
+            f.write(saved)
+
+
+def restore_served_scene_setup(project, queue_root):
+    copy = served_scene_copy(queue_root)
+    try:
+        with open(copy, "rb") as f:
+            saved = f.read()
+    except OSError:
+        return
+    restore_scene_setup(project, saved)
+    os.remove(copy)
 
 
 def editor_log_hint():
@@ -1072,6 +1096,8 @@ def quit_editor(args, project):
 
     while time.time() < deadline:
         if not is_unity_process(pid) and not project_locked(project):
+            if alive.get("Served"):
+                restore_served_scene_setup(project, queue_root)
             log("the editor closed, the project is free")
             return EXIT_SUCCESS
         time.sleep(0.5)

@@ -6,6 +6,11 @@ Defined in `Package/Editor/Core/DotAssetVersion.cs` and `Package/package.json`, 
 
 Versions follow one rule. A patch (0.1.x) holds fixes, test upgrades and docs. A minor version (0.x.0) adds something new to call: a run, an op, a spec key, an argument or a wrapper option. While on 0.x, a change that breaks existing calls is also a minor version, marked breaking here. 1.0.0 comes when runs, specs and export JSON are promised to stay stable.
 
+### 0.9.2
+
+- The `--serve` host no longer takes the keyboard focus. It started minimized, but Unity 6 still activated its hidden window, the wrapper now starts it hidden
+- Smoke test: "create wrote the assets" and "create again skips" ran on the cold route because their names start with a cold step's name, they now go through the host
+
 ### 0.9.1
 
 - Headless runs on Unity 6 no longer take the keyboard focus. Unity 6 opens a console window in batchmode, the wrapper now starts it hidden. While `--launch` waits for the editor, its windows are minimized every 0.1 s instead of every second

@@ -37,6 +37,9 @@ namespace DotAsset
         public readonly List<string> Errors = new List<string>();
         public int Changes { get; private set; }
 
+        // False while every op so far was a Set that found its values already there, the target needs no save.
+        public bool Touched { get; private set; }
+
         // Set on dry runs: every property value the ops changed, {Object, Property, Before, After}.
         public List<JObject> PlanChanges;
 
@@ -106,6 +109,10 @@ namespace DotAsset
                     return false;
                 }
                 Changes++;
+                if (name != "Set")
+                {
+                    Touched = true;
+                }
                 Refresh();
             }
             return true;
@@ -233,6 +240,11 @@ namespace DotAsset
                     {
                         ctx.PlanChanges(path, editor.PlanChanges);
                         ctx.Log.Info(path + ": " + editor.Changes + " op(s) would apply");
+                        continue;
+                    }
+                    if (!editor.Touched)
+                    {
+                        ctx.Log.Info(path + ": the values are already there, not saved");
                         continue;
                     }
                     if (!session.Save(out error))
@@ -805,11 +817,7 @@ namespace DotAsset
 
         bool WriteProperties(Object target, JObject properties, JArray arrayOps, string label)
         {
-            var wc = new WriteContext { Scope = scope, UseUndo = useUndo };
-            if (PlanChanges != null)
-            {
-                wc.Changes = new List<JObject>();
-            }
+            var wc = new WriteContext { Scope = scope, UseUndo = useUndo, Changes = new List<JObject>() };
             if (!PropertyIO.Write(target, properties, arrayOps, wc))
             {
                 foreach (string e in wc.Errors)
@@ -818,7 +826,11 @@ namespace DotAsset
                 }
                 return false;
             }
-            if (wc.Changes != null)
+            if (wc.Changes.Count > 0 || arrayOps != null)
+            {
+                Touched = true;
+            }
+            if (PlanChanges != null)
             {
                 string where = PropertyIO.Describe(target);
                 foreach (JObject change in wc.Changes)

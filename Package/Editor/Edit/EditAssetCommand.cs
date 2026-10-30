@@ -78,11 +78,7 @@ namespace DotAsset
                 ctx.BeginTarget();
                 using (var snapshot = new AssetSnapshot(obj))
                 {
-                    var wc = new WriteContext { Scope = RefScope.None, UseUndo = false };
-                    if (ctx.DryRun)
-                    {
-                        wc.Changes = new List<JObject>();
-                    }
+                    var wc = new WriteContext { Scope = RefScope.None, UseUndo = false, Changes = new List<JObject>() };
                     bool ok = PropertyIO.Write(obj, properties, arrayOps, wc);
                     if (!ok || ctx.TargetFailed())
                     {
@@ -96,6 +92,11 @@ namespace DotAsset
                     if (ctx.DryRun)
                     {
                         ctx.PlanChanges(label, wc.Changes);
+                        continue;
+                    }
+                    if (wc.Changes.Count == 0 && arrayOps == null)
+                    {
+                        ctx.Log.Info(label + ": the values are already there, not saved");
                         continue;
                     }
                     EditorUtility.SetDirty(obj);

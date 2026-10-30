@@ -1311,12 +1311,14 @@ def check_editor_states(base, tmp):
             return "skip: the smoke helper compiles at the next Unity start, the headless run starts one"
         if r.returncode != 0:
             return run_failed("SmokeEditorState -" + state, r)
-        if state == "play":
-            # Unity enters play mode a frame or more after the request. A run sent sooner goes through first.
+        if state != "pause":
+            # Unity enters play mode, or starts the compile, a frame or more after the request. A run sent sooner
+            # goes through first.
+            busy = ("state playmode",) if state == "play" else ("state compiling", "state reloading", "state importing")
             deadline = time.time() + 8
-            while "state playmode" not in subprocess.run(base + ["--status"], capture_output=True, text=True).stdout:
+            while not any(b in subprocess.run(base + ["--status"], capture_output=True, text=True).stdout for b in busy):
                 if time.time() > deadline:
-                    return "the editor did not enter play mode within 8 s of SmokeEditorState -play"
+                    return "the editor did not start %s within 8 s of SmokeEditorState -%s" % (state, state)
                 time.sleep(0.5)
         r, _ = call(base, ["CommandCatalogExport"])
         if r.returncode != code or said not in r.stdout + r.stderr:

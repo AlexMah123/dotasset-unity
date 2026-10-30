@@ -892,6 +892,87 @@ def check_round_trip(base, tmp):
     return None
 
 
+def check_rename_shader_property(base, tmp):
+    # _Color goes to a name no shader declares, so MaterialExport lists it as stale, then back, where the color must
+    # still be the one saved before.
+    tint = ROOT + "/Tint.mat"
+    color = [0.25, 0.5, 0.75, 1]
+    seed = spec("tint", {"Assets": [{"Kind": "Material", "Path": tint, "Properties": {"_Color": color}}]}, tmp)
+    problem = expect(base, "CreateAsset Tint.mat", ["CreateAsset", "--args", '-spec="%s"' % seed], 0)
+    if problem:
+        return problem
+    argv = ["RenameShaderProperty", tint, "--args", "-from=_Color -to=_SmokeTint"]
+    r, res = call(base, argv)
+    if r.returncode != 0:
+        return run_failed("RenameShaderProperty dry run", r)
+    if not any(p.get("Target") == tint for p in res.get("Plan") or []):
+        return "the RenameShaderProperty dry run's plan does not list Tint.mat: %s" % res.get("Plan")
+    if "_SmokeTint" in (export_of("MaterialExport", base, tint).get("StaleProperties") or []):
+        return "the RenameShaderProperty dry run renamed _Color"
+    argv[-1] += " -apply"
+    problem = expect(base, "RenameShaderProperty -apply", argv, 0)
+    if problem:
+        return problem
+    if "_SmokeTint" not in (export_of("MaterialExport", base, tint).get("StaleProperties") or []):
+        return "after RenameShaderProperty -apply Tint.mat does not save _SmokeTint"
+    problem = expect(base, "RenameShaderProperty back", ["RenameShaderProperty", tint, "--args", "-from=_SmokeTint -to=_Color -apply"], 0)
+    if problem:
+        return problem
+    saved = export_of("MaterialExport", base, tint, "-full").get("Properties", {}).get("_Color")
+    if saved is None or [round(v, 3) for v in saved] != color:
+        return "after renaming _Color away and back Tint.mat's _Color is %s, expected %s" % (saved, color)
+    return None
+
+
+def anim_curve(path, nl):
+    keys = []
+    for t in (0, 1):
+        keys += ["      - serializedVersion: 3", "        time: %d" % t, "        value: %d" % t, "        inSlope: 0",
+                 "        outSlope: 0", "        tangentMode: 0", "        weightedMode: 0", "        inWeight: 0.33333334",
+                 "        outWeight: 0.33333334"]
+    return nl.join(["  - curve:", "      serializedVersion: 2", "      m_Curve:"] + keys + [
+        "      m_PreInfinity: 2", "      m_PostInfinity: 2", "      m_RotationOrder: 4",
+        "    attribute: m_IsActive", "    path: " + path, "    classID: 1", "    script: {fileID: 0}"])
+
+
+def check_rebind_animation(base, tmp):
+    # A clip written as YAML, curves on Body/Arm, its child and a sibling. Unity only imports the new file when it
+    # starts, so this needs the headless route.
+    if editor_open(base):
+        return "skip: needs the editor closed, a clip written to disk is only imported when Unity starts"
+    clip = ROOT + "/Wave.anim"
+    nl = "\n"
+    curves = nl.join(anim_curve(p, nl) for p in ("Body/Arm", "Body/Arm/Hand", "Body/Leg"))
+    text = nl.join(["%YAML 1.1", "%TAG !u! tag:unity3d.com,2011:", "--- !u!74 &7400000", "AnimationClip:",
+                    "  m_ObjectHideFlags: 0", "  m_Name: Wave", "  serializedVersion: 7", "  m_Legacy: 0",
+                    "  m_FloatCurves:", curves, "  m_PPtrCurves: []", "  m_SampleRate: 60",
+                    "  m_EditorCurves:", curves, "  m_Events: []", ""])
+    with open(os.path.join(project_of(base), *clip.split("/")), "w", encoding="utf-8", newline="") as f:
+        f.write(text)
+
+    def paths():
+        dump = json.dumps(export_of("AssetExport", base, clip))
+        return set(re.findall(r'"(Body/[A-Za-z/]+)"', dump))
+
+    argv = ["RebindAnimation", "--args", "-from=Body/Arm -to=Body/ArmL -scandir=" + ROOT]
+    r, res = call(base, argv)
+    if r.returncode != 0:
+        return run_failed("RebindAnimation dry run", r)
+    if not any(p.get("Target") == clip and p.get("Before") == "Body/Arm" for p in res.get("Plan") or []):
+        return "the RebindAnimation dry run's plan does not list Wave.anim: %s" % res.get("Plan")
+    before = paths()
+    if before != {"Body/Arm", "Body/Arm/Hand", "Body/Leg"}:
+        return "after the RebindAnimation dry run Wave.anim animates %s" % sorted(before)
+    argv[-1] += " -apply"
+    problem = expect(base, "RebindAnimation -apply", argv, 0)
+    if problem:
+        return problem
+    after = paths()
+    if after != {"Body/ArmL", "Body/ArmL/Hand", "Body/Leg"}:
+        return "after RebindAnimation -apply Wave.anim animates %s" % sorted(after)
+    return None
+
+
 def project_of(base):
     return base[base.index("--project") + 1]
 
@@ -1190,12 +1271,14 @@ def steps_of(specs):
         ("audit material and fix", check_audit_material, None),
         ("missing script, audit, fix", check_missing_script, None),
         ("texture audit, export, fix", check_importer, None),
+        ("rename shader property", check_rename_shader_property, None),
+        ("rebind animation", check_rebind_animation, None),
     ]
 
 
 # Headless steps that launch Unity per run even with a warm host: create, an export, an edit with -apply, a failing
 # run, and the two that need a fresh start to import a file the test wrote.
-COLD = ("catalog", "create", "prefab export", "edit prefab apply", "bad op fails", "missing script", "texture audit")
+COLD = ("catalog", "create", "prefab export", "edit prefab apply", "bad op fails", "missing script", "texture audit", "rebind")
 
 
 def host(base, hosted, want):

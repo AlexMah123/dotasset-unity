@@ -6,6 +6,13 @@ Defined in `Package/Editor/Core/DotAssetVersion.cs` and `Package/package.json`, 
 
 Versions follow one rule. A patch (0.1.x) holds fixes, test upgrades and docs. A minor version (0.x.0) adds something new to call: a run, an op, a spec key, an argument or a wrapper option. While on 0.x, a change that breaks existing calls is also a minor version, marked breaking here. 1.0.0 comes when runs, specs and export JSON are promised to stay stable.
 
+### 0.6.0
+
+- `RebindAnimation` (Migrate): rewrites curve paths in `.anim` clips after a GameObject or bone was renamed or moved, `-from=Body/Arm -to=Body/ArmL`. Children move along, float and object reference curves both, keys unchanged. A clip that already animates the same property at the new path fails its target
+- `RenameShaderProperty` (Migrate): renames a saved property in `.mat` files after a shader renamed it, `-from=_Color -to=_BaseColor`, value and type kept. `-shader` limits it to one shader, `-overwrite` replaces a value already saved under the new name. Scripts and clips that still name the old property are listed
+- Fix: the `--serve` host no longer leaves the editor with an Untitled scene, `--quit` restores the last scene setup
+- Smoke test: steps for both runs, read back through `MaterialExport` and `AssetExport`
+
 ### 0.5.0
 
 - Wrapper `--serve`: starts a warm headless host, batchmode Unity that stays up and takes runs through the same task queue as an open editor, until `--quit`. Many headless steps in a row skip Unity's start-up without opening an editor window. Runs through the host report `inEditor` false, `--status` prints `host pid`. `--quit` puts back the scenes the editor reopens, which the host empties when it exits

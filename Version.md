@@ -6,6 +6,12 @@ Defined in `Package/Editor/Core/DotAssetVersion.cs` and `Package/package.json`, 
 
 Versions follow one rule. A patch (0.1.x) holds fixes, test upgrades and docs. A minor version (0.x.0) adds something new to call: a run, an op, a spec key, an argument or a wrapper option. While on 0.x, a change that breaks existing calls is also a minor version, marked breaking here. 1.0.0 comes when runs, specs and export JSON are promised to stay stable.
 
+### 0.9.0
+
+- `RenameSerializeReferenceType` (Migrate): repoints `[SerializeReference]` data from an old type name to a compiled type after the class was renamed or moved, `-from="Assembly-CSharp Game.OldEffect" -to=Game.Effects.Burn`. Rewrites `type: {class, ns, asm}` in the YAML, field values kept
+- `AuditMissingReference` R5: `[SerializeReference]` data whose type no compiled class has, which Unity reads as null without a warning. Confirmed by Unity outside scenes, so `[MovedFrom]` renames are not reported. The report's `MissingTypes` lists candidates of the same class name and a ready argument line
+- Smoke test: a `[SerializeReference]` class moves into a namespace, R5 finds it with the moved class as candidate, the rename brings `x` back
+
 ### 0.8.0
 
 - `RenameField` (Migrate): renames a serialized field after its C# rename, `-script=Assets/Scripts/Enemy.cs -from=hp -to=health`. Rewrites the key in every component and ScriptableObject of that script, and the prefab overrides that target them through variants, nested prefabs and scenes. Refused while the class still has the old field. Top-level fields only

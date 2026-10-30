@@ -1,6 +1,6 @@
 {
   "name": "com.alexmah.dotasset",
-  "version": "0.8.0",
+  "version": "0.9.0",
   "displayName": "DotAsset for Unity",
   "description": "Headless asset operations for scripts and AI agents: export prefabs, scenes, ScriptableObjects, materials, Animator Controllers and importer settings to JSON, create assets from a JSON spec, edit them in place with all-or-nothing writes, migrate references after a move or script change, and audit missing references, textures and materials. Runs inside the open editor through a file queue, or headless through -batchmode, with the same output either way.",
   "unity": "2022.3",

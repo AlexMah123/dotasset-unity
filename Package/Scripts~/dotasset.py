@@ -687,7 +687,7 @@ def run_batch_unity(args, project, queue_root, run, assets, extra):
     log("route: batchmode (%s)" % unity)
     started = time.time()
     try:
-        proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+        proc = subprocess.Popen(cmd, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL, **hidden_console())
     except OSError as e:
         log("error: cannot start Unity: %s" % e)
         return EXIT_FAILED
@@ -838,6 +838,17 @@ def status(project):
     return EXIT_SUCCESS
 
 
+def hidden_console():
+    """Popen arguments that keep batchmode Unity's console hidden. Unity 6 opens a console window in batchmode when
+    started without one, and that window takes the focus from whatever the user is typing in. Windows only."""
+    if sys.platform != "win32":
+        return {}
+    info = subprocess.STARTUPINFO()
+    info.dwFlags |= subprocess.STARTF_USESHOWWINDOW
+    info.wShowWindow = 0  # SW_HIDE
+    return {"startupinfo": info}
+
+
 def start_detached(cmd, visible=True):
     """Starts the editor so it outlives this script and the terminal that ran it. Not visible: it starts minimized
     and never takes the focus."""
@@ -924,8 +935,6 @@ def launch_locked(args, project, queue_root, serve=False):
     deadline = time.time() + args.startup_wait
     last_state = None
     while time.time() < deadline:
-        if proc is not None and not args.visible and not serve:
-            minimize_windows(proc.pid)
         alive = live_editor(queue_root)
         state = alive.get("State") if alive else None
         if state and state != last_state:
@@ -940,7 +949,11 @@ def launch_locked(args, project, queue_root, serve=False):
         if proc is not None and alive is None and proc.poll() is not None:
             log("error: Unity exited with %s before its task queue came up. Check %s" % (proc.returncode, editor_log_hint()))
             return EXIT_FAILED
-        time.sleep(1.0)
+        # A tenth of a second between window checks: a window Unity opens takes the focus until it is minimized.
+        for _ in range(10):
+            if proc is not None and not args.visible and not serve:
+                minimize_windows(proc.pid)
+            time.sleep(0.1)
     log("error: the editor did not take tasks within %ds (last state: %s). Compile errors, a Safe Mode prompt or a license "
         "dialog can hold it, check %s" % (args.startup_wait, last_state or "no heartbeat", editor_log_hint()))
     return EXIT_FAILED

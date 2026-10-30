@@ -203,6 +203,8 @@ A material inside a model (`.fbx`) is refused, it is rebuilt on every import. Ex
 
 `Properties` writes importer fields by serialized path, as `ImporterExport` lists them, for models, audio and anything else. A dry run restores the importer from a snapshot and does not reimport.
 
+The dry run's plan lists each value it would change, before and after: `Texture.<key>` for texture keys, `Texture.Platforms.<platform>` for a platform block, the serialized path for `Properties`. An asset that already has every value is left alone, not reimported or journaled. The journal keeps only the `.meta` (the source file is never written), so `UndoRun` puts the old settings back and reimports.
+
 ## EditAnimatorController
 
 ```json

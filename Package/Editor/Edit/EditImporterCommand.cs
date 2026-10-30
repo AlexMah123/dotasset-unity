@@ -130,7 +130,7 @@ namespace DotAsset
             }
             ctx.BeginTarget();
             var errors = new List<string>();
-            List<JObject> changes = null;
+            var changes = new List<JObject>();
             using (var snapshot = new AssetSnapshot(importer))
             {
                 JToken tex = Json.Get(target, "Texture");
@@ -142,25 +142,30 @@ namespace DotAsset
                         ctx.FailTarget(path, "\"Texture\" needs a texture, this importer is a " + importer.GetType().Name);
                         return false;
                     }
+                    // The summary lists a few platforms only, the ones the spec names are compared one by one.
+                    var platforms = (Json.Get(tex, "Platforms") as JObject ?? new JObject()).Properties().Select(p => p.Name).ToList();
+                    JObject before = TextureState(ti, platforms);
                     ApplyTexture(ti, tex, errors);
+                    Diff("Texture", before, TextureState(ti, platforms), changes);
                 }
                 var props = Json.Get(target, "Properties") as JObject;
                 if (errors.Count == 0 && props != null)
                 {
-                    var wc = new WriteContext();
-                    if (ctx.DryRun)
-                    {
-                        wc.Changes = new List<JObject>();
-                    }
+                    var wc = new WriteContext { Changes = changes };
                     if (!PropertyIO.Write(importer, props, null, wc))
                     {
                         errors.AddRange(wc.Errors);
                     }
-                    changes = wc.Changes;
                 }
                 if (errors.Count > 0 || ctx.TargetFailed())
                 {
                     ctx.FailTarget(path, errors.Count > 0 ? errors[0] : ctx.TargetError);
+                    return false;
+                }
+                if (changes.Count == 0)
+                {
+                    // A rerun of a spec leaves the .meta and the import alone.
+                    ctx.Log.Info(path + " already has these settings, left alone");
                     return false;
                 }
                 if (ctx.DryRun)
@@ -172,11 +177,46 @@ namespace DotAsset
                 }
                 snapshot.Commit();
                 EditorUtility.SetDirty(importer);
-                RunJournal.Keep(importer.assetPath);
+                RunJournal.KeepMeta(importer.assetPath);
                 importer.SaveAndReimport();
                 ctx.WarnIfSavedWithErrors(path);
                 ctx.Log.Info("reimported " + path);
                 return true;
+            }
+        }
+
+        // The summary ImporterExport prints, its Platforms replaced by the named platforms' settings, overridden or not.
+        static JObject TextureState(TextureImporter t, List<string> platforms)
+        {
+            JObject state = ImporterExportCommand.TextureSummary(t);
+            state.Remove("Platforms");
+            foreach (string name in platforms)
+            {
+                TextureImporterPlatformSettings ps = t.GetPlatformTextureSettings(name);
+                state["Platforms." + name] = new JObject
+                {
+                    ["Override"] = ps.overridden,
+                    ["MaxSize"] = ps.maxTextureSize,
+                    ["Format"] = ps.format.ToString(),
+                    ["Compression"] = ps.textureCompression.ToString(),
+                    ["CompressionQuality"] = ps.compressionQuality,
+                    ["CrunchedCompression"] = ps.crunchedCompression,
+                };
+            }
+            return state;
+        }
+
+        // {"Property": "Texture.<key>", "Before", "After"} for each key that changed.
+        static void Diff(string prefix, JObject before, JObject after, List<JObject> changes)
+        {
+            foreach (string key in before.Properties().Select(p => p.Name).Union(after.Properties().Select(p => p.Name)).ToList())
+            {
+                JToken was = before[key] ?? JValue.CreateNull();
+                JToken now = after[key] ?? JValue.CreateNull();
+                if (!JToken.DeepEquals(was, now))
+                {
+                    changes.Add(new JObject { ["Property"] = prefix + "." + key, ["Before"] = was, ["After"] = now });
+                }
             }
         }
 

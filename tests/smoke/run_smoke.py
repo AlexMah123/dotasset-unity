@@ -1509,12 +1509,15 @@ def check_importer(base, tmp):
     code, report, fix = audit(base, "AuditTexture", ROOT)
     if code != 3 or not issues(report, "T1", texture) or not fix:
         return "AuditTexture exit %s did not report T1 on Rock_n.png with a fix spec: %s" % (code, report.get("Counts"))
-    r = subprocess.run(base + ["EditImporter", "--args", '-spec="%s"' % fix], capture_output=True, text=True)
+    r, res = call(base, ["EditImporter", "--args", '-spec="%s"' % fix])
     if r.returncode != 0:
         return run_failed("EditImporter dry run", r)
+    want = {"Target": texture, "Property": "Texture.TextureType", "Before": "Default", "After": "NormalMap"}
+    if not any(all(p.get(k) == v for k, v in want.items()) for p in res.get("Plan") or []):
+        return "the EditImporter dry run did not plan TextureType Default -> NormalMap: %s" % res.get("Plan")
     if texture_type(base, texture) != "Default":
         return "the EditImporter dry run changed the import settings"
-    r = subprocess.run(base + ["EditImporter", "--args", '-spec="%s" -apply' % fix], capture_output=True, text=True)
+    r, res = call(base, ["EditImporter", "--args", '-spec="%s" -apply' % fix])
     if r.returncode != 0:
         return run_failed("EditImporter -apply", r)
     kind = texture_type(base, texture)
@@ -1523,6 +1526,31 @@ def check_importer(base, tmp):
     _, report, _ = audit(base, "AuditTexture", ROOT)
     if issues(report, "T1", texture):
         return "AuditTexture still reports T1 after the fix"
+
+    # The journal keeps only the .meta, a rerun leaves the texture alone, and the undo restores the old settings.
+    run_id = journal_of(res)
+    folder = os.path.join(project_of(base), "Library", "DotAsset", "Journal", run_id or "?")
+    try:
+        with open(os.path.join(folder, "journal.json"), encoding="utf-8") as f:
+            entry = [e for e in json.load(f)["Entries"] if e["Path"] == texture]
+    except (OSError, ValueError) as e:
+        return "no journal for the EditImporter run %s: %s" % (run_id, e)
+    if not entry or not entry[0].get("MetaOnly") or os.path.exists(os.path.join(folder, entry[0]["Backup"])) \
+            or not os.path.exists(os.path.join(folder, entry[0]["Backup"] + ".meta")):
+        return "the EditImporter journal does not keep the .meta alone: %s" % entry
+    meta = os.path.join(project_of(base), *(texture + ".meta").split("/"))
+    stamp = os.path.getmtime(meta)
+    r, res = call(base, ["EditImporter", "--args", '-spec="%s" -apply' % fix])
+    if r.returncode != 0 or "already has these settings" not in r.stdout or journal_of(res) \
+            or os.path.getmtime(meta) != stamp:
+        return "an EditImporter rerun with nothing to change wrote the texture again, exit %s, journal %s" % (
+            r.returncode, journal_of(res))
+    problem = expect(base, "UndoRun of EditImporter", ["UndoRun", "--args", "-run=%s -apply" % run_id], 0)
+    if problem:
+        return problem
+    kind = texture_type(base, texture)
+    if kind != "Default":
+        return "after undoing EditImporter the texture is %s, expected Default" % kind
     return None
 
 

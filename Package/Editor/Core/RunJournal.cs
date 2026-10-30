@@ -36,6 +36,8 @@ namespace DotAsset
             // File name of the copy in the journal folder (a folder keeps only its .meta there), null when absent.
             public string Backup;
             public bool HadMeta;
+            // Only the .meta was kept, for a write that changes nothing else (import settings).
+            public bool MetaOnly;
             public string After;
         }
 
@@ -76,11 +78,20 @@ namespace DotAsset
         {
             if (Current != null)
             {
-                Current.Add(path);
+                Current.Add(path, false);
             }
         }
 
-        void Add(string path)
+        // Keep for a write that changes only the .meta (import settings): the asset file itself is not copied.
+        public static void KeepMeta(string path)
+        {
+            if (Current != null)
+            {
+                Current.Add(path, true);
+            }
+        }
+
+        void Add(string path, bool metaOnly)
         {
             if (string.IsNullOrEmpty(path))
             {
@@ -97,6 +108,14 @@ namespace DotAsset
             }
             if (!kept.Add(path))
             {
+                // A full Keep after a .meta-only one adds the file, still as it was: only the .meta was written since.
+                Entry earlier = metaOnly ? null : entries.Find(e => e.Path == path && e.MetaOnly);
+                if (earlier != null)
+                {
+                    Copy(DotAssetPaths.Absolute(path), earlier.Backup);
+                    earlier.MetaOnly = false;
+                    Append(earlier);
+                }
                 return;
             }
             string abs = DotAssetPaths.Absolute(path);
@@ -113,7 +132,7 @@ namespace DotAsset
                 {
                     if (!child.EndsWith(".meta", StringComparison.OrdinalIgnoreCase))
                     {
-                        Add(path + "/" + System.IO.Path.GetFileName(child));
+                        Add(path + "/" + System.IO.Path.GetFileName(child), false);
                     }
                 }
                 return;
@@ -122,14 +141,18 @@ namespace DotAsset
             {
                 entry.Existed = true;
                 entry.Backup = entries.Count.ToString();
-                Copy(abs, entry.Backup);
+                entry.MetaOnly = metaOnly;
+                if (!metaOnly)
+                {
+                    Copy(abs, entry.Backup);
+                }
                 entry.HadMeta = Copy(abs + ".meta", entry.Backup + ".meta");
             }
             Append(entry);
         }
 
         // One line per entry, written after its copies, so a line always has its backup. A folder's line comes before
-        // its children's, which Restore handles newest first.
+        // its children's, which Restore handles newest first. An entry written again replaces its earlier line.
         void Append(Entry entry)
         {
             Directory.CreateDirectory(Dir);
@@ -162,6 +185,7 @@ namespace DotAsset
                     string[] lines = File.ReadAllLines(log);
                     JObject header = JObject.Parse(lines[0]);
                     var list = new JArray();
+                    var at = new Dictionary<string, int>(StringComparer.Ordinal);
                     for (int i = 1; i < lines.Length; i++)
                     {
                         JObject e;
@@ -174,8 +198,18 @@ namespace DotAsset
                             // The last line, cut off by the crash: its file was not written yet.
                             continue;
                         }
-                        e["After"] = Hash((string)e["Path"]);
-                        list.Add(e);
+                        string path = (string)e["Path"];
+                        e["After"] = Hash(path);
+                        int index;
+                        if (at.TryGetValue(path, out index))
+                        {
+                            list[index] = e;
+                        }
+                        else
+                        {
+                            at[path] = list.Count;
+                            list.Add(e);
+                        }
                     }
                     Json.WriteFile(DotAssetPaths.Combine(dir, FileName), new JObject
                     {
@@ -275,7 +309,10 @@ namespace DotAsset
                     else
                     {
                         Directory.CreateDirectory(System.IO.Path.GetDirectoryName(abs));
-                        File.Copy(DotAssetPaths.Combine(dir, e.Backup), abs, true);
+                        if (!e.MetaOnly)
+                        {
+                            File.Copy(DotAssetPaths.Combine(dir, e.Backup), abs, true);
+                        }
                         reimport.Add(e.Path);
                     }
                     if (e.HadMeta)
@@ -419,7 +456,15 @@ namespace DotAsset
         {
             foreach (string path in paths)
             {
-                RunJournal.Keep(path);
+                // Import settings arrive as the .meta alone, the asset file is not written.
+                if (path.EndsWith(".meta", StringComparison.OrdinalIgnoreCase))
+                {
+                    RunJournal.KeepMeta(path);
+                }
+                else
+                {
+                    RunJournal.Keep(path);
+                }
             }
             return paths;
         }

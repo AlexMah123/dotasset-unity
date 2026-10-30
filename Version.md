@@ -9,6 +9,7 @@ Versions follow one rule. A patch (0.1.x) holds fixes, test upgrades and docs. A
 ### 0.4.0
 
 - Dry runs return a plan: `Plan` in the result JSON and `plan:` lines in the wrapper. Edit runs list each value change with its property path, before and after, every Edit and Migrate run lists the files it would write, copy, move, delete, rewrite or resave. At most 500 entries, then `PlanTruncated`
+- Wrapper `--agent`: compact output for AI agents, the exit code and summary on one line, then only the first error, warnings, failed targets, outputs, plan and, on failure, the log path. Lists stop at 10 entries
 
 ### 0.3.0
 

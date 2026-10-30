@@ -64,8 +64,15 @@ EXIT_ISSUES = 3
 
 BUSY_STATES = {"busy", "compiling", "importing", "playmode", "reloading", "starting"}
 
+# --agent: compact output for AI agents. Wrapper progress is muted, only its errors, warnings and hints print.
+AGENT = False
+AGENT_KEEP = ("error:", "warning:", "hint:", "interrupted")
+AGENT_MAX_LINES = 10
+
 
 def log(msg):
+    if AGENT and not msg.startswith(AGENT_KEEP):
+        return
     print("[dotasset] " + msg, flush=True)
 
 
@@ -366,6 +373,9 @@ def live_editor(queue_root):
 # ---------------------------------------------------------------- result printing
 
 def print_result(result, quiet):
+    if AGENT:
+        print_agent(result)
+        return
     for line in result.get("Lines") or []:
         level, _, text = line.partition(" ")
         if level == "E":
@@ -386,6 +396,32 @@ def print_result(result, quiet):
     log(result.get("Summary") or "no summary")
     if result.get("LogFile"):
         log("log: " + result["LogFile"])
+
+
+def print_agent(result):
+    # One line per fact, no prefix: exit code and summary, the first error, warnings, failed targets, outputs, plan.
+    code = exit_code_of(result)
+    print("exit %d %s" % (code, result.get("Summary") or "no summary"), flush=True)
+    lines = result.get("Lines") or []
+    error = result.get("Error") or next((l[2:] for l in lines if l.startswith("E ")), None)
+    if error:
+        print("error: " + error, flush=True)
+    capped("warning: ", [l[2:] for l in lines if l.startswith("W ")])
+    if result.get("FailedTargets"):
+        print("failed: " + ", ".join(result["FailedTargets"]), flush=True)
+    for out in result.get("Outputs") or []:
+        print(("out: " if os.path.exists(out) else "missing output: ") + out, flush=True)
+    capped("plan: ", [plan_line(e) for e in result.get("Plan") or []], result.get("PlanTruncated"))
+    if code not in (EXIT_SUCCESS, EXIT_ISSUES) and result.get("LogFile"):
+        print("log: " + result["LogFile"], flush=True)
+
+
+def capped(prefix, items, truncated=False):
+    for item in items[:AGENT_MAX_LINES]:
+        print(prefix + item, flush=True)
+    rest = len(items) - AGENT_MAX_LINES
+    if rest > 0 or truncated:
+        print(prefix + ("%d more" % rest if rest > 0 else "more") + ", --json for all", flush=True)
 
 
 def plan_line(entry):
@@ -1036,6 +1072,7 @@ def main(argv=None):
     p.add_argument("--graphics", action="store_true", help="headless route without -nographics")
     p.add_argument("--quiet", action="store_true", help="print only warnings, errors and the summary")
     p.add_argument("--json", action="store_true", help="also print the full result JSON")
+    p.add_argument("--agent", action="store_true", help="compact output for AI agents: exit code, summary, first error, warnings, failed targets, outputs, plan")
     p.add_argument("--list", action="store_true", help="list every run the project knows")
     p.add_argument("--status", action="store_true", help="show what the editor's queue is doing")
     p.add_argument("--launch", action="store_true", help="open the project in the editor and wait until it takes tasks")
@@ -1050,6 +1087,8 @@ def main(argv=None):
             argv[i:i + 2] = ["--args=" + argv[i + 1]]
             break
     args = p.parse_args(argv)
+    global AGENT
+    AGENT = args.agent
 
     project = os.path.abspath(args.project) if args.project else find_project(os.getcwd())
     if not project or not os.path.isdir(os.path.join(project, "Assets")):

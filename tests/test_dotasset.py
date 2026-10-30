@@ -212,6 +212,40 @@ class Base(unittest.TestCase):
         return code, out.getvalue()
 
 
+class AgentOutput(unittest.TestCase):
+    def setUp(self):
+        ops.AGENT = True
+
+    def tearDown(self):
+        ops.AGENT = False
+
+    def capture(self, fn, *a):
+        out = StringIO()
+        with redirect_stdout(out):
+            fn(*a)
+        return out.getvalue()
+
+    def test_success_is_short(self):
+        out = self.capture(ops.print_agent, {"ExitCode": 0, "Summary": "1 asset exported", "Lines": ["I step one", "I step two"], "Outputs": []})
+        self.assertEqual(out, "exit 0 1 asset exported\n")
+        self.assertLess(len(out.split()), 25)
+
+    def test_failure_keeps_errors_and_caps_lists(self):
+        res = {"ExitCode": 1, "Summary": "0 of 1 done", "Error": "bad spec", "FailedTargets": ["Assets/A.prefab"],
+               "Lines": ["W w%d" % i for i in range(12)], "Plan": [], "LogFile": "x.log"}
+        lines = self.capture(ops.print_agent, res).splitlines()
+        self.assertEqual(lines[0], "exit 1 0 of 1 done")
+        self.assertEqual(lines[1], "error: bad spec")
+        self.assertEqual(len([l for l in lines if l.startswith("warning: w")]), 10)
+        self.assertIn("warning: 2 more, --json for all", lines)
+        self.assertIn("failed: Assets/A.prefab", lines)
+        self.assertEqual(lines[-1], "log: x.log")
+
+    def test_wrapper_progress_is_muted(self):
+        self.assertEqual(self.capture(ops.log, "route: editor"), "")
+        self.assertIn("error: x", self.capture(ops.log, "error: x"))
+
+
 class GroupRule(unittest.TestCase):
     def test_python_matches_folder_layout(self):
         """Every command lives in the folder of the group its name resolves to, the C# rule in ExitCodes.cs."""

@@ -54,6 +54,7 @@ The wrapper is `dotasset.py` (in the package's `Scripts~/`, or copied to the pro
 | `--graphics` | headless route without `-nographics` (GPU checks in `AuditMaterial` need it) |
 | `--quiet` | print only warnings, errors and the summary |
 | `--json` | also print the full result JSON |
+| `--agent` | compact output for agents, one fact per line: `exit <code> <summary>`, then `error:`, `warning:`, `failed:`, `out:`, `plan:` and, on failure, `log:`. Info lines and wrapper progress are dropped, lists stop at 10. A clean run is one line |
 | `--list`, `--status` | every run with its summary; what the editor's queue is doing |
 | `--launch` | open the project in the editor (no window interaction needed) and wait until its queue is `ready`. Exit 0 when ready, also when an editor was already open. The editor starts minimized and never takes the focus, `--visible` shows it |
 | `--quit [--force]` | close the editor that has the project open, once it is idle. Refused (exit 2) while a scene or Prefab Mode has unsaved changes, `--force` discards them |

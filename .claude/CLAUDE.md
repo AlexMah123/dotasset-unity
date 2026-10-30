@@ -32,7 +32,7 @@ Keep the two apart: a verified fix ships as its own patch release instead of wai
 
 Release order: implement, `python tools/gen_meta.py` if a file was added, `python tools/compile_check.py`, unit tests, bump the version, `Version.md` and docs, commit and push, then the smoke matrix, then the tag. The smoke matrix comes last because it is the slow part.
 
-A release needs the smoke test to pass three times in a row on every tested Unity version, headless (most steps through a `--serve` host) and with the editor open (`--launch` before, `--quit` after), then a `v<version>` tag. Never edit the package or the smoke test while a pass runs.
+A release needs the smoke test to pass three times in a row on every tested Unity version, headless (most steps through a `--serve` host) and with the editor open (`--launch` before, `--quit` after), then an annotated `v<version>` tag whose message carries the matrix result (passes per project and route). Never edit the package or the smoke test while a pass runs.
 
 ## Code rules
 

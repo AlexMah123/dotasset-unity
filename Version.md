@@ -6,6 +6,14 @@ Defined in `Package/Editor/Core/DotAssetVersion.cs` and `Package/package.json`, 
 
 Versions follow one rule. A patch (0.1.x) holds fixes, test upgrades and docs. A minor version (0.x.0) adds something new to call: a run, an op, a spec key, an argument or a wrapper option. While on 0.x, a change that breaks existing calls is also a minor version, marked breaking here. 1.0.0 comes when runs, specs and export JSON are promised to stay stable.
 
+### 0.9.3
+
+- `DeleteAsset` refuses an asset the project names outside any asset, wherever `-scandir` points: what project settings reference (render pipeline, preloaded assets, config objects), enabled Build Settings scenes, Build Profiles and their scenes on Unity 6, Addressables entries and AssetBundle-tagged assets. Before, only assets under `-scandir` counted, so `-scandir=Assets/Art` could delete the render pipeline asset. An asset in a `Resources` or `StreamingAssets` folder is deleted with a warning that code may load it by name
+- `AuditUnusedAsset` reads project settings and Addressables through the loaded objects, so binary serialization no longer lists the render pipeline or Addressables entries as unused. Build Profiles, their scenes and AssetBundle-tagged assets are roots too
+- `RenameField` renames the field in every script that inherits it from the declaring class, not only the given script. Before, prefabs of a subclass kept the old key and lost the value on the next save. Refused when one of those classes declares its own field named `-from` or sits in a DLL
+- `RenameField -apply`: a file that could not be read stopped the run before the files already written were reimported. It now fails that target and goes on
+- Smoke test: `DeleteAsset` dry runs on a Build Settings scene (6.6), a render pipeline asset (Medium) and an AssetBundle material must be refused, and `AuditUnusedAsset` must keep the material. `RenameField` renames a subclass prefab, read back through an export
+
 ### 0.9.2
 
 - The `--serve` host starts hidden instead of minimized. This does not yet stop it taking the keyboard focus: on Unity 6.3 and later its window still comes to the front once per host start. Unity 6.0 and 2022.3 hosts never did

@@ -6,6 +6,14 @@ Defined in `Package/Editor/Core/DotAssetVersion.cs` and `Package/package.json`, 
 
 Versions follow one rule. A patch (0.1.x) holds fixes, test upgrades and docs. A minor version (0.x.0) adds something new to call: a run, an op, a spec key, an argument or a wrapper option. While on 0.x, a change that breaks existing calls is also a minor version, marked breaking here. 1.0.0 comes when runs, specs and export JSON are promised to stay stable.
 
+### 0.9.4
+
+- Write-ahead journal: each path a writing run keeps is logged to `journal.log` the moment its backup exists. A run that dies (crash, kill, power loss) before it closes its journal is finalized as `Interrupted` by the next run, and `UndoRun` restores it. Before, such a run left no journal and could not be undone
+- Exports, reports and journals are written to a temporary file and swapped in with `File.Replace`, so a reader never sees a half-written or missing file
+- `EditImporter`: the dry run's plan lists each texture key before and after (and each platform block the spec names), like `Properties`. An asset that already has every value is left alone, not reimported or journaled. The journal keeps only the `.meta`, the source file is never copied
+- The wrapper waits for Unity to exit after killing it, so the next start does not find the project still locked
+- Smoke test: an interrupted run's journal (cut-off last line) is recovered and undone. `EditImporter` checks its plan, the `.meta`-only journal, a rerun with nothing to change and the undo. The unit tests no longer leave the fake editor running
+
 ### 0.9.3
 
 - `DeleteAsset` refuses an asset the project names outside any asset, wherever `-scandir` points: what project settings reference (render pipeline, preloaded assets, config objects), enabled Build Settings scenes, Build Profiles and their scenes on Unity 6, Addressables entries and AssetBundle-tagged assets. Before, only assets under `-scandir` counted, so `-scandir=Assets/Art` could delete the render pipeline asset. An asset in a `Resources` or `StreamingAssets` folder is deleted with a warning that code may load it by name

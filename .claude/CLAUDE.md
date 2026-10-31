@@ -41,7 +41,7 @@ A release needs the smoke test to pass three times in a row on every tested Unit
 - Keep to C# 7.3 and APIs present in both .NET Standard 2.1 and .NET Framework 4.8 (no `string.Contains(char)`, no `switch` expressions, no `using var`)
 - Every Unity API must exist in 2022.3 and 6000.x. Check `Unity-Technologies/UnityCsReference` branches `2022.3` and `6000.3` when unsure. Avoid APIs Unity 6 marks `[Obsolete]`
 - No project-specific names, prefixes or asset paths in the package or docs, examples use neutral names
-- Exit codes through `ExitCode` (Success 0, Failed 1, Refused 2, IssuesFound 3), never bare ints. IssuesFound is for Audit only
+- Exit codes through `ExitCode` (Success 0, Failed 1, Refused 2, IssuesFound 3), never bare ints. IssuesFound is for Audit only. Unknown 4 is the wrapper's alone, a command never returns it
 - Never save the whole project (`AssetDatabase.SaveAssets`) from a command, save exactly the targets (`SaveAssetIfDirty`, `SaveAsPrefabAsset`, `SaveScene`)
 - Writes are all or nothing per target: `PrefabSession`, `SceneSession`, `AssetSnapshot`, or an undo group. A failed target logs `ctx.FailTarget(target, reason)` and saves nothing
 - Edit and Migrate runs never write without `-apply`. Call `RunJournal.Keep(path)` before every write (it journals the file and refuses during a dry run, `SaveAssetIfDirty` skips the save hook) and write text files through `DotAssetPaths.ReplaceText`

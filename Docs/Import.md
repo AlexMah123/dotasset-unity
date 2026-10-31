@@ -71,3 +71,5 @@ Paths must be under `Assets/`. Unknown keys are refused with exit 2 before anyth
 | 0 | every entry created or already existed |
 | 1 | at least one entry failed, the others were created |
 | 2 | the spec could not be read, or has an unknown key |
+
+The wrapper can also return 4, unknown: it lost track of a run that could still write. See [AI-Guide.md](AI-Guide.md#reading-results).

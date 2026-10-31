@@ -226,5 +226,7 @@ Give at least one of AssetList, `-scandir`, or `-spec` with `{"Files": [...]}` (
 | Code | Meaning |
 | --- | --- |
 | 0 | done, or the dry run found nothing wrong |
-| 1 | at least one target failed and was left as it was |
+| 1 | at least one target failed. Every file the run wrote is put back, or with `-atomic=false` only the failed targets are left as they were |
 | 2 | bad arguments or spec |
+
+The wrapper can also return 4, unknown: it lost track of a run that could still write. See [AI-Guide.md](AI-Guide.md#reading-results).

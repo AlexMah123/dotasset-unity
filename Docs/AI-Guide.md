@@ -88,7 +88,7 @@ python dotasset.py EditPrefab --args '-spec="C:/temp/player.json"'           # d
 python dotasset.py EditPrefab --args '-spec="C:/temp/player.json" -apply'    # write
 ```
 
-Migrate. Dry run by default as well.
+Migrate. Dry run by default as well, and all or nothing across the run: when one target fails, every file the run wrote is put back (`-atomic=false` keeps the targets that worked).
 
 ```bash
 python dotasset.py MoveAsset --args '-from=Assets/Old/Gun.prefab -to=Assets/Weapons/Gun.prefab -apply'
@@ -111,7 +111,7 @@ Every run prints its log, then `[dotasset] <summary>` and the path of its log fi
 | Exit code | Meaning |
 | --- | --- |
 | 0 | success (Edit and Migrate without `-apply`: the dry run passed) |
-| 1 | a target failed and nothing of it was saved, or the run logged an error (an AssetList entry that does not exist, an export whose assets hold nothing of its kind), or Unity failed before the run (compile errors, license), or the wrapper timed out or was interrupted |
+| 1 | a target failed and nothing of it was saved (a Migrate run also rolls back the targets that worked, unless `-atomic=false`), or the run logged an error (an AssetList entry that does not exist, an export whose assets hold nothing of its kind), or Unity failed before the run started (compile errors, license), or the wrapper gave up while the task was still queued |
 | 2 | refused: unknown run, unknown argument, unreadable spec, unknown spec key, editor queue paused |
 | 3 | audit only: the run worked and the report lists issues. Not a failure |
 | 4 | unknown, from the wrapper: it was interrupted, timed out or lost Unity while the run could still write. Do not rerun blindly. The `outcome: unknown, task <id>` line names the task, `dotasset.py --result <id>` prints the run's own result once the editor finishes it (4 again while it still runs). A headless run leaves no result, export the targets to see what was written |

@@ -29,13 +29,14 @@ Every write goes through Unity's own API (`SerializedObject`, `PrefabUtility`, `
 | **Export** | `PrefabExport` `SceneExport` `AssetExport` `MaterialExport` `AnimatorControllerExport` `ImporterExport` `AssetReferenceExport` `TypeCatalogExport` `CommandCatalogExport` |
 | **Import** | `CreateAsset` (folders, ScriptableObjects, materials, prefabs, prefab variants, Animator Controllers, scenes) |
 | **Edit** | `EditPrefab` `EditScene` `EditAsset` `EditMaterial` `EditImporter` `EditAnimatorController` |
-| **Migrate** | `MoveAsset` `DuplicateAsset` `DeleteAsset` `ResaveAsset` `RemapReference` `RemapScript` `RenameField` `RenameSerializeReferenceType` `RemoveMissingScripts` `RebindAnimation` `RenameShaderProperty` |
+| **Migrate** | `MoveAsset` `DuplicateAsset` `DeleteAsset` `ResaveAsset` `RemapReference` `RemapScript` `RenameField` `RenameSerializeReferenceType` `RemoveMissingScripts` `RebindAnimation` `RenameShaderProperty` `UndoRun` |
 | **Audit** | `AuditMissingReference` `AuditTexture` `AuditMaterial` `AuditUnusedAsset` |
 
 - **Closed loop**: an export's `Properties` block is what `Set` ops and `EditAsset` take; `ImporterExport`'s texture `Summary` is what `EditImporter`'s `Texture` block takes; audits write a `.fix.json` the matching Edit or Migrate run takes as is
 - **Editor open**: the task goes to the editor's queue and runs on its main thread, the editor stays open, a scene open in the editor is edited on one undo group (one Ctrl+Z)
 - **Editor closed**: Unity starts with `-batchmode -nographics`, runs the task, exits. For many runs in a row, `--serve` keeps one headless Unity up until `--quit`
-- **Writes**: all or nothing per target, Edit and Migrate are dry runs until `-apply`, unknown spec keys and arguments are refused rather than ignored
+- **Writes**: all or nothing per target, unknown spec keys and arguments are refused rather than ignored. Edit and Migrate are dry runs until `-apply`, and a dry run that tries to save, move or delete anyway is refused and fails. A Migrate run that fails a target rolls back every file it wrote (`-atomic=false` keeps the targets that worked)
+- **Undo**: every writing run journals the files it touches under `Library/DotAsset/Journal/`, and `UndoRun -run=last -apply` puts them back
 
 ## Supported assets
 
@@ -60,7 +61,7 @@ Window > Package Manager > + > Add package from git URL:
 https://github.com/AlexMah123/dotasset-unity.git?path=/Package
 ```
 
-Pin a version by adding a release tag to the URL, such as `#v0.3.0`, or `#<commit>`. Or copy `Package/` into your project as `Packages/com.alexmah.dotasset/`. It pulls in `com.unity.nuget.newtonsoft-json`.
+Pin a version by adding a release tag to the URL, such as `#v0.10.0`, or `#<commit>`. Or copy `Package/` into your project as `Packages/com.alexmah.dotasset/`. It pulls in `com.unity.nuget.newtonsoft-json`.
 
 **2. Get the wrapper**
 
@@ -187,12 +188,12 @@ An AI agent such as Claude can do most of this without DotAsset, by editing the 
 | Code | Meaning |
 | :-: | :-- |
 | 0 | Success, or a dry run that would succeed |
-| 1 | Failed: a target could not be written (nothing of it was saved), or Unity failed before the run started |
+| 1 | Failed: a target could not be written (nothing of it was saved, a Migrate run rolls back the rest too), or Unity failed before the run started |
 | 2 | Refused: unknown run or argument, bad spec, misspelt key, or an editor that cannot take the task |
 | 3 | Audits only: the run succeeded and the report lists issues |
 | 4 | Unknown: the wrapper was interrupted, timed out or lost Unity while the run could still write. `--result <task>` reads the editor's result later |
 
-`--json` prints the full result as well: every log line, the outputs, the failed targets.
+`--json` prints the full result as well: every log line, the outputs, the failed targets. On code 4 the wrapper prints `outcome: unknown, task <id>`: check with `python dotasset.py --result <id>`, which returns the run's own code once the editor has finished it and 4 while it still runs, before retrying anything that writes.
 
 ## For AI agents
 
@@ -269,6 +270,8 @@ tools/gen_meta.py         writes missing .meta files
 
 - `python -m unittest discover -s tests` runs the wrapper tests against a fake editor and a fake Unity
 - `python tests/smoke/run_smoke.py --project <project> --clean` runs every group end to end in a real project, under `Assets/DotAssetSmoke`. Run it with the editor closed, then again after `--launch`. What it checks is under [Status](#what-the-smoke-test-checks)
+- `python tests/editmode/run_editmode.py --project <project>` runs the EditMode tests in a project that has `com.unity.test-framework`
+- `python tools/compile_check.py` compiles the package with each test project's Unity compiler, plus .NET Framework 4.8 and .NET Standard 2.1
 - `python tools/gen_meta.py` after adding a file (a git-installed package ignores files without a `.meta`)
 - A new run is one class: derive from `DotAssetCommand`, name it `<RunName>Command`, put it in the folder its name's group resolves to. The code rules are in [.claude/CLAUDE.md](.claude/CLAUDE.md)
 
@@ -278,12 +281,12 @@ DotAsset is a preview until 1.0.0, see [Version.md](Version.md) for each release
 
 | Unity | Version tested | Result | Date |
 | :-- | :-- | :-- | :-- |
-| 6.6 | 6000.6.7f1 | passes | 2026-10-30 |
-| 6.3 LTS | 6000.3.27f1 | passes | 2026-10-30 |
-| 6.0 LTS | 6000.0.85f1 | passes | 2026-10-30 |
-| 2022.3 LTS | 2022.3.18f1 | passes | 2026-10-30 |
+| 6.6 | 6000.6.7f1 | passes | 2026-10-31 |
+| 6.3 LTS | 6000.3.27f1 | passes | 2026-10-31 |
+| 6.0 LTS | 6000.0.85f1 | passes | 2026-10-31 |
+| 2022.3 LTS | 2022.3.18f1 | passes | 2026-10-31 |
 
-Each release also passes the smoke test in a 2,071-asset project (1,000 textures, 500 materials, 500 prefabs, 20 scenes with 100 instances each), where project-wide runs take 3.5 to 6 seconds headless and under 2 seconds with the editor open. Patches within a tested version are expected to work, Unity keeps the API stable within a version. Rerun the smoke test when moving to a new Unity version. The wrapper has its own unit tests (both routes, startup wait, fallback, quoting, timeouts, exit codes, log clean-up), see [Development](#development). EditMode tests run the YAML rewriters (`RenameField` through variants, nested prefabs and stripped objects, `RemapScript`, `RenameSerializeReferenceType`) on fixture text, and `ValueCodec` and the argument parser in Unity's Test Framework: `python tests/editmode/run_editmode.py --project <project with com.unity.test-framework>`.
+Each release also passes the smoke test in a 2,071-asset project (1,000 textures, 500 materials, 500 prefabs, 20 scenes with 100 instances each), where project-wide runs take 3.5 to 6 seconds headless and under 2 seconds with the editor open. Patches within a tested version are expected to work, Unity keeps the API stable within a version. Rerun the smoke test when moving to a new Unity version. The wrapper has its own unit tests (both routes, startup wait, fallback, quoting, timeouts, exit codes including the unknown outcome and `--result`, log clean-up), see [Development](#development). EditMode tests run the YAML rewriters (`RenameField` through variants, nested prefabs and stripped objects, `RemapScript`, `RenameSerializeReferenceType`) on fixture text, and `ValueCodec`, the argument parser and the registry's group and `WritesWithoutApply` checks in Unity's Test Framework: `python tests/editmode/run_editmode.py --project <project with com.unity.test-framework>`.
 
 ### What the smoke test checks
 
@@ -295,7 +298,8 @@ Every write is read back through an export. An exit code alone never counts as a
 | Import | `CreateAsset` builds a material, a prefab with components, a prefab variant with an override, an Animator Controller with states and a transition, and a scene with a prefab instance. Running the same spec again skips what exists and changes nothing |
 | Export | Every export names its type and version in its header. `AssetReferenceExport` lists the prefab as a user of its material, and `TypeCatalogExport` lists `Rigidbody.m_Mass` with its default. Writing an export's properties back leaves the export identical |
 | Edit | `EditPrefab` adds, sets and removes. `EditScene` adds a Light and overrides an instance. `EditMaterial` and `EditAsset` set a render queue. `EditAnimatorController` adds a transition and renames a parameter, along with every condition that reads it. `ArrayOps` Append, Insert and Remove land where they should. A Particle System's start lifetime and emission rate are set through their module paths |
-| Dry runs | Every Edit and Migrate run without `-apply` leaves the files as they were. A dry run in the open editor leaves nothing behind for the next run to save |
+| Dry runs | Every Edit and Migrate run without `-apply` leaves the files as they were. A dry run in the open editor leaves nothing behind for the next run to save. A run that saves, moves, deletes and creates without `-apply` is refused, and every file is left as it was |
+| Registration | An Import run that does not declare `WritesWithoutApply` is left out of the registry: running it is refused with the reason, and the catalog lists it under `Rejected` |
 | All or nothing | An edit with one bad op fails the target and saves none of it. A misspelt argument (`-aply`) is refused |
 | Migrate | `DuplicateAsset` copies, `RemapReference` swaps the reference, `MoveAsset` keeps it working, `ResaveAsset` rewrites the files without changing what they hold, and `DeleteAsset` deletes an unused asset but refuses one still in use. `RemapScript` moves a prefab's component to another script by GUID with its field value kept, `RenameField` renames a field in a prefab, its variant, a prefab nesting it and a scene, overrides included, `RenameSerializeReferenceType` brings back `[SerializeReference]` data after its class moved into a namespace, found first by R5, `RebindAnimation` moves a clip's curves to a renamed path and its children, leaving other paths alone, and `RenameShaderProperty` renames a material's saved color and back with the value kept |
 | Audit | Each audit gets a seeded issue to find: a reference to a deleted material (R1), a Missing Script written into a prefab (R2), a keyword the shader does not declare (M5), a texture named like a normal map but not imported as one (T1), and an orphan prefab with its material (U1) next to materials a `Resources` and an `Editor` folder keep. The audit's own fix spec, run dry and then with `-apply`, must clear it, and `RemoveMissingScripts` must leave the prefab's other components alone |

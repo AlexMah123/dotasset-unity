@@ -49,6 +49,14 @@ def result(run, code=0, lines=None, outputs=None, error=None):
     }
 
 
+def without_id(request, path):
+    """The request as the fake editor records it, after checking its Id is the one in the file name."""
+    request = dict(request)
+    if os.path.basename(path).split(".")[1] != request.pop("Id", None):
+        request["IdMismatch"] = True
+    return request
+
+
 class FakeEditor(threading.Thread):
     """Serves the queue like TaskQueue.cs: claim by move, write done, keep a heartbeat."""
 
@@ -98,34 +106,41 @@ class FakeEditor(threading.Thread):
                     return
             time.sleep(0.05)
 
+    def request(self, kind):
+        """The first <kind>.<id>.json request waiting, or None."""
+        for name in sorted(os.listdir(self.queue)):
+            if name.startswith(kind + ".") and name.endswith(ops.REQUEST_SUFFIX) and not name.endswith(ops.RESULT_SUFFIX):
+                return os.path.join(self.queue, name)
+        return None
+
     def serve_open_scene(self):
-        """Answers openscene.json like TaskQueue.HandleOpenSceneRequest, refusing like quit does."""
-        path = os.path.join(self.queue, ops.OPEN_SCENE_REQUEST)
-        if not os.path.exists(path):
+        """Answers openscene.<id>.json like TaskQueue.HandleOpenSceneRequest, refusing like quit does."""
+        path = self.request(ops.OPEN_SCENE_REQUEST)
+        if path is None:
             return
         with open(path) as f:
             request = json.load(f)
         os.remove(path)
-        self.open_requests.append(request)
+        self.open_requests.append(without_id(request, path))
         refusal = None if request.get("Force") else self.quit_refusal
         previous = list(self.scenes)
         if refusal is None:
             self.scenes = list(request["Scenes"])
-        with open(os.path.join(self.queue, ops.OPEN_SCENE_RESULT), "w") as f:
+        with open(path[:-len(ops.REQUEST_SUFFIX)] + ops.RESULT_SUFFIX, "w") as f:
             json.dump({"Opened": refusal is None, "Previous": previous, "PreviousActive": previous[0] if previous else None,
                        "Error": refusal}, f)
 
     def serve_quit(self):
-        """Answers quit.json like TaskQueue.HandleQuitRequest. True when the fake editor closed."""
-        path = os.path.join(self.queue, ops.QUIT_REQUEST)
-        if not os.path.exists(path):
+        """Answers quit.<id>.json like TaskQueue.HandleQuitRequest. True when the fake editor closed."""
+        path = self.request(ops.QUIT_REQUEST)
+        if path is None:
             return False
         with open(path) as f:
             request = json.load(f)
         os.remove(path)
-        self.quit_requests.append(request)
+        self.quit_requests.append(without_id(request, path))
         refusal = None if request.get("Force") else self.quit_refusal
-        with open(os.path.join(self.queue, ops.QUIT_RESULT), "w") as f:
+        with open(path[:-len(ops.REQUEST_SUFFIX)] + ops.RESULT_SUFFIX, "w") as f:
             json.dump({"Quit": refusal is None, "Error": refusal}, f)
         if refusal is not None:
             return False
@@ -289,8 +304,7 @@ class GroupRule(unittest.TestCase):
         src = read(os.path.join(PACKAGE, "Editor", "Core", "TaskQueue.cs"))
         self.assertIn('QueueRelative = "Library/DotAsset/Queue"', src)
         self.assertEqual(ops.QUEUE_RELATIVE.replace(os.sep, "/"), "Library/DotAsset/Queue")
-        for const in ("pending", "processing", "done", ".alive", "quit.json", "quit.result.json", "openscene.json",
-                      "openscene.result.json"):
+        for const in ("pending", "processing", "done", ".alive", "quit", "openscene", ".json", ".result.json"):
             self.assertIn('"%s"' % const, src)
 
 
@@ -373,6 +387,21 @@ class EditorControl(Base):
         self.assertEqual(editor.open_requests, [{"Scenes": ["Assets/A.unity", "Assets/B.unity"], "Force": False}])
         self.assertEqual(editor.scenes, ["Assets/A.unity", "Assets/B.unity"])
         self.assertEqual(out.strip().splitlines()[-1], "[dotasset] previously open: Assets/Scenes/Main.unity")
+
+    def test_open_scene_takes_only_its_own_answer(self):
+        # Another caller's answer waiting in the queue is neither read nor removed.
+        os.makedirs(os.path.join(self.project, ops.QUEUE_RELATIVE), exist_ok=True)
+        foreign = os.path.join(self.project, ops.QUEUE_RELATIVE, ops.OPEN_SCENE_REQUEST + ".other" + ops.RESULT_SUFFIX)
+        with open(foreign, "w") as f:
+            json.dump({"Opened": False, "Previous": [], "Error": "the other caller's answer"}, f)
+        editor = FakeEditor(self.project, lambda t: result(t["RunName"]))
+        editor.start()
+        try:
+            code, out = self.call("--open-scene", "Assets/A.unity")
+        finally:
+            editor.stop.set()
+        self.assertEqual(code, 0, out)
+        self.assertTrue(os.path.exists(foreign))
 
     def test_open_scene_refused_with_unsaved_changes(self):
         editor = FakeEditor(self.project, lambda t: result(t["RunName"]), quit_refusal="unsaved changes in Assets/Scenes/Main.unity")

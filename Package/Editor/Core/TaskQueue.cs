@@ -15,10 +15,11 @@ namespace DotAsset
     //   pending/<id>.json      the wrapper writes a task {Id, RunName, Assets[], ExtraArgs}
     //   processing/<id>.json   the editor claims a task by moving it here
     //   done/<id>.json         the editor writes the RunResult here, the wrapper reads and deletes it
-    //   quit.json              the wrapper asks the editor to close {Force}, taken once no task is pending
-    //   quit.result.json       the editor's answer {Quit, Error}, written before it exits
-    //   openscene.json         the wrapper asks the editor to open scenes {Scenes[], Force}
-    //   openscene.result.json  the editor's answer {Opened, Previous[], PreviousActive, Error}
+    //   quit.<id>.json              the wrapper asks the editor to close {Id, Force}, taken once no task is pending
+    //   quit.<id>.result.json       the editor's answer {Quit, Error}, written before it exits
+    //   openscene.<id>.json         the wrapper asks the editor to open scenes {Id, Scenes[], Force}
+    //   openscene.<id>.result.json  the editor's answer {Opened, Previous[], PreviousActive, Error}
+    // Each caller picks its own <id>, so two callers never take each other's answer.
     // Scripts~/dotasset.py holds the same constants. Change both together.
     public static class TaskQueueProtocol
     {
@@ -27,10 +28,10 @@ namespace DotAsset
         public const string Processing = "processing";
         public const string Done = "done";
         public const string AliveFile = ".alive";
-        public const string QuitRequest = "quit.json";
-        public const string QuitResult = "quit.result.json";
-        public const string OpenSceneRequest = "openscene.json";
-        public const string OpenSceneResult = "openscene.result.json";
+        public const string QuitRequest = "quit";
+        public const string OpenSceneRequest = "openscene";
+        public const string RequestSuffix = ".json";
+        public const string ResultSuffix = ".result.json";
         public const double HeartbeatSeconds = 2.0;
         public const double FreshnessSeconds = 15.0;
     }
@@ -220,11 +221,33 @@ namespace DotAsset
         // open before, so the caller can put it back.
         static void HandleOpenSceneRequest()
         {
-            string requestPath = DotAssetPaths.Combine(QueueRoot, TaskQueueProtocol.OpenSceneRequest);
-            if (!File.Exists(requestPath))
+            foreach (string requestPath in Requests(TaskQueueProtocol.OpenSceneRequest))
             {
-                return;
+                OpenScenes(requestPath);
             }
+        }
+
+        // The <kind>.<id>.json requests waiting in the queue folder, oldest first.
+        static List<string> Requests(string kind)
+        {
+            if (!Directory.Exists(QueueRoot))
+            {
+                return new List<string>();
+            }
+            return Directory.GetFiles(QueueRoot, kind + ".*" + TaskQueueProtocol.RequestSuffix)
+                .Select(DotAssetPaths.Normalize)
+                .Where(f => f.EndsWith(TaskQueueProtocol.RequestSuffix, StringComparison.Ordinal)
+                    && !f.EndsWith(TaskQueueProtocol.ResultSuffix, StringComparison.Ordinal))
+                .OrderBy(f => File.GetLastWriteTimeUtc(f)).ThenBy(f => f, StringComparer.Ordinal).ToList();
+        }
+
+        static string ResultOf(string requestPath)
+        {
+            return requestPath.Substring(0, requestPath.Length - TaskQueueProtocol.RequestSuffix.Length) + TaskQueueProtocol.ResultSuffix;
+        }
+
+        static void OpenScenes(string requestPath)
+        {
             JObject request;
             string refusal;
             bool read = Json.TryReadFile(requestPath, out request, out refusal);
@@ -284,7 +307,7 @@ namespace DotAsset
             }
             try
             {
-                Json.WriteFile(DotAssetPaths.Combine(QueueRoot, TaskQueueProtocol.OpenSceneResult), new JObject
+                Json.WriteFile(ResultOf(requestPath), new JObject
                 {
                     ["Opened"] = refusal == null,
                     ["Previous"] = previous,
@@ -304,29 +327,42 @@ namespace DotAsset
 
         // dotasset.py --quit. Refused while a scene or Prefab Mode has unsaved changes, unless forced, because
         // EditorApplication.Exit closes without asking.
+        // Every caller waiting gets the same answer: the editor closes when one of them forces it or nothing is unsaved.
         static void HandleQuitRequest()
         {
-            string requestPath = DotAssetPaths.Combine(QueueRoot, TaskQueueProtocol.QuitRequest);
-            if (!File.Exists(requestPath))
+            List<string> requests = Requests(TaskQueueProtocol.QuitRequest);
+            if (requests.Count == 0)
             {
                 return;
             }
-            JObject request;
-            string error;
-            bool force = Json.TryReadFile(requestPath, out request, out error) && Json.Bool(request, "Force", false);
-            TryDelete(requestPath);
-            string refusal = force ? null : UnsavedWork("quit");
-            try
+            bool force = false;
+            foreach (string requestPath in requests)
             {
-                Json.WriteFile(DotAssetPaths.Combine(QueueRoot, TaskQueueProtocol.QuitResult), new JObject
-                {
-                    ["Quit"] = refusal == null,
-                    ["Error"] = refusal,
-                });
+                JObject request;
+                string error;
+                force |= Json.TryReadFile(requestPath, out request, out error) && Json.Bool(request, "Force", false);
+                TryDelete(requestPath);
             }
-            catch (Exception e)
+            string refusal = force ? null : UnsavedWork("quit");
+            bool answered = false;
+            foreach (string requestPath in requests)
             {
-                UnityEngine.Debug.LogWarning("[DotAsset] could not answer the quit request: " + e.Message);
+                try
+                {
+                    Json.WriteFile(ResultOf(requestPath), new JObject
+                    {
+                        ["Quit"] = refusal == null,
+                        ["Error"] = refusal,
+                    });
+                    answered = true;
+                }
+                catch (Exception e)
+                {
+                    UnityEngine.Debug.LogWarning("[DotAsset] could not answer the quit request: " + e.Message);
+                }
+            }
+            if (!answered)
+            {
                 return;
             }
             if (refusal != null)

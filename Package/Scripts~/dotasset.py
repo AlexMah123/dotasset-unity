@@ -49,10 +49,10 @@ PENDING = "pending"
 PROCESSING = "processing"
 DONE = "done"
 ALIVE = ".alive"
-QUIT_REQUEST = "quit.json"
-QUIT_RESULT = "quit.result.json"
-OPEN_SCENE_REQUEST = "openscene.json"
-OPEN_SCENE_RESULT = "openscene.result.json"
+QUIT_REQUEST = "quit"
+OPEN_SCENE_REQUEST = "openscene"
+REQUEST_SUFFIX = ".json"
+RESULT_SUFFIX = ".result.json"
 HEARTBEAT_FRESHNESS_SEC = 15.0
 # Beyond this an idle heartbeat counts as dead for routing. Generous, an unfocused editor can tick slowly.
 STALE_HEARTBEAT_SEC = 120.0
@@ -997,6 +997,13 @@ def editor_log_hint():
     return os.path.expanduser("~/.config/unity3d/Editor.log")
 
 
+def request_paths(queue_root, kind, request_id):
+    """The request a caller writes and the answer the editor writes back, named by the caller's own id so two callers
+    never take each other's answer (TaskQueue.Requests)."""
+    stem = os.path.join(queue_root, "%s.%s" % (kind, request_id))
+    return stem + REQUEST_SUFFIX, stem + RESULT_SUFFIX
+
+
 def open_scene(args, project):
     """Asks the editor that has the project open to open scenes: the first replaces what is open, the rest are
     added. Prints the scenes that were open before as a last line, 'previously open: a.unity,b.unity'."""
@@ -1012,14 +1019,10 @@ def open_scene(args, project):
     if alive.get("State") == "paused":
         log("error: the editor's queue is paused (Window > DotAsset > Accept tasks), it cannot take the request")
         return EXIT_REFUSED
-    request = os.path.join(queue_root, OPEN_SCENE_REQUEST)
-    answer = os.path.join(queue_root, OPEN_SCENE_RESULT)
-    try:
-        os.remove(answer)
-    except FileNotFoundError:
-        pass
+    request_id = uuid.uuid4().hex
+    request, answer = request_paths(queue_root, OPEN_SCENE_REQUEST, request_id)
     with open(request + ".tmp", "w", encoding="utf-8") as f:
-        json.dump({"Scenes": scenes, "Force": bool(args.force)}, f)
+        json.dump({"Id": request_id, "Scenes": scenes, "Force": bool(args.force)}, f)
     os.replace(request + ".tmp", request)
     log("asked the editor to open %s%s" % (", ".join(scenes), ", discarding unsaved changes" if args.force else ""))
     deadline = time.time() + args.timeout
@@ -1073,14 +1076,10 @@ def quit_editor(args, project):
         log("error: the editor's queue is paused (Window > DotAsset > Accept tasks), it cannot take the quit request")
         return EXIT_REFUSED
     pid = int(alive.get("Pid", 0))
-    request = os.path.join(queue_root, QUIT_REQUEST)
-    answer = os.path.join(queue_root, QUIT_RESULT)
-    try:
-        os.remove(answer)
-    except FileNotFoundError:
-        pass
+    request_id = uuid.uuid4().hex
+    request, answer = request_paths(queue_root, QUIT_REQUEST, request_id)
     with open(request + ".tmp", "w", encoding="utf-8") as f:
-        json.dump({"Force": bool(args.force)}, f)
+        json.dump({"Id": request_id, "Force": bool(args.force)}, f)
     os.replace(request + ".tmp", request)
     log("asked the editor (pid %d) to close%s" % (pid, ", discarding unsaved changes" if args.force else ""))
 

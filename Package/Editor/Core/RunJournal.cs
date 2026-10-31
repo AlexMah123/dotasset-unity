@@ -34,9 +34,13 @@ namespace DotAsset
         // Assets a dry run created anyway: OnWillCreateAsset cannot stop a create, EndDryRun deletes them.
         static readonly List<string> dryRunCreated = new List<string>();
 
+        // With a second's slack for file system timestamps.
+        static DateTime dryRunStarted;
+
         internal static void BeginDryRun(RunLog log)
         {
             dryRun = log;
+            dryRunStarted = DateTime.UtcNow.AddSeconds(-1);
             dryRunCreated.Clear();
         }
 
@@ -83,15 +87,44 @@ namespace DotAsset
             }
         }
 
-        internal static void CreatedInDryRun(string path)
+        internal static bool InDryRun
         {
-            if (path.EndsWith(".meta", StringComparison.OrdinalIgnoreCase))
+            get { return dryRun != null; }
+        }
+
+        // A save during a dry run: refused and logged. A .meta Unity created during the run, importing a new file, is
+        // let through: that is Unity importing, not the run writing, and refusing it only fails the run.
+        internal static bool SaveRefusedInDryRun(string path)
+        {
+            if (path != null && path.EndsWith(".meta", StringComparison.OrdinalIgnoreCase))
             {
-                path = path.Substring(0, path.Length - ".meta".Length);
+                string meta = DotAssetPaths.Absolute(path);
+                if (File.Exists(meta) && File.GetCreationTimeUtc(meta) >= dryRunStarted)
+                {
+                    return false;
+                }
             }
-            if (!dryRunCreated.Contains(path))
+            return RefusedInDryRun(path, "save");
+        }
+
+        // A create during a dry run: refused, logged, and deleted again by EndDryRun. Unity calls OnWillCreateAsset before
+        // a created asset is written, but also when it imports a file already on disk (a refresh, ImportAsset) and only
+        // its .meta is new. That file is not the run's to delete, so it is let through.
+        internal static void CreateInDryRun(string path)
+        {
+            if (string.IsNullOrEmpty(path))
             {
-                dryRunCreated.Add(path);
+                return;
+            }
+            string asset = path.EndsWith(".meta", StringComparison.OrdinalIgnoreCase) ? path.Substring(0, path.Length - ".meta".Length) : path;
+            string absolute = DotAssetPaths.Absolute(asset);
+            if (dryRunCreated.Contains(asset) || File.Exists(absolute) || Directory.Exists(absolute))
+            {
+                return;
+            }
+            if (RefusedInDryRun(asset, "create"))
+            {
+                dryRunCreated.Add(asset);
             }
         }
 
@@ -630,7 +663,10 @@ namespace DotAsset
     {
         static string[] OnWillSaveAssets(string[] paths)
         {
-            paths = paths.Where(p => !RunJournal.RefusedInDryRun(p, "save")).ToArray();
+            if (RunJournal.InDryRun)
+            {
+                return paths.Where(p => !RunJournal.SaveRefusedInDryRun(p)).ToArray();
+            }
             foreach (string path in paths)
             {
                 // Import settings arrive as the .meta alone, the asset file is not written.
@@ -648,9 +684,9 @@ namespace DotAsset
 
         static void OnWillCreateAsset(string path)
         {
-            if (RunJournal.RefusedInDryRun(path, "create"))
+            if (RunJournal.InDryRun)
             {
-                RunJournal.CreatedInDryRun(path);
+                RunJournal.CreateInDryRun(path);
                 return;
             }
             RunJournal.Keep(path);

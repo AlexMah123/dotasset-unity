@@ -6,7 +6,7 @@ namespace DotAsset.Smoke
 {
     // Smoke test only, installed into the test project as an embedded package by tests/smoke/run_smoke.py.
     // Puts the open editor into a state a run must wait for or be refused in, and takes it out again after -seconds,
-    // across domain reloads too: -pause stops the queue taking tasks, -play enters play mode, -compile changes a
+    // across domain reloads too: -pause stops the queue taking tasks, -play enters play mode, -compile -apply changes a
     // script under Assets/DotAssetSmoke so Unity recompiles and reloads once the run is done.
     // Usage: dotasset.py SmokeEditorState --args "-play -seconds=8"
     [InitializeOnLoad]
@@ -80,7 +80,9 @@ namespace DotAsset.Smoke
             }
             else if (ctx.Args.Has("compile"))
             {
+                // A write, so it needs -apply like any run's, and goes through the journal first.
                 string path = "Assets/DotAssetSmoke/SmokeTouch.cs";
+                RunJournal.Keep(path);
                 File.WriteAllText(DotAssetPaths.Absolute(path),
                     "// " + System.DateTime.Now.Ticks + "\ninternal static class DotAssetSmokeTouch\n{\n}\n");
                 AssetDatabase.ImportAsset(path);

@@ -6,8 +6,8 @@ using UnityEngine;
 namespace DotAsset.Smoke
 {
     // Smoke test only, installed into the test project as an embedded package by tests/smoke/run_smoke.py.
-    // Gives assets unsaved changes in the open editor, as editing in the Inspector would, or saves them (-save).
-    // Usage: dotasset.py SmokeDirtyAsset Assets/A.mat,Assets/B.controller,Assets/C.prefab [--args "-save"]
+    // Gives assets unsaved changes in the open editor, as editing in the Inspector would, or saves them (-save -apply).
+    // Usage: dotasset.py SmokeDirtyAsset Assets/A.mat,Assets/B.controller,Assets/C.prefab [--args "-save -apply"]
     public sealed class SmokeDirtyAssetCommand : DotAssetCommand
     {
         public override string Summary
@@ -33,6 +33,8 @@ namespace DotAsset.Smoke
                 }
                 if (save)
                 {
+                    // A write, so it needs -apply like any run's, and goes through the journal first.
+                    RunJournal.Keep(path);
                     if (main is GameObject)
                     {
                         PrefabUtility.SavePrefabAsset((GameObject)main);

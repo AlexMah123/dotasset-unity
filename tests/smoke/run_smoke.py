@@ -769,7 +769,7 @@ def check_unsaved_kept(base, tmp):
     if problems:
         return "\n".join(problems)
     # The changes are still in the editor: saving them now writes each file.
-    r, _ = call(base, ["SmokeDirtyAsset", ",".join(targets), "--args", "-save"])
+    r, _ = call(base, ["SmokeDirtyAsset", ",".join(targets), "--args", "-save -apply"])
     if r.returncode != 0:
         return run_failed("SmokeDirtyAsset -save", r)
     for t, path in files.items():
@@ -1454,7 +1454,7 @@ def check_editor_states(base, tmp):
     for state, seconds, said, code in states:
         if state == "compile" and compiled:
             continue
-        r, _ = call(base, ["SmokeEditorState", "--args", "-%s -seconds=%d" % (state, seconds)])
+        r, _ = call(base, ["SmokeEditorState", "--args", "-%s -seconds=%d%s" % (state, seconds, " -apply" if state == "compile" else "")])
         if r.returncode == 2 and "unknown run 'SmokeEditorState'" in r.stdout + r.stderr:
             drop_kept_log(r)
             return "skip: the smoke helper compiles at the next Unity start, the headless run starts one"

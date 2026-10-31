@@ -6,6 +6,10 @@ Defined in `Package/Editor/Core/DotAssetVersion.cs` and `Package/package.json`, 
 
 Versions follow one rule. A patch (0.1.x) holds fixes, test upgrades and docs. A minor version (0.x.0) adds something new to call: a run, an op, a spec key, an argument or a wrapper option. While on 0.x, a change that breaks existing calls is also a minor version, marked breaking here. 1.0.0 comes when runs, specs and export JSON are promised to stay stable.
 
+### 0.9.6
+
+- EditMode tests in Unity's Test Framework (`tests/editmode/run_editmode.py`): `RenameField` on fixture YAML (top-level keys only, line endings kept, a clash refused, overrides followed through variants, nested prefabs and stripped objects in any scan order), the `RemapScript` and `RenameSerializeReferenceType` patterns, `ValueCodec` (each kind written, wrong values refused, an export written back unchanged) and the argument parser. No change in behaviour: the rewriters' text passes moved into internal helpers the tests call
+
 ### 0.9.5
 
 - Journal ids are taken in UTC, and each journal carries a sequence number. `-run=last` and pruning go by that number, so a clock change or a time zone switch no longer picks the wrong run. Journals from before 0.9.5 count as older than any new one

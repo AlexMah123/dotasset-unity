@@ -70,6 +70,8 @@ def main(argv=None):
     unity_log = os.path.join(out, "unity.log")
     if os.path.exists(results):
         os.remove(results)
+    # Batch Unity leaves the scenes the editor reopens empty, the next editor start would show an Untitled scene.
+    saved = dotasset.read_scene_setup(project)
     target = install(project)
     started = time.time()
     try:
@@ -83,6 +85,7 @@ def main(argv=None):
             print("error: Unity did not finish within %ds, log: %s" % (args.timeout, unity_log))
             return 1
     finally:
+        dotasset.restore_scene_setup(project, saved)
         if not args.keep:
             shutil.rmtree(target, ignore_errors=True)
     print("Unity %s exited with %s after %.0fs" % (dotasset.project_unity_version(project), code, time.time() - started))

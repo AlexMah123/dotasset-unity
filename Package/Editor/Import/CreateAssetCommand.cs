@@ -35,6 +35,11 @@ namespace DotAsset
             get { return false; }
         }
 
+        public override bool WritesWithoutApply
+        {
+            get { return true; }
+        }
+
         public override IEnumerable<string> Arguments
         {
             get { return new[] { "spec" }; }

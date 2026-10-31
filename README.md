@@ -226,7 +226,7 @@ python dotasset.py ──┬──▶│ Library/DotAsset/Queue/pending │─�
 - Queue states: `ready`, `busy`, `compiling`, `importing`, `playmode`, `reloading`, `starting`, `paused`. Tasks wait until the editor is `ready`.
 - Both routes return the same `RunResult` (exit code, summary, every log line, outputs), and the wrapper prints it the same way.
 
-Commands are plain classes: derive from `DotAssetCommand`, name the class `<RunName>Command`, and it is registered — including from your own editor assemblies. The name picks the group, checked in this order: `*Export`, `*Import` / `Create*`, `Edit*`, `Audit*`, everything else Migrate. Prefixes match letters, not words: `EditorTidy` is listed and documented as an Edit run, so name a Migrate run `TidyEditor` instead. A name ending in `Export` takes the export arguments (`-outdir`, `-full`, `-maxarray`, `-maxstring`) whatever its prefix.
+Commands are plain classes: derive from `DotAssetCommand`, name the class `<RunName>Command`, and it is registered — including from your own editor assemblies. The name picks the group, checked in this order: `*Export`, `*Import` / `Create*`, `Edit*`, `Audit*`, everything else Migrate. Prefixes match letters, not words: `EditorTidy` is listed and documented as an Edit run, so name a Migrate run `TidyEditor` instead. A name ending in `Export` takes the export arguments (`-outdir`, `-full`, `-maxarray`, `-maxstring`) whatever its prefix. An Import run writes without `-apply` and must say so: override `WritesWithoutApply` to return true. A command may also override `Group` to state the group it means. When either disagrees with the name, the command is not registered: running it is refused with the reason, and `--list` names it under `Rejected`.
 
 ## Compared with other tools
 

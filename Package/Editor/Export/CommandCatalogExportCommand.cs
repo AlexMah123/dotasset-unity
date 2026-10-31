@@ -31,12 +31,21 @@ namespace DotAsset
                     ["RunName"] = cmd.Name,
                     ["Group"] = cmd.Group.ToString(),
                     ["Summary"] = cmd.Summary,
+                    ["WritesWithoutApply"] = cmd.WritesWithoutApply,
                     ["Arguments"] = new JArray(cmd.Arguments.Concat(CommandRegistry.CommonArguments(cmd.Group)).Distinct().Select(a => (object)("-" + a)).ToArray()),
                     ["Class"] = cmd.GetType().FullName,
                 });
                 ctx.Log.Info(cmd.Group + "\t" + cmd.Name + "\t" + cmd.Summary);
             }
             json["Commands"] = list;
+            // Commands whose declarations disagree with their name, left out so they cannot run.
+            var rejected = new JArray();
+            foreach (KeyValuePair<string, string> r in CommandRegistry.Rejected.OrderBy(r => r.Key))
+            {
+                rejected.Add(new JObject { ["RunName"] = r.Key, ["Reason"] = r.Value });
+                ctx.Log.Warn("not registered: " + r.Value);
+            }
+            json["Rejected"] = rejected;
             ExportHelper.Save(ctx, null, json);
             return ExitCode.Success;
         }

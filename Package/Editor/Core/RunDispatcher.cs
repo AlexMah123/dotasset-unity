@@ -174,6 +174,12 @@ namespace DotAsset
             }
 
             DotAssetCommand cmd = CommandRegistry.Find(ctx.RunName);
+            string refusal;
+            if (cmd == null && CommandRegistry.Rejected.TryGetValue(ctx.RunName, out refusal))
+            {
+                ctx.Log.Error(ctx.RunName + " is not registered: " + refusal);
+                return ExitCode.Refused;
+            }
             if (cmd == null)
             {
                 ctx.Log.Error("unknown run '" + ctx.RunName + "'. Known runs: " + string.Join(", ", CommandRegistry.All.Keys.OrderBy(k => k)));

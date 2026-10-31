@@ -719,6 +719,27 @@ def check_dry_run_writes(base, tmp):
     return None
 
 
+def check_undeclared_import(base, tmp):
+    # A command named like an Import run must declare that it writes without -apply. The helper's CreateSmokeUndeclared
+    # does not: it is left out of the registry, listed under Rejected, and refused by name.
+    catalog = export_of("CommandCatalogExport", base)
+    if not any(c.get("RunName") == "CreateAsset" and c.get("WritesWithoutApply") is True for c in catalog.get("Commands", [])):
+        return "the catalog does not mark CreateAsset as WritesWithoutApply"
+    if any(c.get("WritesWithoutApply") and c.get("Group") != "Import" for c in catalog.get("Commands", [])):
+        return "a run outside Import is marked WritesWithoutApply"
+    r, _ = call(base, ["CreateSmokeUndeclared"])
+    out = r.stdout + r.stderr
+    if r.returncode == 2 and "unknown run 'CreateSmokeUndeclared'" in out:
+        drop_kept_log(r)
+        return "skip: the smoke helper compiles at the next Unity start, the headless run starts one"
+    if r.returncode != 2 or "not registered" not in out or "WritesWithoutApply" not in out:
+        return "CreateSmokeUndeclared exit %s, expected 2 with \"not registered\"\n%s" % (r.returncode, out[-1500:])
+    drop_kept_log(r)
+    if not any(x.get("RunName") == "CreateSmokeUndeclared" for x in catalog.get("Rejected", [])):
+        return "the catalog does not list CreateSmokeUndeclared under Rejected"
+    return None
+
+
 def check_unsaved_kept(base, tmp):
     # Assets with unsaved changes in the editor, as after editing in the Inspector: every run that writes must refuse
     # them and leave the files as they were, and the changes must still be there to save afterwards.
@@ -1834,6 +1855,7 @@ def steps_of(specs):
         ("read-only package refused", check_read_only_package, None),
         ("duplicate", check_duplicate, None),
         ("dry run writes refused", check_dry_run_writes, None),
+        ("undeclared Import refused", check_undeclared_import, None),
         ("unsaved changes kept", check_unsaved_kept, None),
         ("remap dry and apply", check_remap, None),
         ("move keeps references", check_move, None),

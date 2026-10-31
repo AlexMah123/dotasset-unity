@@ -14,7 +14,7 @@ Reads assets through Unity's serializer and writes grep-friendly JSON. Nothing i
 | `ImporterExport` | Import settings (the `.meta`), with a typed summary for textures and models | textures, models, audio, any asset with an importer |
 | `AssetReferenceExport` | Direct (and with `-recursive` transitive) dependencies, and what references the asset | any |
 | `TypeCatalogExport` | Property paths, kinds, defaults, enum options of component and ScriptableObject types | none, `-filter=` |
-| `CommandCatalogExport` | Every registered run with group, summary and arguments | none |
+| `CommandCatalogExport` | Every registered run with group, summary, arguments and `WritesWithoutApply` (true only for Import runs), plus `Rejected`: commands left out because their declared group or `WritesWithoutApply` disagrees with their name | none |
 
 ```bash
 python dotasset.py PrefabExport "Assets/Prefabs/Player.prefab,Assets/Prefabs/Enemies"

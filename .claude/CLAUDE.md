@@ -54,7 +54,7 @@ Run name suffix `Export` is Export, suffix `Import` or prefix `Create` is Import
 
 1. Pick the group by the rule above. Create `Package/Editor/<Group>/<RunName>Command.cs`, `public sealed class <RunName>Command : DotAssetCommand`
 2. Header comment: one line of purpose, one `// Usage:` line, a `// Docs/<Group>.md` line
-3. Override `Summary`, `Arguments` (every `-key` it reads; the group's common arguments are added automatically), `Execute`
+3. Override `Summary`, `Arguments` (every `-key` it reads; the group's common arguments are added automatically), `Execute`. An Import run also overrides `WritesWithoutApply` to return true, the registry refuses it otherwise
 4. Export: write through `ExportHelper.Header` and `ExportHelper.Save` (path under `Library/DotAsset/Export`, `ExporterVersion` and `ExportType` included). Audit: use `AuditReport`
 5. Run `python tools/gen_meta.py` so the new file has a `.meta` (git-installed packages ignore files without one)
 6. Update `Docs/<Group>.md`, the decision table in `Docs/AI-Guide.md`, the README matrix when a new asset type is covered, and `Version.md`

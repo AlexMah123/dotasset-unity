@@ -49,14 +49,19 @@ namespace DotAsset
         public RunJournal(string runName)
         {
             this.runName = runName;
-            // Sortable to the millisecond, so -run=last finds the newest run even when runs follow within a second.
-            Id = DateTime.Now.ToString("yyyyMMdd-HHmmss-fff", System.Globalization.CultureInfo.InvariantCulture);
+            // UTC to the millisecond for a readable id. The order comes from Seq, a clock set back or a DST change
+            // would turn a name order around.
+            Id = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fff", System.Globalization.CultureInfo.InvariantCulture);
             while (Directory.Exists(Dir))
             {
                 Id += "x";
             }
             Recover();
+            Seq = Directory.Exists(Root) ? Directory.GetDirectories(Root).Select(SeqOf).DefaultIfEmpty(0).Max() + 1 : 1;
         }
+
+        // Counts up across runs, newest highest. Journals written before 0.9.5 have none and count as 0, the oldest.
+        public long Seq { get; private set; }
 
         public static string Root
         {
@@ -159,7 +164,7 @@ namespace DotAsset
             string file = DotAssetPaths.Combine(Dir, LogName);
             if (!File.Exists(file))
             {
-                File.WriteAllText(file, new JObject { ["Id"] = Id, ["RunName"] = runName }.ToString(Newtonsoft.Json.Formatting.None) + "\n");
+                File.WriteAllText(file, new JObject { ["Id"] = Id, ["Seq"] = Seq, ["RunName"] = runName }.ToString(Newtonsoft.Json.Formatting.None) + "\n");
             }
             File.AppendAllText(file, JObject.FromObject(entry).ToString(Newtonsoft.Json.Formatting.None) + "\n");
         }
@@ -214,6 +219,7 @@ namespace DotAsset
                     Json.WriteFile(DotAssetPaths.Combine(dir, FileName), new JObject
                     {
                         ["Id"] = header["Id"],
+                        ["Seq"] = header["Seq"] ?? 0,
                         ["RunName"] = header["RunName"],
                         ["Interrupted"] = true,
                         ["Entries"] = list,
@@ -250,6 +256,7 @@ namespace DotAsset
             Json.WriteFile(file, new JObject
             {
                 ["Id"] = Id,
+                ["Seq"] = Seq,
                 ["RunName"] = runName,
                 ["Entries"] = new JArray(entries.Select(e => (object)JObject.FromObject(e)).ToArray()),
             });
@@ -409,9 +416,8 @@ namespace DotAsset
             Recover();
             if (id == "last")
             {
-                return Directory.GetDirectories(Root).Select(DotAssetPaths.Normalize)
-                    .Where(d => File.Exists(DotAssetPaths.Combine(d, FileName)))
-                    .OrderByDescending(d => d, StringComparer.Ordinal).FirstOrDefault();
+                return Newest(Directory.GetDirectories(Root).Select(DotAssetPaths.Normalize)
+                    .Where(d => File.Exists(DotAssetPaths.Combine(d, FileName)))).FirstOrDefault();
             }
             string dir = DotAssetPaths.Combine(Root, id);
             return File.Exists(DotAssetPaths.Combine(dir, FileName)) ? dir : null;
@@ -436,7 +442,7 @@ namespace DotAsset
 
         static void Prune()
         {
-            foreach (string old in Directory.GetDirectories(Root).OrderByDescending(d => d, StringComparer.Ordinal).Skip(KeepJournals))
+            foreach (string old in Newest(Directory.GetDirectories(Root)).Skip(KeepJournals).ToList())
             {
                 try
                 {
@@ -446,6 +452,54 @@ namespace DotAsset
                 {
                 }
             }
+        }
+
+        // Journal folders newest first: by Seq, then by name for journals of the same Seq (those from before 0.9.5).
+        static IEnumerable<string> Newest(IEnumerable<string> dirs)
+        {
+            return dirs.Select(d => new { Dir = d, Seq = SeqOf(d) })
+                .OrderByDescending(x => x.Seq).ThenByDescending(x => x.Dir, StringComparer.Ordinal).Select(x => x.Dir);
+        }
+
+        // A journal's Seq, read from the first properties of journal.json or the log's header without parsing the
+        // entries. 0 when it has none.
+        static long SeqOf(string dir)
+        {
+            foreach (string name in new[] { FileName, LogName })
+            {
+                string file = DotAssetPaths.Combine(dir, name);
+                if (!File.Exists(file))
+                {
+                    continue;
+                }
+                try
+                {
+                    using (var reader = new Newtonsoft.Json.JsonTextReader(new StreamReader(
+                        new FileStream(file, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))))
+                    {
+                        while (reader.Read())
+                        {
+                            if (reader.Depth == 1 && reader.TokenType == Newtonsoft.Json.JsonToken.PropertyName)
+                            {
+                                if ((string)reader.Value == "Seq")
+                                {
+                                    reader.Read();
+                                    return Convert.ToInt64(reader.Value, System.Globalization.CultureInfo.InvariantCulture);
+                                }
+                                if ((string)reader.Value == "Entries")
+                                {
+                                    break;
+                                }
+                            }
+                        }
+                    }
+                }
+                catch (Exception)
+                {
+                }
+                return 0;
+            }
+            return 0;
         }
     }
 

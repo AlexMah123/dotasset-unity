@@ -201,7 +201,7 @@ python dotasset.py UndoRun --args "-run=20261031-101500-123"
 python dotasset.py UndoRun --args "-run=last -apply"
 ```
 
-Every writing run keeps the files it touches, as they were before it, in `Library/DotAsset/Journal/<id>`. The run prints `out: .../Journal/<id>/journal.json` and logs `undo with: UndoRun --args "-run=<id> -apply"`. The newest 30 journals are kept. `-run=last` takes the newest, which is the undo itself after an undo: undoing an undo redoes the run.
+Every writing run keeps the files it touches, as they were before it, in `Library/DotAsset/Journal/<id>`. The run prints `out: .../Journal/<id>/journal.json` and logs `undo with: UndoRun --args "-run=<id> -apply"`. The id is the run's start time in UTC, the order comes from a sequence number in each journal, so a clock change never reorders runs. The newest 30 journals are kept. `-run=last` takes the newest, which is the undo itself after an undo: undoing an undo redoes the run.
 
 - Files the run wrote come back with their old content and `.meta`, files it created are deleted, moved files return to their old path with their GUID, deleted files come back.
 - Refused as a whole, nothing restored, when any of those paths changed after the run (an edit by hand, a later run), is a scene open in the editor or the prefab in Prefab Mode, or has unsaved changes in the editor.

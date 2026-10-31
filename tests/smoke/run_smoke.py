@@ -1323,7 +1323,13 @@ def check_journal_undo(base, tmp):
     problem = expect(base, "MoveAsset -apply", ["MoveAsset", "--args", "-from=%s -to=%s -apply" % (mat, moved)], 0)
     if problem:
         return problem
+    # A journal from before 0.9.5 (no Seq) whose name sorts last must not count as the newest run.
+    legacy = os.path.join(project_of(base), "Library", "DotAsset", "Journal", "99991231-235959-999")
+    os.makedirs(legacy, exist_ok=True)
+    with open(os.path.join(legacy, "journal.json"), "w", encoding="utf-8") as f:
+        json.dump({"Id": "99991231-235959-999", "RunName": "MoveAsset", "Entries": []}, f)
     problem = expect(base, "UndoRun last", ["UndoRun", "--args", "-run=last -apply"], 0)
+    shutil.rmtree(legacy, ignore_errors=True)
     if problem:
         return problem
     if not on_disk(base, mat) or on_disk(base, ROOT + "/Moved"):

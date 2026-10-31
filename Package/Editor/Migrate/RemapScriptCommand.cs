@@ -76,9 +76,8 @@ namespace DotAsset
             }
             string fromFileId = ctx.Args.Get("fromfileid", "11500000");
 
-            // m_Script: {fileID: 11500000, guid: <old>, type: 3}
-            var pattern = new Regex(@"(m_Script:\s*\{fileID:\s*)" + Regex.Escape(fromFileId) + @"(,\s*guid:\s*)" + oldGuid + @"(,\s*type:\s*3\})", RegexOptions.Compiled);
-            string replacement = "${1}" + newFileId + "${2}" + newGuid + "${3}";
+            Regex pattern = Pattern(fromFileId, oldGuid);
+            string replacement = Replacement(newFileId, newGuid);
 
             var files = AssetScan.All(AssetScan.Roots(ctx.Args), p => AssetScan.HasExtension(p, AssetScan.YamlExtensions));
             int changedFiles = 0;
@@ -143,6 +142,17 @@ namespace DotAsset
             }
             ctx.Log.Info((ctx.DryRun ? "would change " : "changed ") + changedRefs + " reference(s) in " + changedFiles + " file(s) to " + to);
             return ctx.FailedTargets.Count > 0 ? ExitCode.Failed : ExitCode.Success;
+        }
+
+        // m_Script: {fileID: 11500000, guid: <old>, type: 3}
+        internal static Regex Pattern(string fromFileId, string oldGuid)
+        {
+            return new Regex(@"(m_Script:\s*\{fileID:\s*)" + Regex.Escape(fromFileId) + @"(,\s*guid:\s*)" + oldGuid + @"(,\s*type:\s*3\})", RegexOptions.Compiled);
+        }
+
+        internal static string Replacement(long newFileId, string newGuid)
+        {
+            return "${1}" + newFileId + "${2}" + newGuid + "${3}";
         }
     }
 }

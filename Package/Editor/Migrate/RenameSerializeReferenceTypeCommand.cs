@@ -69,8 +69,7 @@ namespace DotAsset
                 ctx.Log.Warn(ManagedTypes.Name(fromAsm ?? toAsm, fromNs, fromCls) + " still compiles, its data moves to " + to.FullName + " anyway");
             }
 
-            var pattern = new Regex(@"type: \{class: " + Regex.Escape(fromCls) + ", ns: " + Regex.Escape(fromNs) + ", asm: "
-                + (fromAsm != null ? Regex.Escape(fromAsm) : "[^,}]*") + @"\}");
+            Regex pattern = Pattern(fromAsm, fromNs, fromCls);
             string replacement = ManagedTypes.YamlEntry(toAsm, toNs, toCls);
             string toName = ManagedTypes.Name(toAsm, toNs, toCls);
 
@@ -137,6 +136,13 @@ namespace DotAsset
             }
             ctx.Log.Info((ctx.DryRun ? "would change " : "changed ") + changedRefs + " entr" + (changedRefs == 1 ? "y" : "ies") + " in " + changedFiles + " file(s) to " + toName);
             return ctx.FailedTargets.Count > 0 ? ExitCode.Failed : ExitCode.Success;
+        }
+
+        // type: {class: <class>, ns: <namespace>, asm: <assembly>}, any assembly when it is left out.
+        internal static Regex Pattern(string fromAsm, string fromNs, string fromCls)
+        {
+            return new Regex(@"type: \{class: " + Regex.Escape(fromCls) + ", ns: " + Regex.Escape(fromNs) + ", asm: "
+                + (fromAsm != null ? Regex.Escape(fromAsm) : "[^,}]*") + @"\}");
         }
     }
 }

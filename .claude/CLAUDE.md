@@ -16,6 +16,7 @@ Package/                         the UPM package (com.alexmah.dotasset), install
 Docs/                            agent-facing docs, one per group plus AI-Guide.md
 tests/                           wrapper tests and naming-rule checks: python -m unittest discover -s tests
 tests/smoke/run_smoke.py         end-to-end test in a real Unity project, both routes
+tests/editmode/run_editmode.py   EditMode tests of the rewriters, ValueCodec and RunArgs, in DotAssetTest-Medium (has the Test Framework)
 examples/                        agent tasks done with DotAsset, e.g. npc_scenario.py
 tools/gen_meta.py                writes missing .meta files for the package
 tools/compile_check.py           compiles the package with every test project's Unity compiler, plus .NET 4.8 and Standard 2.1
@@ -30,7 +31,7 @@ Patch (0.1.x) for fixes, test upgrades and docs. Minor (0.x.0) for anything new 
 
 Keep the two apart: a verified fix ships as its own patch release instead of waiting for the next minor, and a minor release carries the new features plus only the fixes found while building them.
 
-Release order: implement, `python tools/gen_meta.py` if a file was added, `python tools/compile_check.py`, unit tests, bump the version, `Version.md` and docs, commit and push, then the smoke matrix, then the tag. The smoke matrix comes last because it is the slow part.
+Release order: implement, `python tools/gen_meta.py` if a file was added, `python tools/compile_check.py`, unit tests, EditMode tests, bump the version, `Version.md` and docs, commit and push, then the smoke matrix, then the tag. The smoke matrix comes last because it is the slow part.
 
 A release needs the smoke test to pass three times in a row on every tested Unity version, headless (most steps through a `--serve` host) and with the editor open (`--launch` before, `--quit` after), then an annotated `v<version>` tag whose message carries the matrix result (passes per project and route). Never edit the package or the smoke test while a pass runs.
 

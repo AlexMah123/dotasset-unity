@@ -154,12 +154,9 @@ namespace DotAsset
                 ctx.Log.Warn("no compiled class for " + scriptArg + ", the field names cannot be checked and subclasses are not followed");
             }
 
-            // Pass 1: every object that is a component of these scripts, by (file GUID, fileID). An object inside a prefab
-            // instance has fileID (source fileID ^ instance fileID) & long.MaxValue, stripped or not.
-            var scriptRef = new Regex(@"m_Script: \{fileID: \d+, guid: (" + string.Join("|", scriptGuids) + "),");
-            var targets = new Dictionary<string, HashSet<long>>();
-            var instances = new List<KeyValuePair<string, KeyValuePair<long, string>>>();
-            var strips = new List<KeyValuePair<string, KeyValuePair<long, KeyValuePair<long, string>>>>();
+            // Pass 1: every object that is a component of these scripts, by (file GUID, fileID).
+            Regex scriptRef = ScriptRef(scriptGuids);
+            var targets = new Targets();
             var candidates = new List<string>();
             string overrideKey = "propertyPath: " + from;
             var files = AssetScan.All(AssetScan.Roots(ctx.Args), p => AssetScan.HasExtension(p, AssetScan.YamlExtensions));
@@ -190,61 +187,11 @@ namespace DotAsset
                 {
                     continue;
                 }
-                string guid = AssetDatabase.AssetPathToGUID(path);
-                foreach (Doc d in Docs(text))
-                {
-                    string body = text.Substring(d.Start, d.End - d.Start);
-                    if (d.Stripped)
-                    {
-                        Match s = SourceObject.Match(body);
-                        if (s.Success)
-                        {
-                            strips.Add(new KeyValuePair<string, KeyValuePair<long, KeyValuePair<long, string>>>(guid,
-                                new KeyValuePair<long, KeyValuePair<long, string>>(d.Id, new KeyValuePair<long, string>(long.Parse(s.Groups[1].Value), s.Groups[2].Value))));
-                        }
-                    }
-                    else if (d.ClassId == 114 && scriptRef.IsMatch(body))
-                    {
-                        Add(targets, guid, d.Id);
-                    }
-                    else if (d.ClassId == 1001)
-                    {
-                        Match s = SourcePrefab.Match(body);
-                        if (s.Success)
-                        {
-                            instances.Add(new KeyValuePair<string, KeyValuePair<long, string>>(guid, new KeyValuePair<long, string>(d.Id, s.Groups[1].Value)));
-                        }
-                    }
-                }
+                targets.Scan(AssetDatabase.AssetPathToGUID(path), text, scriptRef);
             }
-            for (bool grew = true; grew;)
-            {
-                grew = false;
-                foreach (var s in strips)
-                {
-                    HashSet<long> ids;
-                    if (targets.TryGetValue(s.Value.Value.Value, out ids) && ids.Contains(s.Value.Value.Key))
-                    {
-                        grew |= Add(targets, s.Key, s.Value.Key);
-                    }
-                }
-                foreach (var inst in instances)
-                {
-                    HashSet<long> ids;
-                    if (targets.TryGetValue(inst.Value.Value, out ids))
-                    {
-                        foreach (long id in new List<long>(ids))
-                        {
-                            grew |= Add(targets, inst.Key, (id ^ inst.Value.Key) & long.MaxValue);
-                        }
-                    }
-                }
-            }
+            targets.Follow();
 
             // Pass 2: the keys in this script's documents, and the override paths that target one of its objects.
-            var key = new Regex("^  " + from + ":", RegexOptions.Multiline);
-            var clash = new Regex("^  " + to + ":", RegexOptions.Multiline);
-            var modification = new Regex(@"(- target: \{fileID: (-?\d+), guid: ([0-9a-f]{32}), type: \d+\}\r?\n\s*propertyPath: )" + from + @"(?=[.\r\n])");
             int changedFiles = 0;
             int changedKeys = 0;
             var toImport = new List<string>();
@@ -262,40 +209,9 @@ namespace DotAsset
                     ctx.FailTarget(path, e.Message);
                     continue;
                 }
-                var sb = new StringBuilder(text.Length);
-                int hits = 0;
-                string conflict = null;
-                List<Doc> docs = Docs(text);
-                if (docs.Count == 0)
-                {
-                    continue;
-                }
-                sb.Append(text, 0, docs[0].Start);
-                foreach (Doc d in docs)
-                {
-                    string body = text.Substring(d.Start, d.End - d.Start);
-                    if (d.ClassId == 114 && !d.Stripped && scriptRef.IsMatch(body) && key.IsMatch(body))
-                    {
-                        if (clash.IsMatch(body))
-                        {
-                            conflict = "object &" + d.Id + " already has a field named " + to;
-                            break;
-                        }
-                        body = key.Replace(body, "  " + to + ":");
-                        hits++;
-                    }
-                    body = modification.Replace(body, m =>
-                    {
-                        HashSet<long> ids;
-                        if (targets.TryGetValue(m.Groups[3].Value, out ids) && ids.Contains(long.Parse(m.Groups[2].Value)))
-                        {
-                            hits++;
-                            return m.Groups[1].Value + to;
-                        }
-                        return m.Value;
-                    });
-                    sb.Append(body);
-                }
+                int hits;
+                string conflict;
+                string rewritten = Rewrite(text, from, to, scriptRef, targets, out hits, out conflict);
                 if (conflict != null)
                 {
                     ctx.FailTarget(path, conflict);
@@ -322,7 +238,7 @@ namespace DotAsset
                 try
                 {
                     RunJournal.Keep(path);
-                    DotAssetPaths.ReplaceText(abs, sb.ToString());
+                    DotAssetPaths.ReplaceText(abs, rewritten);
                     toImport.Add(path);
                 }
                 catch (Exception e)
@@ -338,15 +254,136 @@ namespace DotAsset
             return ctx.FailedTargets.Count > 0 ? ExitCode.Failed : ExitCode.Success;
         }
 
-        static bool Add(Dictionary<string, HashSet<long>> map, string guid, long id)
+        internal static Regex ScriptRef(IEnumerable<string> scriptGuids)
         {
-            HashSet<long> ids;
-            if (!map.TryGetValue(guid, out ids))
+            return new Regex(@"m_Script: \{fileID: \d+, guid: (" + string.Join("|", scriptGuids) + "),");
+        }
+
+        // The objects of the scripts, by file GUID and fileID, followed into the prefab instances that hold them. An
+        // object inside a prefab instance has fileID (source fileID ^ instance fileID) & long.MaxValue, stripped or not.
+        internal sealed class Targets
+        {
+            readonly Dictionary<string, HashSet<long>> ids = new Dictionary<string, HashSet<long>>();
+            readonly List<KeyValuePair<string, KeyValuePair<long, string>>> instances = new List<KeyValuePair<string, KeyValuePair<long, string>>>();
+            readonly List<KeyValuePair<string, KeyValuePair<long, KeyValuePair<long, string>>>> strips = new List<KeyValuePair<string, KeyValuePair<long, KeyValuePair<long, string>>>>();
+
+            public void Scan(string guid, string text, Regex scriptRef)
             {
-                ids = new HashSet<long>();
-                map[guid] = ids;
+                foreach (Doc d in Docs(text))
+                {
+                    string body = text.Substring(d.Start, d.End - d.Start);
+                    if (d.Stripped)
+                    {
+                        Match s = SourceObject.Match(body);
+                        if (s.Success)
+                        {
+                            strips.Add(new KeyValuePair<string, KeyValuePair<long, KeyValuePair<long, string>>>(guid,
+                                new KeyValuePair<long, KeyValuePair<long, string>>(d.Id, new KeyValuePair<long, string>(long.Parse(s.Groups[1].Value), s.Groups[2].Value))));
+                        }
+                    }
+                    else if (d.ClassId == 114 && scriptRef.IsMatch(body))
+                    {
+                        Add(guid, d.Id);
+                    }
+                    else if (d.ClassId == 1001)
+                    {
+                        Match s = SourcePrefab.Match(body);
+                        if (s.Success)
+                        {
+                            instances.Add(new KeyValuePair<string, KeyValuePair<long, string>>(guid, new KeyValuePair<long, string>(d.Id, s.Groups[1].Value)));
+                        }
+                    }
+                }
             }
-            return ids.Add(id);
+
+            // Called once every file is scanned: variants and nested prefabs come in any order.
+            public void Follow()
+            {
+                for (bool grew = true; grew;)
+                {
+                    grew = false;
+                    foreach (var s in strips)
+                    {
+                        if (Contains(s.Value.Value.Value, s.Value.Value.Key))
+                        {
+                            grew |= Add(s.Key, s.Value.Key);
+                        }
+                    }
+                    foreach (var inst in instances)
+                    {
+                        HashSet<long> found;
+                        if (ids.TryGetValue(inst.Value.Value, out found))
+                        {
+                            foreach (long id in new List<long>(found))
+                            {
+                                grew |= Add(inst.Key, (id ^ inst.Value.Key) & long.MaxValue);
+                            }
+                        }
+                    }
+                }
+            }
+
+            public bool Contains(string guid, long id)
+            {
+                HashSet<long> found;
+                return ids.TryGetValue(guid, out found) && found.Contains(id);
+            }
+
+            bool Add(string guid, long id)
+            {
+                HashSet<long> found;
+                if (!ids.TryGetValue(guid, out found))
+                {
+                    found = new HashSet<long>();
+                    ids[guid] = found;
+                }
+                return found.Add(id);
+            }
+        }
+
+        // Renames the key in the documents of the scripts and the override paths that target one of their objects.
+        // Returns the new text, or null with the reason in conflict when such a document already has the new key.
+        internal static string Rewrite(string text, string from, string to, Regex scriptRef, Targets targets, out int hits, out string conflict)
+        {
+            var key = new Regex("^  " + from + ":", RegexOptions.Multiline);
+            var clash = new Regex("^  " + to + ":", RegexOptions.Multiline);
+            var modification = new Regex(@"(- target: \{fileID: (-?\d+), guid: ([0-9a-f]{32}), type: \d+\}\r?\n\s*propertyPath: )" + from + @"(?=[.\r\n])");
+            int count = 0;
+            hits = 0;
+            conflict = null;
+            List<Doc> docs = Docs(text);
+            if (docs.Count == 0)
+            {
+                return text;
+            }
+            var sb = new StringBuilder(text.Length);
+            sb.Append(text, 0, docs[0].Start);
+            foreach (Doc d in docs)
+            {
+                string body = text.Substring(d.Start, d.End - d.Start);
+                if (d.ClassId == 114 && !d.Stripped && scriptRef.IsMatch(body) && key.IsMatch(body))
+                {
+                    if (clash.IsMatch(body))
+                    {
+                        conflict = "object &" + d.Id + " already has a field named " + to;
+                        return null;
+                    }
+                    body = key.Replace(body, "  " + to + ":");
+                    count++;
+                }
+                body = modification.Replace(body, m =>
+                {
+                    if (targets.Contains(m.Groups[3].Value, long.Parse(m.Groups[2].Value)))
+                    {
+                        count++;
+                        return m.Groups[1].Value + to;
+                    }
+                    return m.Value;
+                });
+                sb.Append(body);
+            }
+            hits = count;
+            return sb.ToString();
         }
     }
 }

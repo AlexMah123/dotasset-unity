@@ -1,0 +1,7 @@
+{
+    "name": "com.alexmah.dotasset.tests",
+    "version": "0.0.1",
+    "displayName": "DotAsset EditMode tests",
+    "description": "Installed by tests/editmode/run_editmode.py into a test project only, removed after the run.",
+    "unity": "2022.3"
+}

@@ -13,6 +13,9 @@ namespace DotAsset
         Refused = 2,
         // Audit only: the run itself succeeded and the report lists something to fix.
         IssuesFound = 3,
+        // Wrapper only, never returned by a run: the wrapper lost sight of a run that may have written its targets
+        // (interrupted, timed out, Unity exited mid-run). The run's own result, if one comes, is in dotasset.py --result.
+        Unknown = 4,
     }
 
     public enum CommandGroup

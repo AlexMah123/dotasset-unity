@@ -65,6 +65,7 @@ Audits write `<report>.fix.json` for the matching fix run (`EditImporter`, `Edit
 | 1 | a target failed and nothing of it was saved | read `error:`, fix the spec, retry |
 | 2 | refused: unknown run, argument or spec key | check the group doc, `--list` |
 | 3 | audit found issues | read the report or fix spec |
+| 4 | unknown: interrupted, timed out or Unity lost mid-run | `--result <task>` from the `outcome:` line, or export the targets, before any rerun |
 
 ## Rules
 

@@ -98,8 +98,9 @@ class FakeEditor(threading.Thread):
                     with open(dst) as f:
                         task = json.load(f)
                     self.tasks.append(task)
+                    response = self.respond(task)
                     with open(os.path.join(self.queue, ops.DONE, name), "w") as f:
-                        json.dump(self.respond(task), f)
+                        json.dump(response, f)
                     os.remove(dst)
                 self.serve_open_scene()
                 if self.serve_quit():
@@ -181,6 +182,10 @@ if "-batchmode" not in argv:
 if mode == "compile_error":
     with open(log, "w") as f:
         f.write("Assets/Foo.cs(3,1): error CS1002: ; expected\nScripts have compiler errors.\n")
+    sys.exit(1)
+if mode == "crash":
+    with open(log, "w") as f:
+        f.write("Crash!!!\n")
     sys.exit(1)
 if mode == "hang":
     import time
@@ -496,6 +501,37 @@ class QueueRoute(Base):
         pending = os.path.join(self.project, ops.QUEUE_RELATIVE, ops.PENDING)
         self.assertEqual([f for f in os.listdir(pending) if f.endswith(".json")], [])
 
+    def test_timeout_after_claim_is_unknown_and_result_reads_it_later(self):
+        gate = threading.Event()
+        editor = FakeEditor(self.project, lambda t: (gate.wait(10), result(t["RunName"], code=3))[1])
+        editor.start()
+        try:
+            code, out = self.call("AuditTexture", "--timeout", "1", "--json")
+            self.assertEqual(code, 4, "the editor took the task, its outcome is unknown")
+            task = re.search(r"outcome: unknown, task ([0-9a-f]{32})", out).group(1)
+            self.assertIn('"Task": "%s"' % task, out)
+            code, out = self.call("--result", task)
+            self.assertEqual(code, 4)
+            self.assertIn("still running", out)
+            gate.set()
+            done = os.path.join(self.project, ops.QUEUE_RELATIVE, ops.DONE, task + ".json")
+            deadline = time.time() + 5
+            while not os.path.exists(done) and time.time() < deadline:
+                time.sleep(0.05)
+            time.sleep(0.1)
+            code, out = self.call("--result", task)
+            self.assertEqual(code, 3, "the run's own exit code")
+            self.assertIn("AuditTexture", out)
+            code, out = self.call("--result", task)
+            self.assertEqual(code, 2, "a result is read once")
+        finally:
+            gate.set()
+            editor.stop.set()
+
+    def test_result_refuses_a_bad_task_id(self):
+        code, out = self.call("--result", "../x")
+        self.assertEqual(code, 2)
+
     def test_paused_queue_refuses(self):
         editor = FakeEditor(self.project, None, state="paused")
         editor.start()
@@ -616,9 +652,16 @@ class BatchRoute(Base):
         os.environ["FAKE_UNITY_MODE"] = "hang"
         started = time.time()
         code, out = self.call("PrefabExport", "Assets/A.prefab", "--unity", self.fake_unity, "--timeout", "2")
-        self.assertEqual(code, 1)
+        self.assertEqual(code, 4, "stopped mid-run, a target may have been written")
         self.assertLess(time.time() - started, 15)
         self.assertIn("did not finish", out)
+        self.assertIn("outcome: unknown", out)
+
+    def test_crash_without_result_is_unknown(self):
+        os.environ["FAKE_UNITY_MODE"] = "crash"
+        code, out = self.call("PrefabExport", "Assets/A.prefab", "--unity", self.fake_unity, "--json")
+        self.assertEqual(code, 4)
+        self.assertIn('"Outcome": "unknown"', out)
 
     def test_no_unity_found(self):
         code, out = self.call("PrefabExport", "Assets/A.prefab")

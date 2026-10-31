@@ -13,6 +13,7 @@ Usage:
   python dotasset.py <RunName> [AssetList] [--args "<extra args>"] [--project DIR] [--unity PATH] [--timeout SEC]
   python dotasset.py --list          every run the project knows, with its summary
   python dotasset.py --status        what the editor's queue is doing
+  python dotasset.py --result TASK   the result of a task the wrapper gave up waiting for (exit 4 while it still runs)
   python dotasset.py --launch [--visible]  open the project in the editor and wait until it takes tasks. The
                                        editor starts minimized and never takes the focus unless --visible
   python dotasset.py --quit [--force]  close the editor that has the project open, refused while a scene has
@@ -29,6 +30,9 @@ Exit codes, passed through from the run:
   1  the run failed, or Unity failed before the run could start
   2  refused: unknown run, bad argument, bad spec, editor in a state that cannot take tasks
   3  audit runs only: the run succeeded and the report lists issues
+  4  unknown: the run may have written its targets but the wrapper lost sight of it (interrupted, timed out,
+     Unity exited mid-run). The last line names the task, "python dotasset.py --result <task>" reads the
+     editor's result once it lands
 
 Python 3.8+, standard library only.
 """
@@ -61,12 +65,13 @@ EXIT_SUCCESS = 0
 EXIT_FAILED = 1
 EXIT_REFUSED = 2
 EXIT_ISSUES = 3
+EXIT_UNKNOWN = 4
 
 BUSY_STATES = {"busy", "compiling", "importing", "playmode", "reloading", "starting"}
 
 # --agent: compact output for AI agents. Wrapper progress is muted, only its errors, warnings and hints print.
 AGENT = False
-AGENT_KEEP = ("error:", "warning:", "hint:", "interrupted")
+AGENT_KEEP = ("error:", "warning:", "hint:", "interrupted", "outcome:")
 AGENT_MAX_LINES = 10
 
 
@@ -454,6 +459,20 @@ def plan_line(entry):
                                 json.dumps(entry.get("Before")), json.dumps(entry.get("After")))
 
 
+def unknown_outcome(args, task_id, result_path):
+    """The run may have written its targets and the wrapper cannot tell. Names the task so it can be looked up."""
+    line = "outcome: unknown, task " + task_id
+    if result_path:
+        line += ", its result will land in %s (python dotasset.py --result %s)" % (result_path, task_id)
+    else:
+        line += ", check its targets"
+    log(line)
+    if args.json:
+        print(json.dumps({"ExitCode": EXIT_UNKNOWN, "Outcome": "unknown", "Task": task_id, "ResultPath": result_path},
+                         indent=2))
+    return EXIT_UNKNOWN
+
+
 def exit_code_of(result):
     try:
         code = int(result.get("ExitCode", EXIT_FAILED))
@@ -486,6 +505,48 @@ def withdraw(queue_root, task_id):
         return False
 
 
+def print_done(args, done_path):
+    """Prints a task's result from done/ and removes it. The run's exit code."""
+    result = None
+    for _ in range(20):
+        try:
+            with open(done_path, encoding="utf-8") as f:
+                result = json.load(f)
+            break
+        except (OSError, ValueError):
+            time.sleep(0.1)
+    if result is None:
+        log("error: unreadable result " + done_path)
+        return EXIT_FAILED
+    print_result(result, args.quiet)
+    if args.json:
+        print(json.dumps(result, indent=2))
+    # Removed only once printed, so an interrupted print leaves the result on disk.
+    try:
+        os.remove(done_path)
+    except OSError:
+        pass
+    return exit_code_of(result)
+
+
+def task_result(args, project, task_id):
+    """--result: the result of a task the wrapper stopped waiting for. 4 while it is still queued or running."""
+    if not re.match(r"^[0-9a-f]{32}$", task_id or ""):
+        log("error: --result takes the task id the wrapper printed, 32 hex characters")
+        return EXIT_REFUSED
+    queue_root = os.path.join(project, QUEUE_RELATIVE)
+    done_path = os.path.join(queue_root, DONE, task_id + ".json")
+    if os.path.exists(done_path):
+        return print_done(args, done_path)
+    for folder, what in ((PROCESSING, "the editor is still running it"), (PENDING, "it is still waiting in the queue")):
+        if os.path.exists(os.path.join(queue_root, folder, task_id + ".json")):
+            log("task %s has no result yet, %s" % (task_id, what))
+            return unknown_outcome(args, task_id, done_path)
+    log("error: no task %s in the queue: its result was already read, or it never reached the editor "
+        "(a headless run leaves no result behind)" % task_id)
+    return EXIT_REFUSED
+
+
 def run_queue(args, queue_root, run, assets, extra, alive):
     task_id = uuid.uuid4().hex
     try:
@@ -494,9 +555,9 @@ def run_queue(args, queue_root, run, assets, extra, alive):
         done_path = os.path.join(queue_root, DONE, task_id + ".json")
         if withdraw(queue_root, task_id):
             log("interrupted, task withdrawn before the editor took it")
-        else:
-            log("interrupted, but the editor already took the task and finishes it. Its result will land in " + done_path)
-        return EXIT_FAILED
+            return EXIT_FAILED
+        log("interrupted, but the editor already took the task and finishes it")
+        return unknown_outcome(args, task_id, done_path)
 
 
 def wait_queue(args, queue_root, task_id, run, assets, extra, alive):
@@ -511,35 +572,16 @@ def wait_queue(args, queue_root, task_id, run, assets, extra, alive):
     warned_stale = False
     while True:
         if os.path.exists(done_path):
-            result = None
-            for _ in range(20):
-                try:
-                    with open(done_path, encoding="utf-8") as f:
-                        result = json.load(f)
-                    break
-                except (OSError, ValueError):
-                    time.sleep(0.1)
-            if result is None:
-                log("error: unreadable result " + done_path)
-                return EXIT_FAILED
-            print_result(result, args.quiet)
-            if args.json:
-                print(json.dumps(result, indent=2))
-            # Removed only once printed, so an interrupted print leaves the result on disk.
-            try:
-                os.remove(done_path)
-            except OSError:
-                pass
-            return exit_code_of(result)
+            return print_done(args, done_path)
 
         now = time.time()
         if now > deadline:
             if withdraw(queue_root, task_id):
                 log("error: timed out after %ds, the editor never picked the task up (state: %s). Task withdrawn" % (args.timeout, last_state))
-            else:
-                log("error: timed out after %ds, but the editor is still running the task and may still write its targets. "
-                    "Its result will land in %s" % (args.timeout, done_path))
-            return EXIT_FAILED
+                return EXIT_FAILED
+            log("error: timed out after %ds, but the editor is still running the task and may still write its targets"
+                % args.timeout)
+            return unknown_outcome(args, task_id, done_path)
 
         if now >= next_check:
             next_check = now + 1.0
@@ -561,30 +603,33 @@ def wait_queue(args, queue_root, task_id, run, assets, extra, alive):
                     log("the editor exited before taking the task, running headless instead")
                     return None
                 if os.path.exists(processing_path):
-                    log("error: the editor exited while running the task. Check its targets, a write may have reached disk")
-                    return EXIT_FAILED
+                    log("error: the editor exited while running the task, a write may have reached disk")
+                    return unknown_outcome(args, task_id, None)
         time.sleep(0.2)
 
 
 # ---------------------------------------------------------------- headless route
 
+# (pattern, hint, the run never started)
 LOG_HINTS = [
-    (r"Scripts have compiler errors|error CS\d+", "the project does not compile, fix the errors above (the Unity log has them) and rerun"),
-    (r"another Unity instance is running|Multiple Unity instances cannot open the same project", "another Unity instance has the project open"),
-    (r"No valid Unity Editor license|Couldn't find a valid license|License is not active", "Unity has no active license for batch mode, open the Hub once and sign in"),
-    (r"executeMethod class '?DotAsset.Cli'? could not be found|Could not find method DotAsset", "the DotAsset package is not in this project, or did not compile"),
-    (r"Aborting batchmode due to failure", "Unity aborted batch mode, see the Unity log"),
+    (r"Scripts have compiler errors|error CS\d+", "the project does not compile, fix the errors above (the Unity log has them) and rerun", True),
+    (r"another Unity instance is running|Multiple Unity instances cannot open the same project", "another Unity instance has the project open", True),
+    (r"No valid Unity Editor license|Couldn't find a valid license|License is not active", "Unity has no active license for batch mode, open the Hub once and sign in", True),
+    (r"executeMethod class '?DotAsset.Cli'? could not be found|Could not find method DotAsset", "the DotAsset package is not in this project, or did not compile", True),
+    (r"Aborting batchmode due to failure", "Unity aborted batch mode, see the Unity log", False),
 ]
 
 
 def explain_unity_log(path):
+    """Prints the errors and hints from a Unity log. True when the log shows the run never started."""
     try:
         with open(path, encoding="utf-8", errors="replace") as f:
             text = f.read()
     except OSError:
         log("no Unity log at " + path)
-        return
-    hints = [hint for pattern, hint in LOG_HINTS if re.search(pattern, text)]
+        return False
+    matched = [(hint, before) for pattern, hint, before in LOG_HINTS if re.search(pattern, text)]
+    hints = [hint for hint, _ in matched]
     errors = [l for l in text.splitlines() if re.search(r"error CS\d+", l)]
     for line in errors[:15]:
         print(line, flush=True)
@@ -593,6 +638,7 @@ def explain_unity_log(path):
     if not hints and not errors:
         print("\n".join(text.splitlines()[-30:]), flush=True)
     log("Unity log: " + path)
+    return any(before for _, before in matched)
 
 
 def kill_tree(proc):
@@ -701,18 +747,21 @@ def run_batch_unity(args, project, queue_root, run, assets, extra):
     except KeyboardInterrupt:
         kill_tree(proc)
         log("interrupted, Unity was stopped. A target it was writing may be half saved, check the Unity log: " + unity_log)
-        return EXIT_FAILED
+        return unknown_outcome(args, task_id, None)
     except subprocess.TimeoutExpired:
         kill_tree(proc)
         log("error: Unity did not finish within %ds and was stopped" % args.timeout)
-        explain_unity_log(unity_log)
-        return EXIT_FAILED
+        if explain_unity_log(unity_log):
+            return EXIT_FAILED
+        return unknown_outcome(args, task_id, None)
     elapsed = time.time() - started
     if not os.path.exists(result_path):
-        log("error: Unity exited with %s after %.0fs without running %s" % (code, elapsed, run))
-        explain_unity_log(unity_log)
-        # Unity's own exit code (a crash, a license failure) is not one of ours, report it as a failure.
-        return EXIT_FAILED
+        log("error: Unity exited with %s after %.0fs without a result for %s" % (code, elapsed, run))
+        # Unity's own exit code is not one of ours. A log that shows the run never started (compile errors, no
+        # license) is a failure, anything else (a crash) may have come mid-run.
+        if explain_unity_log(unity_log):
+            return EXIT_FAILED
+        return unknown_outcome(args, task_id, None)
     try:
         with open(result_path, encoding="utf-8") as f:
             result = json.load(f)
@@ -1147,6 +1196,7 @@ def main(argv=None):
     p.add_argument("--agent", action="store_true", help="compact output for AI agents: exit code, summary, first error, warnings, failed targets, outputs, plan")
     p.add_argument("--list", action="store_true", help="list every run the project knows")
     p.add_argument("--status", action="store_true", help="show what the editor's queue is doing")
+    p.add_argument("--result", metavar="TASK", help="print the result of a task the wrapper gave up waiting for (exit 4 while it still runs)")
     p.add_argument("--launch", action="store_true", help="open the project in the editor and wait until it takes tasks")
     p.add_argument("--visible", action="store_true", help="with --launch: show the editor window, by default it starts minimized and never takes the focus")
     p.add_argument("--serve", action="store_true", help="start a warm headless host: batchmode Unity that stays up and takes runs like an open editor, until --quit")
@@ -1170,6 +1220,8 @@ def main(argv=None):
 
     if args.status:
         return status(project)
+    if args.result is not None:
+        return task_result(args, project, args.result)
     if args.launch:
         return launch(args, project)
     if args.serve:

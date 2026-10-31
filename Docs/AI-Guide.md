@@ -64,6 +64,7 @@ The wrapper is `dotasset.py` (in the package's `Scripts~/`, or copied to the pro
 | `--json` | also print the full result JSON |
 | `--agent` | compact output for agents, one fact per line: `exit <code> <summary>`, then `error:`, `warning:`, `failed:`, `out:`, `plan:` and, on failure, `log:`. Info lines and wrapper progress are dropped, lists stop at 10. A clean run is one line |
 | `--list`, `--status` | every run with its summary; what the editor's queue is doing |
+| `--result <task>` | the result of a task the wrapper gave up on (exit 4), once the editor finishes it. Exit 4 while it still runs, 2 when it was already read |
 | `--launch` | open the project in the editor (no window interaction needed) and wait until its queue is `ready`. Exit 0 when ready, also when an editor was already open. The editor starts minimized and never takes the focus, `--visible` shows it |
 | `--serve` | start a warm headless host: batchmode Unity, no window, that takes runs through the same queue as an open editor until `--quit`. Exit 0 when ready. Runs report `inEditor` false, `--status` prints `host pid` |
 | `--quit [--force]` | close the editor or `--serve` host that has the project open, once it is idle. Refused (exit 2) while a scene or Prefab Mode has unsaved changes, `--force` discards them |
@@ -113,6 +114,7 @@ Every run prints its log, then `[dotasset] <summary>` and the path of its log fi
 | 1 | a target failed and nothing of it was saved, or the run logged an error (an AssetList entry that does not exist, an export whose assets hold nothing of its kind), or Unity failed before the run (compile errors, license), or the wrapper timed out or was interrupted |
 | 2 | refused: unknown run, unknown argument, unreadable spec, unknown spec key, editor queue paused |
 | 3 | audit only: the run worked and the report lists issues. Not a failure |
+| 4 | unknown, from the wrapper: it was interrupted, timed out or lost Unity while the run could still write. Do not rerun blindly. The `outcome: unknown, task <id>` line names the task, `dotasset.py --result <id>` prints the run's own result once the editor finishes it (4 again while it still runs). A headless run leaves no result, export the targets to see what was written |
 
 Failure lines have one shape: `<RunName> failed for <target>. Reason: <first error while writing it>`.
 

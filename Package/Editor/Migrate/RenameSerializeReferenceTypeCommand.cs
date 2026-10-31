@@ -123,7 +123,7 @@ namespace DotAsset
                 try
                 {
                     RunJournal.Keep(path);
-                    File.WriteAllText(abs, pattern.Replace(text, replacement), new UTF8Encoding(false));
+                    DotAssetPaths.ReplaceText(abs, pattern.Replace(text, replacement));
                     toImport.Add(path);
                 }
                 catch (Exception e)

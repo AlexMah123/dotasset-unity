@@ -322,7 +322,7 @@ namespace DotAsset
                 try
                 {
                     RunJournal.Keep(path);
-                    File.WriteAllText(abs, sb.ToString(), new UTF8Encoding(false));
+                    DotAssetPaths.ReplaceText(abs, sb.ToString());
                     toImport.Add(path);
                 }
                 catch (Exception e)

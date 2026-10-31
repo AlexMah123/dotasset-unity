@@ -10,8 +10,6 @@ namespace DotAsset
 {
     public static class Json
     {
-        static readonly UTF8Encoding Utf8NoBom = new UTF8Encoding(false);
-
         // Indented, one property per line, LF line endings. Agents grep the file and read line ranges.
         public static string Format(JToken token)
         {
@@ -34,17 +32,7 @@ namespace DotAsset
         // Through a temp file and File.Replace, so a reader or a crash sees the old file or the new one, never none.
         public static void WriteFile(string path, JToken token)
         {
-            DotAssetPaths.EnsureParent(path);
-            string tmp = path + ".tmp";
-            File.WriteAllText(tmp, Format(token), Utf8NoBom);
-            if (File.Exists(path))
-            {
-                File.Replace(tmp, path, null);
-            }
-            else
-            {
-                File.Move(tmp, path);
-            }
+            DotAssetPaths.ReplaceText(path, Format(token));
         }
 
         public static bool TryReadFile(string path, out JObject obj, out string error)

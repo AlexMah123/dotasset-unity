@@ -152,6 +152,34 @@ namespace DotAsset
             }
         }
 
+        // UTF-8 without BOM through a temp file and File.Replace, so a reader or a crash sees the old file or the new
+        // one, never a half-written one. Unity ignores .tmp files, so one left in Assets/ by a crash is never imported.
+        public static void ReplaceText(string path, string text)
+        {
+            EnsureParent(path);
+            string tmp = path + ".tmp";
+            try
+            {
+                File.WriteAllText(tmp, text, new System.Text.UTF8Encoding(false));
+                if (File.Exists(path))
+                {
+                    File.Replace(tmp, path, null);
+                }
+                else
+                {
+                    File.Move(tmp, path);
+                }
+            }
+            finally
+            {
+                // Gone after a replace or move, left only when one failed.
+                if (File.Exists(tmp))
+                {
+                    File.Delete(tmp);
+                }
+            }
+        }
+
         // Project-relative form for logs and JSON, absolute paths outside the project stay absolute.
         public static string ToProjectRelative(string absolutePath)
         {

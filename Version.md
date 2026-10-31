@@ -6,6 +6,15 @@ Defined in `Package/Editor/Core/DotAssetVersion.cs` and `Package/package.json`, 
 
 Versions follow one rule. A patch (0.1.x) holds fixes, test upgrades and docs. A minor version (0.x.0) adds something new to call: a run, an op, a spec key, an argument or a wrapper option. While on 0.x, a change that breaks existing calls is also a minor version, marked breaking here. 1.0.0 comes when runs, specs and export JSON are promised to stay stable.
 
+### 0.10.0 (breaking)
+
+- Migrate runs are atomic by default: a failed target rolls back every file the run wrote. `-atomic=false` keeps the targets that worked (it used to turn `-atomic` on)
+- Dry runs refuse writes: a save, create, move, delete or `DotAssetPaths.ReplaceText` under `Assets/` or `Packages/` during an Edit or Migrate run without `-apply` is refused, logged and fails the run. `RunJournal.Keep` throws in a dry run, and an asset created anyway is deleted when the run ends. Unity's own imports still go through: a `.meta` it creates during the run may be saved, and a file already on disk is never counted as created
+- Exit code 4 Unknown, from the wrapper only: it was interrupted, timed out or lost Unity while the run could still write. It prints `outcome: unknown, task <id>` (an `Outcome` object under `--json`), and `--result <task>` prints the editor's result once it lands, 4 while the task still runs. A headless Unity that exits without a result stays 1 only when its log shows the run never started
+- Commands declare their group and `WritesWithoutApply`. An Import run must override `WritesWithoutApply` to return true, and a declared `Group` must match the name rule, or the registry leaves the command out. Running it is refused with the reason, and `CommandCatalogExport` lists it under `Rejected` and shows `WritesWithoutApply` per run. Custom Import runs need the override
+- EditMode runner restores the scenes the editor reopens, so the next editor start no longer shows an unsaved Untitled scene
+- Smoke test: dry-run writes refused and the files left as they were, an undeclared Import run refused, the smoke helpers that write take `-apply`. Unit tests for exit code 4 and `--result`, EditMode tests for the registry checks
+
 ### 0.9.6
 
 - EditMode tests in Unity's Test Framework (`tests/editmode/run_editmode.py`): `RenameField` on fixture YAML (top-level keys only, line endings kept, a clash refused, overrides followed through variants, nested prefabs and stripped objects in any scan order), the `RemapScript` and `RenameSerializeReferenceType` patterns, `ValueCodec` (each kind written, wrong values refused, an export written back unchanged) and the argument parser. No change in behaviour: the rewriters' text passes moved into internal helpers the tests call

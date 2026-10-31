@@ -11,8 +11,8 @@ Creates everything under Assets/DotAssetSmoke and deletes it at the end. Run it 
 With the editor open, save or close any Untitled scene first: Unity cannot open a scene next to one.
 Steps that change assets read the result back through an export, dry runs and failed targets must leave files as
 they were, and the audits get seeded issues to find and fix. Prints one line per step and exits 1 if any step
-failed. The texture and Missing Script steps need a new or edited file read, which only a Unity start does, so with
-the editor open they print "skip".
+failed. Steps that write files to disk restart the host, or with the editor open refresh it through the smoke
+helper and wait for the scripts to compile.
 """
 import argparse
 import json
@@ -194,9 +194,7 @@ GHOST_GUID = "d07a55e7d07a55e7d07a55e7d07a55e7"
 
 def check_missing_script(base, tmp):
     # Seed an R2: a component whose script GUID no script has, written into a prefab's YAML. Unity only reads the
-    # edited file when it starts, so like the texture this needs the headless route.
-    if editor_open(base):
-        return "skip: needs the editor closed, an edited prefab file is only reimported when Unity starts"
+    # edited file when it starts or refreshes, so fresh_host restarts the host or refreshes the editor.
     ghost = ROOT + "/Ghost.prefab"
     seed = spec("seed_r2", {"Assets": [{"Kind": "Prefab", "Path": ghost, "Root": "Ghost", "Components": ["BoxCollider"]}]}, tmp)
     problem = expect(base, "CreateAsset Ghost.prefab", ["CreateAsset", "--args", '-spec="%s"' % seed], 0)
@@ -964,9 +962,7 @@ def anim_curve(path, nl):
 
 def check_rebind_animation(base, tmp):
     # A clip written as YAML, curves on Body/Arm, its child and a sibling. Unity only imports the new file when it
-    # starts, so this needs the headless route.
-    if editor_open(base):
-        return "skip: needs the editor closed, a clip written to disk is only imported when Unity starts"
+    # starts or refreshes, so fresh_host restarts the host or refreshes the editor.
     clip = ROOT + "/Wave.anim"
     nl = "\n"
     curves = nl.join(anim_curve(p, nl) for p in ("Body/Arm", "Body/Arm/Hand", "Body/Leg"))
@@ -1008,9 +1004,7 @@ SCRIPT_GUIDS = {"DotAssetSmokeOld": "5c0a7e01d07a55e75c0a7e01d07a55e7", "DotAsse
 
 def check_remap_script(base, tmp):
     # Two scripts with known GUIDs and the same field, a prefab using the old one, then RemapScript by GUID. The
-    # component must become the new script with its field value kept. New scripts only compile when Unity starts.
-    if editor_open(base):
-        return "skip: needs the editor closed, scripts written to disk only compile when Unity starts"
+    # component must become the new script with its field value kept.
     for name, guid in SCRIPT_GUIDS.items():
         write_script(base, name, guid, "public int hp = 3;")
     problem = fresh_host(base)
@@ -1062,8 +1056,6 @@ def check_rename_field(base, tmp):
     # A component with a field, overridden by a variant, a prefab nesting it and a scene holding that prefab. The
     # files are set back to the old key on disk, as if saved before the C# rename, then RenameField renames it back.
     # The YAML on disk and the exported values must both show the new name with every value kept.
-    if editor_open(base):
-        return "skip: needs the editor closed, scripts written to disk only compile when Unity starts"
     # A subclass inherits the field and must be renamed with it.
     write_script(base, "DotAssetSmokeField", FIELD_GUID, "public int health = 1;")
     write_script(base, "DotAssetSmokeFieldChild", FIELD_CHILD_GUID, None,
@@ -1237,8 +1229,6 @@ REF_SOURCE = ("using System;\nusing UnityEngine;\n\n"
 def check_serialize_reference_type(base, tmp):
     # [SerializeReference] data saved under DotAssetSmokeRefItem, then the class moves into a namespace. The audit must
     # report R5 with the moved class as a candidate, and the rename must bring the data back under it, x kept.
-    if editor_open(base):
-        return "skip: needs the editor closed, scripts written to disk only compile when Unity starts"
     asset = ROOT + "/Ref.asset"
     write_script(base, "DotAssetSmokeRef", REF_GUID, None, REF_SOURCE % ("", "", ""))
     problem = fresh_host(base)
@@ -1526,9 +1516,7 @@ def texture_type(base, texture):
 def check_importer(base, tmp):
     # ImporterExport, AuditTexture and EditImporter on a texture the test writes itself, named like a normal map so
     # the audit reports T1 and writes the fix. A new file is only imported when Unity starts, or when an editor with
-    # focus refreshes, so this needs the headless route.
-    if editor_open(base):
-        return "skip: needs the editor closed, a new texture file is only imported when Unity starts"
+    # focus refreshes, so fresh_host restarts the host or refreshes the editor.
     texture = ROOT + "/Rock_n.png"
     write_png(os.path.join(project_of(base), *texture.split("/")))
     problem = fresh_host(base)
@@ -1835,7 +1823,23 @@ HOSTED = [False]
 
 def fresh_host(base):
     """Restarts the warm host after a step wrote files to disk, Unity imports and compiles them when it starts.
-    Without a host the next call launches Unity anyway. A problem or None."""
+    Without a host the next call launches Unity anyway. With the editor open, the smoke helper refreshes it and
+    waits until the scripts under ROOT have compiled. A problem, a skip, or None."""
+    if editor_open(base):
+        r, _ = call(base, ["SmokeRefresh"])
+        if r.returncode == 2 and "unknown run 'SmokeRefresh'" in r.stdout + r.stderr:
+            return "skip: the smoke helper compiles at the next Unity start, the headless run starts one"
+        if r.returncode != 0:
+            return run_failed("SmokeRefresh", r)
+        # A compile starts a frame or more after the refresh, and each check waits in the queue while it runs.
+        deadline = time.time() + 120
+        while True:
+            r, _ = call(base, ["SmokeRefresh", "--args", "-check -folder=" + ROOT])
+            if r.returncode == 0:
+                return None
+            if time.time() > deadline:
+                return run_failed("SmokeRefresh -check, scripts still not compiled after 120 s", r)
+            time.sleep(1)
     if not HOSTED[0]:
         return None
     return host(base, HOSTED, False) or host(base, HOSTED, True)

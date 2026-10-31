@@ -282,7 +282,10 @@ namespace DotAsset
 
             if (journal != null && journal.Count > 0)
             {
-                if (code == ExitCode.Failed && ctx.Args.Has("atomic"))
+                // Migrate rewrites references across many files, a half-done migration is worse than none, so it is
+                // atomic unless -atomic=false. Edit and Import are atomic only when asked.
+                bool atomic = ctx.Args.Has("atomic") || (cmd.Group == CommandGroup.Migrate && !ctx.Args.Off("atomic"));
+                if (code == ExitCode.Failed && atomic)
                 {
                     // Rollback writes are not counted against the run, it has failed already.
                     List<string> left;

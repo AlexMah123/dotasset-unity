@@ -946,7 +946,23 @@ def check_rename_shader_property(base, tmp):
     saved = export_of("MaterialExport", base, tint, "-full").get("Properties", {}).get("_Color")
     if saved is None or [round(v, 3) for v in saved] != color:
         return "after renaming _Color away and back Tint.mat's _Color is %s, expected %s" % (saved, color)
-    return None
+
+    # Migrate runs are atomic by default: a missing second target fails the run and Tint.mat is renamed back.
+    # -atomic=false keeps the target that worked written.
+    stale = lambda: "_SmokeTint" in (export_of("MaterialExport", base, tint).get("StaleProperties") or [])
+    pair = ["RenameShaderProperty", tint + "," + ROOT + "/Missing.mat", "--args", "-from=_Color -to=_SmokeTint -apply"]
+    problem = expect(base, "RenameShaderProperty with a missing target", pair, 1)
+    if problem:
+        return problem
+    if stale():
+        return "a failed Migrate run left Tint.mat renamed, it is atomic by default"
+    pair[-1] += " -atomic=false"
+    problem = expect(base, "RenameShaderProperty -atomic=false", pair, 1)
+    if problem:
+        return problem
+    if not stale():
+        return "with -atomic=false the target that worked was not written"
+    return expect(base, "RenameShaderProperty back again", ["RenameShaderProperty", tint, "--args", "-from=_SmokeTint -to=_Color -apply"], 0)
 
 
 def anim_curve(path, nl):

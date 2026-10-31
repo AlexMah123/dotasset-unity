@@ -29,10 +29,13 @@ namespace DotAsset
         public bool UnclosedQuote { get; private set; }
 
         // Arguments that are switches. "-apply=false" must not switch anything on.
-        public static readonly string[] Switches = { "apply", "full", "expand", "nosub", "recursive", "deep", "force", "permanent", "keepinstances", "metaonly" };
+        public static readonly string[] Switches = { "apply", "atomic", "full", "expand", "nosub", "recursive", "deep", "force", "permanent", "keepinstances", "metaonly" };
 
-        // Normalizes switch values: "-x=true" or "-x=1" is "-x", "-x=false" or "-x=0" drops it. Returns the switches
-        // whose value is neither.
+        // Switches given as =false, so a switch that is on by default (-atomic for Migrate) can be turned off.
+        readonly HashSet<string> off = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        // Normalizes switch values: "-x=true" or "-x=1" is "-x", "-x=false" or "-x=0" drops it and marks it off.
+        // Returns the switches whose value is neither.
         public List<string> NormalizeSwitches()
         {
             var bad = new List<string>();
@@ -52,6 +55,7 @@ namespace DotAsset
                 {
                     values.Remove(key);
                     order.RemoveAll(k => string.Equals(k, key, StringComparison.OrdinalIgnoreCase));
+                    off.Add(key);
                 }
                 else
                 {
@@ -160,6 +164,12 @@ namespace DotAsset
         public bool Has(string key)
         {
             return values.ContainsKey(key);
+        }
+
+        // True when a switch was given as =false, after NormalizeSwitches.
+        public bool Off(string key)
+        {
+            return off.Contains(key);
         }
 
         public string Get(string key, string fallback = null)

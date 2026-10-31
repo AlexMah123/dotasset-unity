@@ -42,6 +42,20 @@ namespace DotAsset.Tests
         }
 
         [Test]
+        public void AtomicFalseTurnsTheSwitchOff()
+        {
+            RunArgs args = RunArgs.Parse("-atomic=false -apply");
+            CollectionAssert.IsEmpty(args.NormalizeSwitches());
+            Assert.IsFalse(args.Has("atomic"));
+            Assert.IsTrue(args.Off("atomic"));
+            Assert.IsFalse(args.Off("apply"));
+            RunArgs on = RunArgs.Parse("-atomic=yes");
+            on.NormalizeSwitches();
+            Assert.IsTrue(on.Has("atomic"));
+            Assert.IsFalse(on.Off("atomic"));
+        }
+
+        [Test]
         public void ParsesKeysCaseInsensitivelyLastValueWins()
         {
             RunArgs args = RunArgs.Parse("-Spec=a.json -apply -spec=b.json --deep -");

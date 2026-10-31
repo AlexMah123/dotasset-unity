@@ -70,5 +70,5 @@ Audits write `<report>.fix.json` for the matching fix run (`EditImporter`, `Edit
 
 - Never hand-edit `.prefab`, `.unity`, `.asset` or `.meta` files, and never call `AssetDatabase.SaveAssets`.
 - Spec paths are absolute or relative to the project root. Quote values that contain spaces.
-- Writes are all or nothing per target, so a failed target leaves its file unchanged. Add `-atomic` for all or nothing across every target of the run.
+- Writes are all or nothing per target, so a failed target leaves its file unchanged. Migrate runs are also all or nothing across every target of the run (`-atomic=false` turns it off), Edit and Import runs with `-atomic`.
 - `--quit` and `--open-scene` refuse while there are unsaved changes. Ask the user before adding `--force`.

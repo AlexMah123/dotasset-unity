@@ -253,6 +253,10 @@ namespace DotAsset
 
             IsRunning = true;
             Application.logMessageReceived += hook;
+            if (ctx.DryRun)
+            {
+                RunJournal.BeginDryRun(ctx.Log);
+            }
             ExitCode code;
             try
             {
@@ -267,6 +271,10 @@ namespace DotAsset
             finally
             {
                 Application.logMessageReceived -= hook;
+                if (ctx.DryRun)
+                {
+                    RunJournal.EndDryRun();
+                }
                 RunJournal.Current = null;
                 IsRunning = false;
                 ctx.ClearProgress();

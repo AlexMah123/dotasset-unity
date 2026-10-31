@@ -693,6 +693,32 @@ def install_helper(project):
     return current
 
 
+def check_dry_run_writes(base, tmp):
+    # The helper's SmokeDryWrite ignores the dry run and saves, creates, moves, deletes and rewrites assets. Each write
+    # must be refused with an error, the run must fail, and the files must be as they were.
+    red = os.path.join(project_of(base), *(ROOT + "/Red.mat").split("/"))
+    with open(red, "rb") as f:
+        before = f.read()
+    r, _ = call(base, ["SmokeDryWrite", "--args", "-folder=" + ROOT])
+    out = r.stdout + r.stderr
+    if r.returncode == 2 and "unknown run 'SmokeDryWrite'" in out:
+        drop_kept_log(r)
+        return "skip: the smoke helper compiles at the next Unity start, the headless run starts one"
+    if r.returncode != 1:
+        return "SmokeDryWrite exit %s, expected 1\n%s" % (r.returncode, out[-1500:])
+    missing = [a for a in ("write", "create", "move", "delete") if "the dry run tried to %s " % a not in out]
+    if missing:
+        return "the dry run's %s not refused\n%s" % (", ".join(missing), out[-1500:])
+    with open(red, "rb") as f:
+        if f.read() != before:
+            return "a dry run changed Red.mat on disk"
+    if not on_disk(base, ROOT + "/Red.mat") or on_disk(base, ROOT + "/DryMoved.mat"):
+        return "a dry run moved or deleted Red.mat"
+    if on_disk(base, ROOT + "/DryWrite.mat"):
+        return "the asset a dry run created is still there"
+    return None
+
+
 def check_unsaved_kept(base, tmp):
     # Assets with unsaved changes in the editor, as after editing in the Inspector: every run that writes must refuse
     # them and leave the files as they were, and the changes must still be there to save afterwards.
@@ -1807,6 +1833,7 @@ def steps_of(specs):
         ("odd paths: spaces, ü", check_odd_paths, None),
         ("read-only package refused", check_read_only_package, None),
         ("duplicate", check_duplicate, None),
+        ("dry run writes refused", check_dry_run_writes, None),
         ("unsaved changes kept", check_unsaved_kept, None),
         ("remap dry and apply", check_remap, None),
         ("move keeps references", check_move, None),

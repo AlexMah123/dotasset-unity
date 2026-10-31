@@ -44,7 +44,7 @@ A release needs the smoke test to pass three times in a row on every tested Unit
 - Exit codes through `ExitCode` (Success 0, Failed 1, Refused 2, IssuesFound 3), never bare ints. IssuesFound is for Audit only
 - Never save the whole project (`AssetDatabase.SaveAssets`) from a command, save exactly the targets (`SaveAssetIfDirty`, `SaveAsPrefabAsset`, `SaveScene`)
 - Writes are all or nothing per target: `PrefabSession`, `SceneSession`, `AssetSnapshot`, or an undo group. A failed target logs `ctx.FailTarget(target, reason)` and saves nothing
-- Edit and Migrate runs never write without `-apply`
+- Edit and Migrate runs never write without `-apply`. Call `RunJournal.Keep(path)` before every write (it journals the file and refuses during a dry run, `SaveAssetIfDirty` skips the save hook) and write text files through `DotAssetPaths.ReplaceText`
 
 ## Group rule
 

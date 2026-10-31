@@ -28,6 +28,73 @@ namespace DotAsset
         // The folder of the journal closed last, so a save Unity makes after the run (TaskQueue.Settle) updates it.
         static string lastClosed;
 
+        // The log of the Edit or Migrate dry run executing now, null otherwise. JournalHook and DotAssetPaths.ReplaceText
+        // refuse its writes to Assets/ and Packages/, so a command that forgets to check ctx.DryRun still writes nothing.
+        static RunLog dryRun;
+        // Assets a dry run created anyway: OnWillCreateAsset cannot stop a create, EndDryRun deletes them.
+        static readonly List<string> dryRunCreated = new List<string>();
+
+        internal static void BeginDryRun(RunLog log)
+        {
+            dryRun = log;
+            dryRunCreated.Clear();
+        }
+
+        internal static void EndDryRun()
+        {
+            dryRun = null;
+            foreach (string path in dryRunCreated)
+            {
+                if (AssetDatabase.DeleteAsset(path))
+                {
+                    continue;
+                }
+                if (File.Exists(DotAssetPaths.Absolute(path)))
+                {
+                    UnityEngine.Debug.LogWarning("[DotAsset] a dry run created " + path + " and it could not be removed");
+                }
+            }
+            dryRunCreated.Clear();
+        }
+
+        // True, with an error in the dry run's log, when a dry run is executing and path is a project file it must not
+        // write. Library/, Temp/ and anything outside the project stay writable (exports, logs, the queue).
+        internal static bool RefusedInDryRun(string path, string action)
+        {
+            if (dryRun == null || string.IsNullOrEmpty(path))
+            {
+                return false;
+            }
+            string rel = DotAssetPaths.ToProjectRelative(DotAssetPaths.Absolute(path));
+            if (!rel.StartsWith("Assets/", StringComparison.OrdinalIgnoreCase) && !rel.StartsWith("Packages/", StringComparison.OrdinalIgnoreCase))
+            {
+                return false;
+            }
+            dryRun.Error("the dry run tried to " + action + " " + rel + ", refused. A dry run writes nothing, add -apply to write");
+            return true;
+        }
+
+        static void ThrowInDryRun(string path)
+        {
+            string target = BuildSceneOf(path ?? string.Empty) ?? path;
+            if (RefusedInDryRun(target, "write"))
+            {
+                throw new InvalidOperationException("a dry run writes nothing, " + target + " was not written");
+            }
+        }
+
+        internal static void CreatedInDryRun(string path)
+        {
+            if (path.EndsWith(".meta", StringComparison.OrdinalIgnoreCase))
+            {
+                path = path.Substring(0, path.Length - ".meta".Length);
+            }
+            if (!dryRunCreated.Contains(path))
+            {
+                dryRunCreated.Add(path);
+            }
+        }
+
         public sealed class Entry
         {
             public string Path;
@@ -79,8 +146,11 @@ namespace DotAsset
         }
 
         // Call before path is written, created, moved or deleted. Calling it again for the same path does nothing.
+        // During a dry run it throws instead, so the write that follows never happens: SaveAssetIfDirty does not pass
+        // through JournalHook on every Unity version, this call does.
         public static void Keep(string path)
         {
+            ThrowInDryRun(path);
             if (Current != null)
             {
                 Current.Add(path, false);
@@ -105,6 +175,7 @@ namespace DotAsset
         // Keep for a write that changes only the .meta (import settings): the asset file itself is not copied.
         public static void KeepMeta(string path)
         {
+            ThrowInDryRun(path);
             if (Current != null)
             {
                 Current.Add(path, true);
@@ -554,10 +625,12 @@ namespace DotAsset
     }
 
     // Every AssetDatabase write during a writing run passes through here first, so the journal keeps the file as it was.
+    // During a dry run the same writes are refused: saves dropped, moves and deletes failed, creates removed afterwards.
     public sealed class JournalHook : AssetModificationProcessor
     {
         static string[] OnWillSaveAssets(string[] paths)
         {
+            paths = paths.Where(p => !RunJournal.RefusedInDryRun(p, "save")).ToArray();
             foreach (string path in paths)
             {
                 // Import settings arrive as the .meta alone, the asset file is not written.
@@ -575,11 +648,20 @@ namespace DotAsset
 
         static void OnWillCreateAsset(string path)
         {
+            if (RunJournal.RefusedInDryRun(path, "create"))
+            {
+                RunJournal.CreatedInDryRun(path);
+                return;
+            }
             RunJournal.Keep(path);
         }
 
         static AssetMoveResult OnWillMoveAsset(string from, string to)
         {
+            if (RunJournal.RefusedInDryRun(from, "move") || RunJournal.RefusedInDryRun(to, "move to"))
+            {
+                return AssetMoveResult.FailedMove;
+            }
             RunJournal.Keep(from);
             RunJournal.Keep(to);
             return AssetMoveResult.DidNotMove;
@@ -587,6 +669,10 @@ namespace DotAsset
 
         static AssetDeleteResult OnWillDeleteAsset(string path, RemoveAssetOptions options)
         {
+            if (RunJournal.RefusedInDryRun(path, "delete"))
+            {
+                return AssetDeleteResult.FailedDelete;
+            }
             RunJournal.Keep(path);
             return AssetDeleteResult.DidNotDelete;
         }

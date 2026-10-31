@@ -24,7 +24,7 @@ A target whose values are already what the spec says is not saved: `EditPrefab`,
 
 Every Edit run takes `-spec=<path>` and `-apply`, nothing else. The spec is `{"Targets": [ ... ]}`. Unknown keys in a target are refused (exit 2) before anything runs.
 
-A dry run executes everything a real run does and checks it just as hard; it only skips the save and then drops the changes. It works on both routes, including a scene open in the editor (the changes are reverted through undo).
+A dry run executes everything a real run does and checks it just as hard; it only skips the save and then drops the changes. It works on both routes, including a scene open in the editor (the changes are reverted through undo). The framework also guards the dry run itself: a save, create, move, delete or file rewrite under `Assets/` or `Packages/` that slips through is refused, logged as `the dry run tried to <action> <path>`, and fails the run (exit 1).
 
 A dry run also returns its plan: `Plan` in the `--json` result and `plan:` lines in the wrapper's output. A value change is `{Target, Object, Property, Before, After}`, where `Property` is the serialized property path. A file the run would write is `{Action, Path, Detail}`. The plan holds at most 500 entries, past that `PlanTruncated` is true. `PlanTotals` (`{Changes, Files, Targets}`) always counts every entry, and the wrapper prints it as the first `plan:` line, so read that line for the size of the run and the entries as examples.
 

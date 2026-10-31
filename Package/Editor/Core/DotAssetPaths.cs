@@ -156,6 +156,10 @@ namespace DotAsset
         // one, never a half-written one. Unity ignores .tmp files, so one left in Assets/ by a crash is never imported.
         public static void ReplaceText(string path, string text)
         {
+            if (RunJournal.RefusedInDryRun(path, "write"))
+            {
+                throw new InvalidOperationException("a dry run writes nothing, " + path + " was not written");
+            }
             EnsureParent(path);
             string tmp = path + ".tmp";
             try

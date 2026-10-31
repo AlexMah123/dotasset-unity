@@ -87,6 +87,21 @@ namespace DotAsset
             }
         }
 
+        // An entry for a scene's place in the Build Settings scene list, which is not a file under Assets/. Existed says
+        // whether the scene was in the list before, its state is the whole list, so an undo is refused once the list
+        // changed (another edit, or on Unity 6 another active build profile).
+        public const string BuildScenePrefix = "BuildSettings:";
+
+        public static void KeepBuildScene(string scenePath)
+        {
+            Keep(BuildScenePrefix + DotAssetPaths.Normalize(scenePath));
+        }
+
+        static string BuildSceneOf(string path)
+        {
+            return path.StartsWith(BuildScenePrefix, StringComparison.Ordinal) ? path.Substring(BuildScenePrefix.Length) : null;
+        }
+
         // Keep for a write that changes only the .meta (import settings): the asset file itself is not copied.
         public static void KeepMeta(string path)
         {
@@ -100,6 +115,17 @@ namespace DotAsset
         {
             if (string.IsNullOrEmpty(path))
             {
+                return;
+            }
+            string buildScene = BuildSceneOf(path);
+            if (buildScene != null)
+            {
+                if (kept.Add(path))
+                {
+                    var scene = new Entry { Path = path, Existed = EditorBuildSettings.scenes.Any(s => s.path == buildScene) };
+                    entries.Add(scene);
+                    Append(scene);
+                }
                 return;
             }
             path = DotAssetPaths.Normalize(path).TrimEnd('/');
@@ -290,6 +316,22 @@ namespace DotAsset
             for (int i = list.Count - 1; i >= 0; i--)
             {
                 Entry e = list[i];
+                string buildScene = BuildSceneOf(e.Path);
+                if (buildScene != null)
+                {
+                    Keep(e.Path);
+                    var scenes = EditorBuildSettings.scenes.ToList();
+                    if (!e.Existed)
+                    {
+                        scenes.RemoveAll(s => s.path == buildScene);
+                    }
+                    else if (!scenes.Any(s => s.path == buildScene))
+                    {
+                        scenes.Add(new EditorBuildSettingsScene(buildScene, true));
+                    }
+                    EditorBuildSettings.scenes = scenes.ToArray();
+                    continue;
+                }
                 string blocked = Blocked(e.Path);
                 if (blocked != null)
                 {
@@ -360,9 +402,17 @@ namespace DotAsset
             return null;
         }
 
-        // The file and its .meta as one hash, "folder" or "absent".
+        // The file and its .meta as one hash, "folder" or "absent". For a Build Settings entry, the scene list.
         public static string Hash(string path)
         {
+            if (BuildSceneOf(path) != null)
+            {
+                string scenes = string.Join("\n", EditorBuildSettings.scenes.Select(s => s.path + (s.enabled ? "" : " (disabled)")).ToArray());
+                using (var sha = SHA1.Create())
+                {
+                    return "scenes " + BitConverter.ToString(sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(scenes))).Replace("-", string.Empty);
+                }
+            }
             string abs = DotAssetPaths.Absolute(path);
             if (Directory.Exists(abs))
             {

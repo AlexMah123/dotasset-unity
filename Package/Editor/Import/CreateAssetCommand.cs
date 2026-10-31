@@ -573,6 +573,7 @@ namespace DotAsset
                     var list = EditorBuildSettings.scenes.ToList();
                     if (!list.Any(s => s.path == path))
                     {
+                        RunJournal.KeepBuildScene(path);
                         list.Add(new EditorBuildSettingsScene(path, true));
                         EditorBuildSettings.scenes = list.ToArray();
                     }

@@ -1383,6 +1383,31 @@ def check_journal_undo(base, tmp):
         return run_failed("UndoRun of an interrupted run", r)
     if queue() != 2491:
         return "after undoing the interrupted run the render queue is %s, expected 2491" % queue()
+
+    # A scene CreateAsset added to the Build Settings leaves the list again when the run is undone. Unity writes
+    # EditorBuildSettings.asset when it exits, so the file is read after the host restarts, and not with the editor open.
+    scene = ROOT + "/BuildUndo.unity"
+    path = spec("journal_scene", {"Assets": [{"Kind": "Scene", "Path": scene, "AddToBuild": True}]}, tmp)
+    r, res = call(base, ["CreateAsset", "--args", '-spec="%s"' % path])
+    run_id = journal_of(res)
+    if r.returncode != 0 or not run_id:
+        return "CreateAsset of a build scene exit %s, journal %s" % (r.returncode, run_id)
+    r, res = call(base, ["UndoRun", "--args", "-run=" + run_id])
+    if not any(p.get("Path") == scene and p.get("Action") == "remove from build" for p in res.get("Plan") or []):
+        return "the UndoRun dry run does not plan to remove the build scene: %s" % res.get("Plan")
+    problem = expect(base, "UndoRun of a build scene", ["UndoRun", "--args", "-run=%s -apply" % run_id], 0)
+    if problem:
+        return problem
+    if on_disk(base, scene):
+        return "after UndoRun the build scene is still on disk"
+    if editor_open(base):
+        return None
+    problem = fresh_host(base)
+    if problem:
+        return problem
+    with open(os.path.join(project_of(base), "ProjectSettings", "EditorBuildSettings.asset"), encoding="utf-8", errors="replace") as f:
+        if ("path: " + scene) in f.read():
+            return "after UndoRun the build scene is still in EditorBuildSettings.asset"
     return None
 
 

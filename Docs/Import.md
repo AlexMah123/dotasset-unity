@@ -60,7 +60,7 @@ Entries run in order, so a later entry can use what an earlier one created. Each
 | `Prefab` | `Root` (the root's name while the ops run, default the file name; Unity names a saved prefab's root after its file, so keep them equal), `RectTransform: true` for UI, `Components` (type names, or `{Type, Properties}`), `Ops` ([hierarchy ops](Edit.md#hierarchy-ops)) |
 | `PrefabVariant` | `Base` (prefab or model), `Ops`. The variant's root is named after the file |
 | `AnimatorController` | `Ops` ([controller ops](Edit.md#editanimatorcontroller)) |
-| `Scene` | `Setup`: `Empty` (default) or `Default` (camera and light), `Ops` (hierarchy ops, `Parent` omitted means a scene root), `AddToBuild` |
+| `Scene` | `Setup`: `Empty` (default) or `Default` (camera and light), `Ops` (hierarchy ops, `Parent` omitted means a scene root), `AddToBuild` (appends it to the Build Settings scene list, `UndoRun` takes it out again) |
 
 Paths must be under `Assets/`. Unknown keys are refused with exit 2 before anything is created, so a misspelt `Propeties` cannot be dropped silently.
 

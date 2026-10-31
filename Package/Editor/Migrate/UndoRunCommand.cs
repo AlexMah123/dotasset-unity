@@ -72,6 +72,12 @@ namespace DotAsset
             {
                 foreach (RunJournal.Entry e in entries.Where(e => !e.Folder || !e.Existed))
                 {
+                    if (e.Path.StartsWith(RunJournal.BuildScenePrefix, System.StringComparison.Ordinal))
+                    {
+                        ctx.PlanFile(e.Existed ? "add to build" : "remove from build", e.Path.Substring(RunJournal.BuildScenePrefix.Length),
+                            "Build Settings scene list, as before " + runName);
+                        continue;
+                    }
                     string action = !e.Existed ? "delete" : e.After == "absent" ? "restore" : "rewrite";
                     ctx.PlanFile(action, e.Path, action == "delete" ? "created by " + runName : "as before " + runName);
                 }

@@ -6,6 +6,14 @@ Defined in `Package/Editor/Core/DotAssetVersion.cs` and `Package/package.json`, 
 
 Versions follow one rule. A patch (0.1.x) holds fixes, test upgrades and docs. A minor version (0.x.0) adds something new to call: a run, an op, a spec key, an argument or a wrapper option. While on 0.x, a change that breaks existing calls is also a minor version, marked breaking here. 1.0.0 comes when runs, specs and export JSON are promised to stay stable.
 
+### 0.9.5
+
+- Journal ids are taken in UTC, and each journal carries a sequence number. `-run=last` and pruning go by that number, so a clock change or a time zone switch no longer picks the wrong run. Journals from before 0.9.5 count as older than any new one
+- `RenameField`, `RemapScript` and `RenameSerializeReferenceType` write each rewritten file to a temporary file and swap it in with `File.Replace`, so a crash never leaves a half-written asset
+- Quit and open-scene requests from the wrapper carry the caller's own id and are answered per id, so two callers never take each other's answer
+- `UndoRun` takes a scene that `CreateAsset` added to the Build Settings back out of the list, and refuses when the list has changed since
+- Smoke test: a legacy journal without a sequence number is never picked as `last`. A scene added to the Build Settings is undone. The migration steps (texture, Missing Script, `RebindAnimation`, `RemapScript`, `RenameField`, `[SerializeReference]`) also run with the editor open, through a helper run that refreshes the editor. A unit test checks that an open-scene caller takes only its own answer
+
 ### 0.9.4
 
 - Write-ahead journal: each path a writing run keeps is logged to `journal.log` the moment its backup exists. A run that dies (crash, kill, power loss) before it closes its journal is finalized as `Interrupted` by the next run, and `UndoRun` restores it. Before, such a run left no journal and could not be undone

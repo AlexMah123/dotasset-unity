@@ -317,7 +317,15 @@ namespace DotAsset
                 }
                 else
                 {
-                    ctx.AddOutput(DotAssetPaths.Absolute(journal.Close()));
+                    // A journal that cannot be closed keeps its journal.log, the next run finalizes it as interrupted.
+                    try
+                    {
+                        ctx.AddOutput(DotAssetPaths.Absolute(journal.Close()));
+                    }
+                    catch (Exception e)
+                    {
+                        ctx.Log.Warn("the journal could not be closed (" + e.Message + "), the next run finishes it as interrupted");
+                    }
                     ctx.Log.Info("undo with: UndoRun --args \"-run=" + journal.Id + " -apply\"");
                 }
             }

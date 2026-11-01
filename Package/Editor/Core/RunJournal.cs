@@ -262,6 +262,7 @@ namespace DotAsset
                 entry.Folder = true;
                 entry.Backup = entries.Count.ToString();
                 entry.HadMeta = Copy(abs + ".meta", entry.Backup + ".meta");
+                Append(entry);
                 // A folder about to be moved or deleted takes everything in it along.
                 foreach (string child in Directory.GetFileSystemEntries(abs).OrderBy(c => c, StringComparer.Ordinal))
                 {
@@ -506,7 +507,15 @@ namespace DotAsset
             return null;
         }
 
-        // The file and its .meta as one hash, "folder" or "absent". For a Build Settings entry, the scene list.
+        // A path that could not be read hashes to "unreadable: <reason>". It never counts as unchanged, not even
+        // against itself.
+        public const string Unreadable = "unreadable";
+
+        // Journals before 0.10.1 gave every folder this hash, whatever was in it. Now it starts a folder's hash.
+        public const string LegacyFolder = "folder";
+
+        // The file and its .meta as one hash, "folder <hash>" or "absent". For a Build Settings entry, the scene list.
+        // Never throws.
         public static string Hash(string path)
         {
             if (BuildSceneOf(path) != null)
@@ -514,29 +523,83 @@ namespace DotAsset
                 string scenes = string.Join("\n", EditorBuildSettings.scenes.Select(s => s.path + (s.enabled ? "" : " (disabled)")).ToArray());
                 using (var sha = SHA1.Create())
                 {
-                    return "scenes " + BitConverter.ToString(sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(scenes))).Replace("-", string.Empty);
+                    return "scenes " + Hex(sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(scenes)));
                 }
             }
             string abs = DotAssetPaths.Absolute(path);
-            if (Directory.Exists(abs))
+            try
             {
-                return "folder";
+                if (Directory.Exists(abs))
+                {
+                    return FolderHash(abs);
+                }
+                if (!File.Exists(abs))
+                {
+                    return "absent";
+                }
+                using (var sha = SHA1.Create())
+                {
+                    AddFile(sha, abs);
+                    AddFile(sha, abs + ".meta");
+                    sha.TransformFinalBlock(new byte[0], 0, 0);
+                    return Hex(sha.Hash);
+                }
             }
-            if (!File.Exists(abs))
+            catch (Exception e)
             {
-                return "absent";
-            }
-            using (var sha = SHA1.Create())
-            {
-                byte[] bytes = File.ReadAllBytes(abs);
-                byte[] meta = File.Exists(abs + ".meta") ? File.ReadAllBytes(abs + ".meta") : new byte[0];
-                sha.TransformBlock(bytes, 0, bytes.Length, null, 0);
-                sha.TransformFinalBlock(meta, 0, meta.Length);
-                return BitConverter.ToString(sha.Hash).Replace("-", string.Empty);
+                return Unreadable + ": " + e.Message;
             }
         }
 
-        // A save after the run (TaskQueue.Settle) changed path again. Its new state is what an undo must find.
+        // The relative path, length and last write time of every file under the folder, and the folder's own .meta.
+        // Size and time stand for content, as in git's index: reading every file of a large folder costs too much at
+        // each close and undo. A false "changed" only refuses an undo, the safe direction.
+        static string FolderHash(string abs)
+        {
+            string root = abs.TrimEnd('/', '\\');
+            var lines = new List<string>();
+            foreach (string file in Directory.GetFiles(root, "*", SearchOption.AllDirectories))
+            {
+                var info = new FileInfo(file);
+                lines.Add(DotAssetPaths.Normalize(file.Substring(root.Length + 1)) + " " + info.Length + " " + info.LastWriteTimeUtc.Ticks);
+            }
+            lines.Sort(StringComparer.Ordinal);
+            using (var sha = SHA1.Create())
+            {
+                byte[] list = System.Text.Encoding.UTF8.GetBytes(string.Join("\n", lines.ToArray()));
+                sha.TransformBlock(list, 0, list.Length, null, 0);
+                AddFile(sha, root + ".meta");
+                sha.TransformFinalBlock(new byte[0], 0, 0);
+                return LegacyFolder + " " + Hex(sha.Hash);
+            }
+        }
+
+        // Streams the file into the hash, nothing when it does not exist. Shares the file, so a writer holding it open
+        // does not stop the read.
+        static void AddFile(HashAlgorithm sha, string abs)
+        {
+            if (!File.Exists(abs))
+            {
+                return;
+            }
+            using (var stream = new FileStream(abs, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete))
+            {
+                var buffer = new byte[81920];
+                int read;
+                while ((read = stream.Read(buffer, 0, buffer.Length)) > 0)
+                {
+                    sha.TransformBlock(buffer, 0, read, null, 0);
+                }
+            }
+        }
+
+        static string Hex(byte[] bytes)
+        {
+            return BitConverter.ToString(bytes).Replace("-", string.Empty);
+        }
+
+        // A save after the run (TaskQueue.Settle) changed path again. Its new state is what an undo must find, for the
+        // path and for every journaled folder it lies in.
         public static void Rehash(string path)
         {
             if (lastClosed == null)
@@ -549,14 +612,19 @@ namespace DotAsset
             {
                 return;
             }
+            bool changed = false;
             foreach (JToken e in json["Entries"] ?? new JArray())
             {
-                if ((string)e["Path"] == path)
+                string entry = (string)e["Path"];
+                if (entry == path || path.StartsWith(entry + "/", StringComparison.Ordinal))
                 {
-                    e["After"] = Hash(path);
-                    Json.WriteFile(file, json);
-                    return;
+                    e["After"] = Hash(entry);
+                    changed = true;
                 }
+            }
+            if (changed)
+            {
+                Json.WriteFile(file, json);
             }
         }
 

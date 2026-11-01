@@ -52,11 +52,10 @@ namespace DotAsset
                 + ((bool?)json["Interrupted"] == true ? ", a run that stopped before it finished" : string.Empty));
 
             // Every path must still be as the run left it, and free to write.
+            var journaled = new HashSet<string>(entries.Select(e => e.Path), System.StringComparer.Ordinal);
             foreach (RunJournal.Entry e in entries)
             {
-                string reason = RunJournal.Hash(e.Path) != e.After
-                    ? "changed after " + runName + " wrote it, the undo would lose that change"
-                    : RunJournal.Blocked(e.Path) ?? OpenWork.UnsavedIn(e.Path);
+                string reason = Changed(e, journaled, runName) ?? RunJournal.Blocked(e.Path) ?? OpenWork.UnsavedIn(e.Path);
                 if (reason != null)
                 {
                     ctx.FailTarget(e.Path, reason);
@@ -96,6 +95,38 @@ namespace DotAsset
                 Json.WriteFile(DotAssetPaths.Combine(dir, RunJournal.FileName), json);
             }
             return problems.Count > 0 ? ExitCode.Failed : ExitCode.Success;
+        }
+
+        // Why the path is no longer as the run left it, or null. A path unreadable at either end never passes. A folder
+        // journaled before 0.10.1 has the bare hash "folder": it passes only when everything in it belongs to the run,
+        // since each of those has its own entry and hash check.
+        static string Changed(RunJournal.Entry e, HashSet<string> journaled, string runName)
+        {
+            string now = RunJournal.Hash(e.Path);
+            string after = e.After ?? string.Empty;
+            if (now.StartsWith(RunJournal.Unreadable, System.StringComparison.Ordinal) || after.StartsWith(RunJournal.Unreadable, System.StringComparison.Ordinal))
+            {
+                return "could not be read (" + (now.StartsWith(RunJournal.Unreadable, System.StringComparison.Ordinal) ? now : after)
+                    + "), the undo cannot tell whether it changed";
+            }
+            if (after == RunJournal.LegacyFolder && now.StartsWith(RunJournal.LegacyFolder + " ", System.StringComparison.Ordinal))
+            {
+                string stray = NotJournaledIn(e.Path, journaled);
+                return stray == null ? null : stray + " is in the folder but not part of " + runName
+                    + " (an older journal that kept no folder contents). Move it out with MoveAsset, then undo again";
+            }
+            return now == after ? null : "changed after " + runName + " wrote it, the undo would lose that change";
+        }
+
+        // The first file or folder under folder that is not an entry of the journal, or null.
+        static string NotJournaledIn(string folder, HashSet<string> journaled)
+        {
+            string root = DotAssetPaths.Absolute(folder).TrimEnd('/');
+            return System.IO.Directory.GetFileSystemEntries(root, "*", System.IO.SearchOption.AllDirectories)
+                .Where(p => !p.EndsWith(".meta", System.StringComparison.OrdinalIgnoreCase))
+                .Select(p => folder + "/" + DotAssetPaths.Normalize(p.Substring(root.Length + 1)))
+                .OrderBy(p => p, System.StringComparer.Ordinal)
+                .FirstOrDefault(p => !journaled.Contains(p));
         }
     }
 }

@@ -1392,6 +1392,31 @@ def check_journal_undo(base, tmp):
         if guid not in f.read():
             return "undoing the move gave Journal.mat a new GUID"
 
+    # A file added to a folder the run created refuses the undo, which would delete it with the folder. Once the file
+    # is gone the undo goes through.
+    held = ROOT + "/Held/Journal.mat"
+    r, res = call(base, ["MoveAsset", "--args", "-from=%s -to=%s -apply" % (mat, held)])
+    run_id = journal_of(res)
+    if r.returncode != 0 or not run_id:
+        return run_failed("MoveAsset into a new folder", r)
+    later = os.path.join(project_of(base), *(ROOT + "/Held/Later.txt").split("/"))
+    with open(later, "w", encoding="utf-8") as f:
+        f.write("added after the move")
+    problem = expect(base, "UndoRun with a file added to the folder", ["UndoRun", "--args", "-run=%s -apply" % run_id], 1)
+    if problem:
+        return problem
+    if not os.path.exists(later) or not on_disk(base, held):
+        return "a refused UndoRun removed the folder the move created or what is in it"
+    for p in (later, later + ".meta"):
+        if os.path.exists(p):
+            os.remove(p)
+    problem = expect(base, "UndoRun once the added file is gone", ["UndoRun", "--args", "-run=%s -apply" % run_id], 0)
+    if problem:
+        return problem
+    if not on_disk(base, mat) or on_disk(base, ROOT + "/Held"):
+        return "after undoing the move into Held/ Journal.mat is %s at its old path and Held/ %s" % (
+            "back" if on_disk(base, mat) else "not", "is left" if on_disk(base, ROOT + "/Held") else "is gone")
+
     # -atomic: the second target fails, the first one is restored. Without it the first stays written.
     both = spec("journal_atomic", {"Targets": [{"AssetPath": mat, "RenderQueue": 2480},
                                                  {"AssetPath": ROOT + "/Missing.mat", "RenderQueue": 2480}]}, tmp)

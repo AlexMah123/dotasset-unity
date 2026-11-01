@@ -493,7 +493,6 @@ namespace DotAsset
             }
             var reimport = new List<string>();
             int restored = 0;
-            bool deleted = false;
             for (int i = list.Count - 1; i >= 0; i--)
             {
                 Entry e = list[i];
@@ -537,10 +536,6 @@ namespace DotAsset
                         {
                             problem = "could not be deleted";
                         }
-                        else
-                        {
-                            deleted = true;
-                        }
                     }
                     else
                     {
@@ -569,9 +564,9 @@ namespace DotAsset
                 }
                 if (problem != null)
                 {
-                    // The other half of a move was deleted already: the file is at neither path.
-                    bool neither = e.Existed && deleted && !File.Exists(abs) && !Directory.Exists(abs);
-                    problems.Add(e.Path + ": " + problem + (neither ? ", it is at neither path until the run is undone" : string.Empty));
+                    // Deleted or moved away by the run, and not back: say so, a move's other half may be deleted already.
+                    bool missing = e.Existed && !File.Exists(abs) && !Directory.Exists(abs);
+                    problems.Add(e.Path + ": " + problem + (missing ? ", it is missing from disk until the run is undone" : string.Empty));
                     break;
                 }
                 restored++;

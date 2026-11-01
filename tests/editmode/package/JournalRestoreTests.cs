@@ -125,6 +125,38 @@ namespace DotAsset.Tests
         }
 
         [Test]
+        public void FailedRestoreSaysTheFileIsMissing()
+        {
+            // The run deleted the file and its backup cannot be copied back: the message says it is gone for now.
+            string journal = Path.Combine(Path.GetTempPath(), "DotAssetRestore" + System.Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(journal);
+            string gone = Folder + "/Gone.txt";
+            var entries = new List<RunJournal.Entry> { new RunJournal.Entry { Path = gone, Existed = true, Backup = "1" } };
+            List<string> problems = RunJournal.Restore(journal, entries, new RunLog("JournalRestoreTests", false));
+            Directory.Delete(journal, true);
+            Assert.AreEqual(1, problems.Count, string.Join("\n", problems.ToArray()));
+            StringAssert.EndsWith("it is missing from disk until the run is undone", problems[0]);
+        }
+
+        [Test]
+        public void MoveAssetRefusesAFolderWithUnsavedWork()
+        {
+            // A failed move rolls back by copying from the journal, which would lose the edit, so the move is refused.
+            AssetDatabase.CreateFolder(Folder, "Sub");
+            string mat = Folder + "/Sub/Unsaved.mat";
+            AssetDatabase.CreateAsset(new Material(Shader.Find("Unlit/Color")), mat);
+            var loaded = AssetDatabase.LoadAssetAtPath<Material>(mat);
+            loaded.renderQueue = 2470;
+            EditorUtility.SetDirty(loaded);
+            UnityEngine.TestTools.LogAssert.ignoreFailingMessages = true;
+            RunResult move = RunDispatcher.Run("MoveAsset", new string[0], "-from=" + Folder + "/Sub -to=" + Folder + "/Moved -apply", false);
+            Assert.AreEqual(1, move.ExitCode, string.Join("\n", move.Lines.ToArray()));
+            Assert.IsTrue(move.Lines.Any(l => l.Contains("unsaved changes")), string.Join("\n", move.Lines.ToArray()));
+            Assert.IsTrue(AssetDatabase.IsValidFolder(Folder + "/Sub"), "the folder moved");
+            Assert.AreEqual(2470, AssetDatabase.LoadAssetAtPath<Material>(mat).renderQueue, "the unsaved edit is gone");
+        }
+
+        [Test]
         public void MetaOnlyUndoIgnoresAReadOnlySourceFile()
         {
             // An import settings change journals only the .meta, so a read-only texture does not block its undo.

@@ -254,7 +254,7 @@ They combine well: an agent can drive the editor through the Unity CLI, an MCP s
 | `CreateAsset` cannot create a scene, or `EditScene` cannot open one | The editor shows an unsaved Untitled scene. Open or save a scene first |
 | `--launch` times out | Compile errors, a Safe Mode prompt or a license dialog hold the editor. The error names the Editor.log to check |
 | `no Unity <version> found` | Pass `--unity <path to the editor>` or set `DOTASSET_UNITY` |
-| `--quit` is refused | A scene or Prefab Mode has unsaved changes. Save them, or `--quit --force` to discard them |
+| `--quit` is refused | A scene or Prefab Mode has unsaved changes: save them, or `--quit --force` to discard them. Or this caller did not start that editor (`--launch`, `--serve`, same `--caller`): it stays open, `--not-mine` closes it anyway |
 | `another DotAsset headless run has the project, waiting` | Headless runs of one project take turns, each waits up to `--timeout` for the one before. For many runs in a row, `--launch` the editor once: queued runs skip Unity's start-up |
 
 ## Development

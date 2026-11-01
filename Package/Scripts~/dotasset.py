@@ -1148,6 +1148,10 @@ def launch_locked(args, project, queue_root, serve=False):
             last_state = state
         if state == "ready":
             log("the %s is ready (pid %s)" % (what, alive.get("Pid")))
+            if proc is not None:
+                record_launch(queue_root, alive.get("Pid"), args.caller, serve)
+            elif not_mine(queue_root, alive, args.caller):
+                log("it was open before this call, so --quit leaves it open (--not-mine closes it anyway)")
             return EXIT_SUCCESS
         if state == "paused":
             log("error: the editor is open but its queue is paused (Window > DotAsset > Accept tasks)")
@@ -1163,6 +1167,46 @@ def launch_locked(args, project, queue_root, serve=False):
     log("error: the editor did not take tasks within %ds (last state: %s). Compile errors, a Safe Mode prompt or a license "
         "dialog can hold it, check %s" % (args.startup_wait, last_state or "no heartbeat", editor_log_hint()))
     return EXIT_FAILED
+
+
+LAUNCHED = "launched.json"
+
+
+def record_launch(queue_root, pid, caller, serve):
+    """Who started the editor or host that serves the queue: --quit closes only that caller's. The pid ties the record
+    to that Unity, an editor opened later has another pid."""
+    path = os.path.join(queue_root, LAUNCHED)
+    try:
+        with open(path + ".tmp", "w", encoding="utf-8") as f:
+            json.dump({"Pid": pid, "Caller": caller, "Served": serve}, f)
+        os.replace(path + ".tmp", path)
+    except OSError as e:
+        log("warning: could not record the launch, --quit will need --not-mine: %s" % e)
+
+
+def launch_record(queue_root, pid):
+    """The record of the --launch or --serve that started the Unity with this pid, or None: someone else opened it."""
+    try:
+        with open(os.path.join(queue_root, LAUNCHED), encoding="utf-8") as f:
+            record = json.load(f)
+    except (OSError, ValueError):
+        return None
+    return record if int(record.get("Pid") or 0) == int(pid or 0) else None
+
+
+def not_mine(queue_root, alive, caller):
+    """Why --quit must leave the editor or host open, or None. One that no --launch or --serve started is the user's.
+    One that another caller started is theirs. With no --caller on either side, one caller working alone, it passes."""
+    pid = int(alive.get("Pid", 0))
+    what = "host" if alive.get("Served") else "editor"
+    record = launch_record(queue_root, pid)
+    if record is None:
+        return "the %s (pid %d) was not started by --launch or --serve, it stays open for whoever opened it" % (what, pid)
+    by = record.get("Caller")
+    if by != caller:
+        return "the %s (pid %d) was started by %s, not by %s" % (
+            what, pid, "caller " + by if by else "a caller without --caller", "caller " + caller if caller else "this caller (no --caller)")
+    return None
 
 
 def served_scene_copy(queue_root):
@@ -1275,6 +1319,10 @@ def quit_editor(args, project):
         log("error: the editor's queue is paused (Window > DotAsset > Accept tasks), it cannot take the quit request")
         return EXIT_REFUSED
     pid = int(alive.get("Pid", 0))
+    refusal = None if args.not_mine else not_mine(queue_root, alive, args.caller)
+    if refusal:
+        log("error: %s. Pass --not-mine to close it anyway" % refusal)
+        return EXIT_REFUSED
     request_id = uuid.uuid4().hex
     request, answer = request_paths(queue_root, QUIT_REQUEST, request_id)
     with open(request + ".tmp", "w", encoding="utf-8") as f:
@@ -1316,6 +1364,11 @@ def quit_editor(args, project):
         if not is_unity_process(pid) and not project_locked(project):
             if alive.get("Served"):
                 restore_served_scene_setup(project, queue_root)
+            if launch_record(queue_root, pid):
+                try:
+                    os.remove(os.path.join(queue_root, LAUNCHED))
+                except OSError:
+                    pass
             log("the editor closed, the project is free")
             return EXIT_SUCCESS
         time.sleep(0.5)
@@ -1338,7 +1391,7 @@ def main(argv=None):
     p.add_argument("--project", default=os.environ.get("DOTASSET_PROJECT"), help="Unity project folder (default: the one containing the current directory)")
     p.add_argument("--unity", default=None, help="Unity editor executable for the headless route")
     p.add_argument("--caller", default=os.environ.get("DOTASSET_CALLER"),
-                   help="who is calling, kept in the run's journal: UndoRun -run=last refuses another caller's run (default: DOTASSET_CALLER)")
+                   help="who is calling, kept in the run's journal: UndoRun -run=last refuses another caller's run, --quit another caller's editor (default: DOTASSET_CALLER)")
     p.add_argument("--timeout", type=int, default=600, help="seconds before giving up (default 600)")
     p.add_argument("--startup-wait", type=int, default=300, help="seconds to wait for a starting editor's queue (default 300)")
     p.add_argument("--route", choices=["auto", "editor", "batch"], default="auto")
@@ -1354,6 +1407,8 @@ def main(argv=None):
     p.add_argument("--serve", action="store_true", help="start a warm headless host: batchmode Unity that stays up and takes runs like an open editor, until --quit")
     p.add_argument("--quit", action="store_true", help="close the editor or headless host that has the project open")
     p.add_argument("--open-scene", help="open these scenes (comma-separated) in the editor that has the project open")
+    p.add_argument("--not-mine", action="store_true",
+                   help="with --quit: close the editor or host even when this caller did not start it (--launch, --serve)")
     p.add_argument("--force", action="store_true", help="with --quit or --open-scene: go ahead even when a scene has unsaved changes")
     argv = list(sys.argv[1:] if argv is None else argv)
     # "--args -apply" would make argparse read -apply as an option of its own. Glue the value on.
@@ -1382,6 +1437,9 @@ def main(argv=None):
         return quit_editor(args, project)
     if args.open_scene is not None:
         return open_scene(args, project)
+    if args.not_mine:
+        log("error: --not-mine only goes with --quit")
+        return EXIT_REFUSED
     if args.force:
         log("error: --force only goes with --quit or --open-scene")
         return EXIT_REFUSED

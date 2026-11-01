@@ -354,6 +354,9 @@ class EditorControl(Base):
             argv = json.load(f)
         self.assertNotIn("-batchmode", argv)
         self.assertIn("-projectPath", argv)
+        # --quit closes it for this caller only.
+        with open(os.path.join(self.project, ops.QUEUE_RELATIVE, "launched.json")) as f:
+            self.assertEqual(json.load(f), {"Pid": os.getpid(), "Caller": None, "Served": False})
 
     @unittest.skipIf(sys.platform != "win32", "desktops are Windows only")
     def test_serve_host_starts_on_its_own_desktop(self):
@@ -386,9 +389,15 @@ class EditorControl(Base):
             editor.stop.set()
         self.assertEqual(code, 0, out)
         self.assertIn("already has the project open", out)
+        self.assertIn("--quit leaves it open", out)
+        self.assertFalse(os.path.exists(os.path.join(self.project, ops.QUEUE_RELATIVE, "launched.json")))
+
+    def launched_by(self, caller, pid=None):
+        ops.record_launch(os.path.join(self.project, ops.QUEUE_RELATIVE), pid or os.getpid(), caller, False)
 
     def test_quit_closes_the_editor(self):
         editor = FakeEditor(self.project, lambda t: result(t["RunName"]), on_quit=lambda: setattr(self, "editor_alive", False))
+        self.launched_by(None)
         editor.start()
         try:
             code, out = self.call("--quit", "--timeout", "10")
@@ -397,10 +406,49 @@ class EditorControl(Base):
         self.assertEqual(code, 0, out)
         self.assertIn("the editor closed", out)
         self.assertEqual(editor.quit_requests, [{"Force": False}])
+        self.assertFalse(os.path.exists(os.path.join(self.project, ops.QUEUE_RELATIVE, "launched.json")))
+
+    def test_quit_leaves_an_editor_it_did_not_start(self):
+        # Dec 4: an editor the user opened, or one an earlier Unity's record no longer matches, is not closed.
+        editor = FakeEditor(self.project, lambda t: result(t["RunName"]), on_quit=lambda: setattr(self, "editor_alive", False))
+        editor.start()
+        try:
+            for record in (False, True):
+                if record:
+                    self.launched_by(None, pid=os.getpid() + 1)
+                code, out = self.call("--quit", "--timeout", "10")
+                self.assertEqual(code, 2, out)
+                self.assertIn("(pid %d) was not started by --launch or --serve" % os.getpid(), out)
+                self.assertEqual(editor.quit_requests, [])
+            code, out = self.call("--quit", "--not-mine", "--timeout", "10")
+        finally:
+            editor.stop.set()
+        self.assertEqual(code, 0, out)
+        self.assertEqual(editor.quit_requests, [{"Force": False}])
+
+    def test_quit_leaves_another_callers_editor(self):
+        editor = FakeEditor(self.project, lambda t: result(t["RunName"]), on_quit=lambda: setattr(self, "editor_alive", False))
+        self.launched_by("agent-a")
+        editor.start()
+        try:
+            code, out = self.call("--quit", "--caller", "agent-b", "--timeout", "10")
+            self.assertEqual(code, 2, out)
+            self.assertIn("was started by caller agent-a, not by caller agent-b", out)
+            code, out = self.call("--quit", "--timeout", "10")
+            self.assertEqual(code, 2, out)
+            self.assertIn("not by this caller (no --caller)", out)
+            self.assertEqual(editor.quit_requests, [])
+            os.environ["DOTASSET_CALLER"] = "agent-a"
+            code, out = self.call("--quit", "--timeout", "10")
+        finally:
+            editor.stop.set()
+        self.assertEqual(code, 0, out)
+        self.assertEqual(editor.quit_requests, [{"Force": False}])
 
     def test_quit_refused_with_unsaved_changes(self):
         editor = FakeEditor(self.project, lambda t: result(t["RunName"]), quit_refusal="unsaved changes in Assets/Main.unity",
                             on_quit=lambda: setattr(self, "editor_alive", False))
+        self.launched_by(None)
         editor.start()
         try:
             code, out = self.call("--quit", "--timeout", "10")
@@ -465,6 +513,11 @@ class EditorControl(Base):
     def test_force_needs_quit(self):
         code, out = self.call("PrefabExport", "Assets/A.prefab", "--force")
         self.assertEqual(code, 2)
+
+    def test_not_mine_needs_quit(self):
+        code, out = self.call("PrefabExport", "Assets/A.prefab", "--not-mine")
+        self.assertEqual(code, 2)
+        self.assertIn("--not-mine only goes with --quit", out)
 
 
 class QueueRoute(Base):

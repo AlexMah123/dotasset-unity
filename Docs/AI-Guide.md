@@ -57,7 +57,7 @@ The wrapper is `dotasset.py` (in the package's `Scripts~/`, or copied to the pro
 | `--project DIR` | the Unity project, default the one containing the current directory, or `DOTASSET_PROJECT` |
 | `--unity PATH` | editor executable for the headless route, default from `ProjectVersion.txt` through Unity Hub, or `DOTASSET_UNITY` |
 | `--route auto\|editor\|batch` | `editor` refuses when no editor has the project open, `batch` never uses the queue. Default `auto` |
-| `--caller NAME` | who is calling, default `DOTASSET_CALLER`. The run's journal keeps it, and `UndoRun -run=last` refuses a run another caller started |
+| `--caller NAME` | who is calling, default `DOTASSET_CALLER`. The run's journal keeps it, and `UndoRun -run=last` refuses a run another caller started. `--quit` refuses an editor or host another caller started |
 | `--timeout SEC` | give up after this long, default 600. A task the editor has not taken yet is withdrawn |
 | `--startup-wait SEC` | how long to wait for a starting editor's queue, default 300 |
 | `--graphics` | headless route without `-nographics` (GPU checks in `AuditMaterial` need it) |
@@ -68,7 +68,7 @@ The wrapper is `dotasset.py` (in the package's `Scripts~/`, or copied to the pro
 | `--result <task>` | the result of a task the wrapper gave up on (exit 4), once the editor finishes it. Exit 4 while it still runs, 2 when it was already read |
 | `--launch` | open the project in the editor (no window interaction needed) and wait until its queue is `ready`. Exit 0 when ready, also when an editor was already open. The editor starts minimized and never takes the focus, `--visible` shows it |
 | `--serve` | start a warm headless host: batchmode Unity, no window (on Windows it runs on a desktop of its own, so it never takes the focus), that takes runs through the same queue as an open editor until `--quit`. Exit 0 when ready. Runs report `inEditor` false, `--status` prints `host pid` |
-| `--quit [--force]` | close the editor or `--serve` host that has the project open, once it is idle. Refused (exit 2) while a scene or Prefab Mode has unsaved changes, `--force` discards them |
+| `--quit [--force] [--not-mine]` | close the editor or `--serve` host that has the project open, once it is idle. Refused (exit 2) while a scene or Prefab Mode has unsaved changes, `--force` discards them. Unsaved asset changes are saved as Unity closes (checked on 2022.3 and 6000.3). Also refused when this caller did not start it: an editor that was open before `--launch`, or one another `--caller` launched. `--not-mine` closes it anyway |
 | `--open-scene A.unity[,B.unity] [--force]` | open scenes in that editor: the first replaces what is open, the rest are added. Refused like `--quit`. The last line is `previously open: <paths>`, pass them back to `--open-scene` to restore the user's layout |
 
 Ctrl+C withdraws a task the editor has not taken, and stops a headless Unity.
@@ -185,7 +185,7 @@ Audit reports land in `Library/DotAsset/Audit/`, with `-report=` to choose the p
 | Several headless calls at once | They take turns: a later call prints `another DotAsset headless run has the project, waiting` and starts when the one before ends. For many steps in a row, `--launch` the editor or `--serve` a headless host once instead, queued runs skip Unity's start-up |
 | `a headless DotAsset run (<Run>, Unity pid N) outlived the wrapper that started it` | A wrapper killed hard (not through its own timeout) left its headless Unity running. The next call waits up to `--timeout` for it to finish, then starts. If it is still running then, the call exits 2 naming the pid: wait longer, or end that Unity process and retry |
 | `another Unity holds the project (Temp/UnityLockfile) and it is not a DotAsset run` | A Unity that is neither an editor with DotAsset's queue nor a DotAsset headless run holds the project, for example an editor without the package. Close it and retry |
-| `--quit` after a run | Only quit an editor or host you started (`--launch`, `--serve`). `--launch` exits 0 also when the editor was already open, and that one is the user's |
+| `--quit` after a run | `--quit` closes only an editor or host this caller started (`--launch`, `--serve`, same `--caller`). `--launch` exits 0 also when the editor was already open and says `--quit leaves it open`: that one is the user's. Do not add `--not-mine` without asking |
 | Finding the latest export by listing the folder | Read the path from the run's `Outputs` (`--json`). Only the newest 10 exports per asset and 20 reports per audit are kept, older ones are deleted unless written with `-outdir` or `-report` |
 | Showing the user a scene, or editing one in their open editor | `--open-scene <path>` opens it, refused while the user has unsaved changes. Its last line is `previously open: <paths>`, pass those back to `--open-scene` when done |
 | A headless run times out on a large project | The first headless start imports or refreshes the project and can take minutes. Raise `--timeout` (default 600 seconds), or keep the editor open so runs go to its queue |

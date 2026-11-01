@@ -26,7 +26,13 @@ namespace DotAsset
         public static RunJournal Current { get; internal set; }
 
         // The folder of the journal closed last, so a save Unity makes after the run (TaskQueue.Settle) updates it.
+        // Reset at each run start, a run that closes no journal must not update an earlier run's.
         static string lastClosed;
+
+        internal static void BeginRun()
+        {
+            lastClosed = null;
+        }
 
         // The log of the Edit or Migrate dry run executing now, null otherwise. JournalHook and DotAssetPaths.ReplaceText
         // refuse its writes to Assets/ and Packages/, so a command that forgets to check ctx.DryRun still writes nothing.
@@ -397,10 +403,31 @@ namespace DotAsset
             return file;
         }
 
-        // Restores what the run wrote and drops the journal. Returns the paths that could not be restored, with why.
-        public List<string> RollBack(RunLog log)
+        // Close, with a warning instead of an exception: the journal.log stays then, and the next run finishes it as
+        // interrupted. The path of journal.json, or null.
+        public string TryClose(RunLog log)
         {
-            List<string> problems = Restore(Dir, entries, log);
+            try
+            {
+                return Close();
+            }
+            catch (Exception e)
+            {
+                log.Warn("the journal could not be closed (" + e.Message + "), the next run finishes it as interrupted");
+                return null;
+            }
+        }
+
+        // Restores what the run wrote. With everything back the journal is dropped and null returned. When a path was
+        // blocked or failed, the journal is closed instead, every path as it is now, so UndoRun can finish the
+        // rollback later: problems holds "path: reason" and the path of journal.json is returned.
+        public string RollBack(RunLog log, out List<string> problems)
+        {
+            problems = Restore(Dir, entries, log);
+            if (problems.Count > 0)
+            {
+                return TryClose(log);
+            }
             try
             {
                 Directory.Delete(Dir, true);
@@ -409,15 +436,31 @@ namespace DotAsset
             {
                 // A journal left behind is pruned later.
             }
-            return problems;
+            return null;
         }
 
-        // Puts entries back as they were before their run, newest first. A scene open in the editor or a prefab open
-        // in Prefab Mode is left alone, Unity would write its loaded copy back. Returns "path: reason" per failure.
+        // Puts entries back as they were before their run, newest first. Nothing is restored when any path is
+        // Blocked, and the first path that fails stops the rest, so a move is not left half undone without notice.
+        // Returns "path: reason" per blocked path or for the failure, empty when every path is back.
         public static List<string> Restore(string dir, List<Entry> list, RunLog log)
         {
             var problems = new List<string>();
+            foreach (Entry e in list)
+            {
+                string blocked = Blocked(e.Path);
+                if (blocked != null)
+                {
+                    problems.Add(e.Path + ": " + blocked);
+                }
+            }
+            if (problems.Count > 0)
+            {
+                log.Info("restored nothing, " + problems.Count + " of " + list.Count + " journaled path(s) blocked");
+                return problems;
+            }
             var reimport = new List<string>();
+            int restored = 0;
+            bool deleted = false;
             for (int i = list.Count - 1; i >= 0; i--)
             {
                 Entry e = list[i];
@@ -435,15 +478,11 @@ namespace DotAsset
                         scenes.Add(new EditorBuildSettingsScene(buildScene, true));
                     }
                     EditorBuildSettings.scenes = scenes.ToArray();
-                    continue;
-                }
-                string blocked = Blocked(e.Path);
-                if (blocked != null)
-                {
-                    problems.Add(e.Path + ": " + blocked);
+                    restored++;
                     continue;
                 }
                 string abs = DotAssetPaths.Absolute(e.Path);
+                string problem = null;
                 try
                 {
                     Keep(e.Path);
@@ -454,55 +493,76 @@ namespace DotAsset
                             FileUtil.DeleteFileOrDirectory(abs);
                             FileUtil.DeleteFileOrDirectory(abs + ".meta");
                         }
-                        continue;
-                    }
-                    if (e.Folder)
-                    {
-                        Directory.CreateDirectory(abs);
+                        if (File.Exists(abs) || Directory.Exists(abs))
+                        {
+                            problem = "could not be deleted";
+                        }
+                        else
+                        {
+                            deleted = true;
+                        }
                     }
                     else
                     {
-                        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(abs));
-                        if (!e.MetaOnly)
+                        if (e.Folder)
                         {
-                            File.Copy(DotAssetPaths.Combine(dir, e.Backup), abs, true);
+                            Directory.CreateDirectory(abs);
                         }
-                        reimport.Add(e.Path);
-                    }
-                    if (e.HadMeta)
-                    {
-                        File.Copy(DotAssetPaths.Combine(dir, e.Backup + ".meta"), abs + ".meta", true);
+                        else
+                        {
+                            Directory.CreateDirectory(System.IO.Path.GetDirectoryName(abs));
+                            if (!e.MetaOnly)
+                            {
+                                File.Copy(DotAssetPaths.Combine(dir, e.Backup), abs, true);
+                            }
+                            reimport.Add(e.Path);
+                        }
+                        if (e.HadMeta)
+                        {
+                            File.Copy(DotAssetPaths.Combine(dir, e.Backup + ".meta"), abs + ".meta", true);
+                        }
                     }
                 }
                 catch (Exception ex)
                 {
-                    problems.Add(e.Path + ": " + ex.Message);
+                    problem = ex.Message;
                 }
+                if (problem != null)
+                {
+                    // The other half of a move was deleted already: the file is at neither path.
+                    bool neither = e.Existed && deleted && !File.Exists(abs) && !Directory.Exists(abs);
+                    problems.Add(e.Path + ": " + problem + (neither ? ", it is at neither path until the run is undone" : string.Empty));
+                    break;
+                }
+                restored++;
             }
             AssetDatabase.Refresh();
             foreach (string path in reimport)
             {
                 AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
             }
-            log.Info("restored " + (list.Count - problems.Count) + " of " + list.Count + " journaled path(s)");
+            log.Info("restored " + restored + " of " + list.Count + " journaled path(s)" + (problems.Count > 0 ? ", stopped at the first failure" : string.Empty));
             return problems;
         }
 
-        // Why path cannot be restored now, or null.
+        // Why path cannot be restored now, or null: a scene open in the editor or the prefab in Prefab Mode, at path or
+        // inside it when path is a folder. Unity would write its loaded copy back, or lose it with the folder.
         public static string Blocked(string path)
         {
+            var roots = new[] { path };
             for (int i = 0; i < SceneManager.sceneCount; i++)
             {
                 Scene scene = SceneManager.GetSceneAt(i);
-                if (scene.isLoaded && scene.path == path)
+                if (scene.isLoaded && !string.IsNullOrEmpty(scene.path) && AssetScan.Under(scene.path, roots))
                 {
-                    return "open in the editor, Unity would write its loaded copy back. Close the scene first";
+                    return (scene.path == path ? string.Empty : "holds " + scene.path + ", ")
+                        + "open in the editor, Unity would write its loaded copy back. Close the scene first";
                 }
             }
             PrefabStage stage = PrefabStageUtility.GetCurrentPrefabStage();
-            if (stage != null && stage.assetPath == path)
+            if (stage != null && AssetScan.Under(stage.assetPath, roots))
             {
-                return "open in Prefab Mode. Close it first";
+                return (stage.assetPath == path ? string.Empty : "holds " + stage.assetPath + ", ") + "open in Prefab Mode. Close it first";
             }
             return null;
         }

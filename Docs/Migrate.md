@@ -210,7 +210,7 @@ Every writing run keeps the files it touches, as they were before it, in `Librar
 - The undo writes a journal of its own.
 - A run that stopped before it finished (Unity crashed or was killed) still has its journal: each path is logged to `journal.log` as it is kept, and the next run turns that into `journal.json` marked `"Interrupted": true`. Undo it as any other run, the log says it stopped before it finished.
 
-Every Migrate run applies the same restore at the end of the run when a target failed: all or nothing across targets instead of per target. `-atomic=false` turns it off and keeps the targets that worked. Edit and Import runs restore the same way only with `-atomic`. A scene open in the editor cannot be restored from disk, the run warns and its edit stays, one Ctrl+Z in the editor takes it back.
+Every Migrate run applies the same restore at the end of the run when a target failed: all or nothing across targets instead of per target. `-atomic=false` turns it off and keeps the targets that worked. Edit and Import runs restore the same way only with `-atomic`. The restore is all or nothing too: when a scene or prefab among the paths, or inside a folder among them, is open in the editor or in Prefab Mode, nothing is restored, and otherwise the restore stops at the first path it cannot write. Either way the run keeps its journal and prints a W line with the `UndoRun` command. Close the scene or Prefab Mode (the run saved it), then run that command.
 
 ## RemoveMissingScripts
 
@@ -226,7 +226,7 @@ Give at least one of AssetList, `-scandir`, or `-spec` with `{"Files": [...]}` (
 | Code | Meaning |
 | --- | --- |
 | 0 | done, or the dry run found nothing wrong |
-| 1 | at least one target failed. Every file the run wrote is put back, or with `-atomic=false` only the failed targets are left as they were |
+| 1 | at least one target failed. Every file the run wrote is put back (when that cannot finish, the journal is kept and the `UndoRun` command that finishes it is printed), or with `-atomic=false` only the failed targets are left as they were |
 | 2 | bad arguments or spec |
 
 The wrapper can also return 4, unknown: it lost track of a run that could still write. See [AI-Guide.md](AI-Guide.md#reading-results).

@@ -93,6 +93,7 @@ namespace DotAsset
         public static RunResult Run(string runName, IList<string> assets, string extraArgs, bool inEditor)
         {
             var watch = Stopwatch.StartNew();
+            RunJournal.BeginRun();
             var log = new RunLog(runName ?? "(none)", inEditor);
             var result = new RunResult { RunName = runName };
             var ctx = new RunContext
@@ -303,28 +304,36 @@ namespace DotAsset
                 {
                     // Rollback writes are not counted against the run, it has failed already.
                     List<string> left;
+                    string kept;
                     using (MuteEngineLog())
                     {
-                        left = journal.RollBack(ctx.Log);
+                        kept = journal.RollBack(ctx.Log, out left);
                     }
                     foreach (string problem in left)
                     {
                         ctx.Log.Warn("-atomic could not roll back " + problem);
                     }
-                    ctx.Log.Info(left.Count == 0
-                        ? "-atomic: a target failed, every file the run wrote is back as it was"
-                        : "-atomic: a target failed, files rolled back except the " + left.Count + " above");
+                    if (left.Count == 0)
+                    {
+                        ctx.Log.Info("-atomic: a target failed, every file the run wrote is back as it was");
+                    }
+                    else
+                    {
+                        // The journal stays whole, so one UndoRun finishes the rollback once the cause is gone.
+                        if (kept != null)
+                        {
+                            ctx.AddOutput(DotAssetPaths.Absolute(kept));
+                        }
+                        ctx.Log.Warn("-atomic: a target failed and the rollback did not finish, the journal is kept. Fix the above, then undo with: UndoRun --args \"-run="
+                            + journal.Id + " -apply\"");
+                    }
                 }
                 else
                 {
-                    // A journal that cannot be closed keeps its journal.log, the next run finalizes it as interrupted.
-                    try
+                    string closed = journal.TryClose(ctx.Log);
+                    if (closed != null)
                     {
-                        ctx.AddOutput(DotAssetPaths.Absolute(journal.Close()));
-                    }
-                    catch (Exception e)
-                    {
-                        ctx.Log.Warn("the journal could not be closed (" + e.Message + "), the next run finishes it as interrupted");
+                        ctx.AddOutput(DotAssetPaths.Absolute(closed));
                     }
                     ctx.Log.Info("undo with: UndoRun --args \"-run=" + journal.Id + " -apply\"");
                 }

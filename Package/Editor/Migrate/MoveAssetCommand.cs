@@ -68,6 +68,13 @@ namespace DotAsset
                     ctx.FailTarget(label, readOnly);
                     continue;
                 }
+                // A rollback puts the journal copy back, unsaved edits in the editor would be lost with the move.
+                string unsaved = OpenWork.UnsavedIn(from);
+                if (unsaved != null)
+                {
+                    ctx.FailTarget(label, unsaved);
+                    continue;
+                }
                 string parent = Path.GetDirectoryName(to).Replace('\\', '/');
                 if (!plan.IsFolder(parent))
                 {

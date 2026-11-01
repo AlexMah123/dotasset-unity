@@ -771,6 +771,7 @@ def check_unsaved_kept(base, tmp):
         ("RemapReference", ["RemapReference", "--args", "-from=%s/Red.mat -to=%s/Blue.mat -scandir=%s -apply" % (ROOT, ROOT, ROOT)]),
         ("ResaveAsset", ["ResaveAsset", ROOT + "/Red.mat", "--args", "-apply"]),
         ("DeleteAsset", ["DeleteAsset", ROOT + "/Red.mat", "--args", "-force -apply"]),
+        ("MoveAsset", ["MoveAsset", "--args", "-from=%s/Red.mat -to=%s/Unsaved/Red.mat -apply" % (ROOT, ROOT)]),
     ]
     problems = []
     for label, argv in runs:
@@ -1489,6 +1490,38 @@ def check_journal_undo(base, tmp):
     return None
 
 
+def check_rollback_blocked(base, tmp):
+    # An -atomic rollback with a scene among its paths open in the editor restores nothing and keeps its journal.
+    # Once the scene is closed, the UndoRun it printed finishes the rollback.
+    if not editor_open(base):
+        return "skip: needs the editor open, the scene is opened in it"
+    scene = ROOT + "/Smoke.unity"
+    problem, previous = open_scenes(base, [scene])
+    if problem:
+        return problem
+    held = spec("rollback_blocked", {"Targets": [
+        {"AssetPath": scene, "Ops": [{"Op": "AddGameObject", "Name": "Held"}]},
+        {"AssetPath": ROOT + "/Missing.unity", "Ops": [{"Op": "AddGameObject", "Name": "Held"}]}]}, tmp)
+    r, res = call(base, ["EditScene", "--args", '-spec="%s" -apply -atomic' % held])
+    run_id = journal_of(res)
+    restore = open_scenes(base, previous)[0] if previous else "the editor had no saved scene open, %s stays open" % scene
+    out = r.stdout + r.stderr
+    if r.returncode != 1 or "the journal is kept" not in out or not run_id:
+        return "EditScene -atomic with the scene open exit %s, journal %s, expected 1 with the journal kept\n%s" % (
+            r.returncode, run_id, out[-2000:])
+    drop_kept_log(r)
+    if node(export_of("SceneExport", base, scene), "Held") is None:
+        return "the blocked rollback restored the open scene anyway"
+    if restore:
+        return restore
+    problem = expect(base, "UndoRun after the blocked rollback", ["UndoRun", "--args", "-run=%s -apply" % run_id], 0)
+    if problem:
+        return problem
+    if node(export_of("SceneExport", base, scene), "Held") is not None:
+        return "after UndoRun the scene still holds Held"
+    return None
+
+
 def check_editor_states(base, tmp):
     # A paused queue refuses a run and withdraws its task, a compile and play mode make a run wait and then go through.
     if not editor_open(base):
@@ -1898,6 +1931,7 @@ def steps_of(specs):
         ("rename field", check_rename_field, None),
         ("serialize reference type", check_serialize_reference_type, None),
         ("journal, undo, -atomic", check_journal_undo, None),
+        ("rollback blocked by an open scene", check_rollback_blocked, None),
         ("editor states: pause, compile, play", check_editor_states, None),
         ("unused assets, audit and delete", check_unused_asset, None),
     ]

@@ -44,7 +44,7 @@ The call manual for agents. Arguments, spec shapes, exit codes and JSON fields a
 
 Before editing, export. The export shows the exact property names (`m_Mass`, not `mass`), paths (`Player/Model/Hand.R`) and reference forms the Edit spec needs. When a property name is unknown, `TypeCatalogExport -filter=<type>` lists them without touching any asset.
 
-Every writing run (Import, and Edit or Migrate with `-apply`) keeps the files it touches, as they were, in a journal: `Library/DotAsset/Journal/<id>/journal.json`, printed as an `out:` line. `UndoRun --args "-run=<id> -apply"` puts them all back, and refuses as a whole when one of them changed after the run. Migrate runs are all or nothing across every target: when one target fails, the targets already written are restored and the run leaves no journal. `-atomic=false` turns that off. Edit and Import runs do the same with `-atomic`, without it the other targets stay written.
+Every writing run (Import, and Edit or Migrate with `-apply`) keeps the files it touches, as they were, in a journal: `Library/DotAsset/Journal/<id>/journal.json`, printed as an `out:` line. `UndoRun --args "-run=<id> -apply"` puts them all back, and refuses as a whole when one of them changed after the run. Migrate runs are all or nothing across every target: when one target fails, the targets already written are restored and the run leaves no journal. A rollback that cannot finish (a scene or prefab among the paths open in the editor, a file that cannot be deleted) keeps the journal and prints a W line with the `UndoRun` command that finishes the rollback. `-atomic=false` turns that off. Edit and Import runs do the same with `-atomic`, without it the other targets stay written.
 
 Audit first, then fix with the spec the audit wrote: `AuditTexture` writes `<report>.fix.json` for `EditImporter`, `AuditMaterial` for `EditMaterial`, `AuditMissingReference` for `RemoveMissingScripts`. Review it, run once without `-apply`, then with it.
 
@@ -88,7 +88,7 @@ python dotasset.py EditPrefab --args '-spec="C:/temp/player.json"'           # d
 python dotasset.py EditPrefab --args '-spec="C:/temp/player.json" -apply'    # write
 ```
 
-Migrate. Dry run by default as well, and all or nothing across the run: when one target fails, every file the run wrote is put back (`-atomic=false` keeps the targets that worked).
+Migrate. Dry run by default as well, and all or nothing across the run: when one target fails, every file the run wrote is put back (`-atomic=false` keeps the targets that worked). When that cannot finish, the run keeps the journal and prints a W line with the `UndoRun` command that finishes the rollback.
 
 ```bash
 python dotasset.py MoveAsset --args '-from=Assets/Old/Gun.prefab -to=Assets/Weapons/Gun.prefab -apply'
@@ -111,7 +111,7 @@ Every run prints its log, then `[dotasset] <summary>` and the path of its log fi
 | Exit code | Meaning |
 | --- | --- |
 | 0 | success (Edit and Migrate without `-apply`: the dry run passed) |
-| 1 | a target failed and nothing of it was saved (a Migrate run also rolls back the targets that worked, unless `-atomic=false`), or the run logged an error (an AssetList entry that does not exist, an export whose assets hold nothing of its kind), or Unity failed before the run started (compile errors, license), or the wrapper gave up while the task was still queued |
+| 1 | a target failed and nothing of it was saved (a Migrate run also rolls back the targets that worked, unless `-atomic=false`, and prints the `UndoRun` command when that rollback cannot finish), or the run logged an error (an AssetList entry that does not exist, an export whose assets hold nothing of its kind), or Unity failed before the run started (compile errors, license), or the wrapper gave up while the task was still queued |
 | 2 | refused: unknown run, unknown argument, unreadable spec, unknown spec key, editor queue paused |
 | 3 | audit only: the run worked and the report lists issues. Not a failure |
 | 4 | unknown, from the wrapper: it was interrupted, timed out or lost Unity while the run could still write. Do not rerun blindly. The `outcome: unknown, task <id>` line names the task, `dotasset.py --result <id>` prints the run's own result once the editor finishes it (4 again while it still runs). A headless run leaves no result, export the targets to see what was written |
@@ -152,7 +152,7 @@ Audit reports land in `Library/DotAsset/Audit/`, with `-report=` to choose the p
 | `EditScene` while the editor shows an Untitled scene | Unity cannot open a second scene next to an Untitled one. Save it first |
 | `EditPrefab` on a prefab open in Prefab Mode with unsaved changes | Refused for the same reason |
 | `Unity changed <property> ... after the write` | `OnValidate` or a range check replaced the value. Nothing was saved. Write a value the object keeps |
-| Any run that writes (`EditMaterial`, `EditAsset`, `EditAnimatorController`, `EditImporter`, `EditPrefab`, `RemapReference`, `ResaveAsset`, `DeleteAsset`) on an asset with unsaved changes in the editor | That target fails with "has unsaved changes in the editor", the file is untouched and the user's changes stay in the editor. Ask the user to save (File > Save Project) or discard them, then run again |
+| Any run that writes (`EditMaterial`, `EditAsset`, `EditAnimatorController`, `EditImporter`, `EditPrefab`, `RemapReference`, `ResaveAsset`, `DeleteAsset`, `MoveAsset`) on an asset with unsaved changes in the editor | That target fails with "has unsaved changes in the editor", the file is untouched and the user's changes stay in the editor. Ask the user to save (File > Save Project) or discard them, then run again |
 | Editing a model (`.fbx`) as a prefab | Refused, its hierarchy comes from the importer. Create a variant with `CreateAsset` `PrefabVariant`, or change the import with `EditImporter` |
 | `RemapScript`, `RenameField` or the fast pass of `AuditMissingReference` reports nothing | They read YAML. Project Settings > Editor > Asset Serialization Mode must be Force Text |
 | Renaming a C# field loses its data | Add `[FormerlySerializedAs("oldName")]`, then `ResaveAsset -dependson=Assets/Scripts/X.cs -apply`, then the attribute can go |

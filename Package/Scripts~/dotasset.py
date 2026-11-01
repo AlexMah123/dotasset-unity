@@ -328,6 +328,29 @@ def batch_run_active(queue_root):
     return True
 
 
+RUNNING = "running.json"
+
+
+def orphan_batch(queue_root):
+    """The headless run whose wrapper was killed while its Unity kept running: {"Pid", "Run", ...} from
+    batch/running.json when that Unity is still alive, else None. Its Unity holds the project until the run ends.
+    Callers check the batch lock first: while a wrapper holds it, the record is that wrapper's own run."""
+    path = os.path.join(queue_root, "batch", RUNNING)
+    try:
+        with open(path, encoding="utf-8") as f:
+            running = json.load(f)
+    except (OSError, ValueError):
+        return None
+    if not is_unity_process(running.get("Pid") or 0):
+        # It ended. A record nobody removed is stale.
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+        return None
+    return running
+
+
 def read_alive(queue_root):
     path = os.path.join(queue_root, ALIVE)
     for _ in range(3):
@@ -727,6 +750,18 @@ def run_batch(args, project, queue_root, run, assets, extra):
                 return EXIT_REFUSED
             time.sleep(0.5)
     try:
+        # A headless run whose wrapper was killed keeps the project until its Unity exits.
+        orphan = orphan_batch(queue_root) if project_locked(project) else None
+        if orphan:
+            log("a headless DotAsset run (%s, Unity pid %s) outlived the wrapper that started it, waiting for it to finish (up to %ds)"
+                % (orphan.get("Run"), orphan.get("Pid"), args.timeout))
+            deadline = time.time() + args.timeout
+            while project_locked(project) and orphan_batch(queue_root) and time.time() < deadline:
+                time.sleep(0.5)
+            if project_locked(project) and orphan_batch(queue_root):
+                log("error: the headless run of %s (Unity pid %s) is still running after %ds. Wait for it, or end that Unity process and retry"
+                    % (orphan.get("Run"), orphan.get("Pid"), args.timeout))
+                return EXIT_REFUSED
         # The previous run's Unity may still be letting go of the project, or someone opened an editor meanwhile.
         deadline = time.time() + 60
         while project_locked(project) and live_editor(queue_root) is None and time.time() < deadline:
@@ -776,6 +811,24 @@ def run_batch_unity(args, project, queue_root, run, assets, extra):
     except OSError as e:
         log("error: cannot start Unity: %s" % e)
         return EXIT_FAILED
+    # Removed once Unity exits. A wrapper killed before that leaves it, so the next call knows whose Unity holds the
+    # project (orphan_batch).
+    running = os.path.join(batch_dir, RUNNING)
+    try:
+        with open(running, "w", encoding="utf-8") as f:
+            json.dump({"Pid": proc.pid, "Run": run, "Task": task_id, "Started": started}, f)
+    except OSError:
+        pass
+    try:
+        return finish_batch(args, proc, run, task_id, batch_dir, result_path, unity_log, started)
+    finally:
+        try:
+            os.remove(running)
+        except OSError:
+            pass
+
+
+def finish_batch(args, proc, run, task_id, batch_dir, result_path, unity_log, started):
     try:
         code = proc.wait(timeout=args.timeout)
     except KeyboardInterrupt:
@@ -881,7 +934,7 @@ def route(args, project, run, assets, extra):
     queue_root = os.path.join(project, QUEUE_RELATIVE)
     if args.route in ("auto", "editor"):
         alive = live_editor(queue_root)
-        if alive is None and project_locked(project) and batch_run_active(queue_root):
+        if alive is None and project_locked(project) and (batch_run_active(queue_root) or orphan_batch(queue_root)):
             # A headless DotAsset run holds the project, not a starting editor. run_batch waits its turn.
             if args.route == "editor":
                 log("error: --route editor, but the project is held by a headless DotAsset run, not an editor")

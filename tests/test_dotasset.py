@@ -163,6 +163,11 @@ if record:
         json.dump(argv, f)
 mode = os.environ.get("FAKE_UNITY_MODE", "ok")
 log = val("-logFile")
+seen = os.environ.get("FAKE_UNITY_RUNNING")
+if seen and val("-dotassetResult"):
+    running = os.path.join(os.path.dirname(val("-dotassetResult")), "running.json")
+    with open(seen, "w") as f:
+        f.write(open(running).read() if os.path.exists(running) else "")
 setup = os.path.join(val("-projectPath"), "Library", "LastSceneManagerSetup.txt")
 if os.path.isdir(os.path.dirname(setup)):
     with open(setup, "w") as f:
@@ -229,7 +234,7 @@ class Base(unittest.TestCase):
             with open(self.fake_unity, "w") as f:
                 f.write(FAKE_UNITY)
             os.chmod(self.fake_unity, os.stat(self.fake_unity).st_mode | stat.S_IEXEC)
-        for k in ("FAKE_UNITY_MODE", "FAKE_UNITY_EXIT", "FAKE_UNITY_RECORD", "FAKE_EDITOR_PID", "FAKE_UNITY_LINGER", "DOTASSET_UNITY", "DOTASSET_PROJECT", "DOTASSET_CALLER"):
+        for k in ("FAKE_UNITY_MODE", "FAKE_UNITY_EXIT", "FAKE_UNITY_RECORD", "FAKE_EDITOR_PID", "FAKE_UNITY_LINGER", "FAKE_UNITY_RUNNING", "DOTASSET_UNITY", "DOTASSET_PROJECT", "DOTASSET_CALLER"):
             os.environ.pop(k, None)
 
     def tearDown(self):
@@ -987,6 +992,62 @@ class StartupWait(Base):
             holder.wait()
         self.assertEqual(code, 2)
         self.assertIn("never came up", out)
+
+    def orphan(self, pid):
+        # What a wrapper killed mid-run leaves: running.json naming its Unity, no batch lock.
+        batch = os.path.join(self.project, "Library", "DotAsset", "Queue", "batch")
+        os.makedirs(batch, exist_ok=True)
+        path = os.path.join(batch, "running.json")
+        with open(path, "w") as f:
+            json.dump({"Pid": pid, "Run": "EditMaterial", "Task": "t", "Started": time.time()}, f)
+        return path
+
+    def test_orphaned_headless_run_is_waited_for(self):
+        # A14: its Unity holds the project with no heartbeat and no batch lock. That is not a starting editor.
+        lock = os.path.join(self.project, "Temp", "UnityLockfile")
+        os.makedirs(os.path.dirname(lock))
+        open(lock, "w").close()
+        holder = hold_unity_lock(lock)
+        self.orphan(os.getpid())
+        threading.Timer(1.5, holder.kill).start()
+        try:
+            code, out = self.call("PrefabExport", "Assets/A.prefab", "--unity", self.fake_unity, "--startup-wait", "1")
+        finally:
+            holder.kill()
+            holder.wait()
+        self.assertEqual(code, 0, out)
+        self.assertIn("(EditMaterial, Unity pid %d) outlived the wrapper" % os.getpid(), out)
+        self.assertIn("route: batchmode", out)
+
+    def test_orphan_still_running_refuses_naming_its_pid(self):
+        for route in ("auto", "batch"):
+            lock = os.path.join(self.project, "Temp", "UnityLockfile")
+            os.makedirs(os.path.dirname(lock), exist_ok=True)
+            open(lock, "w").close()
+            holder = hold_unity_lock(lock)
+            self.orphan(os.getpid())
+            try:
+                code, out = self.call("PrefabExport", "Assets/A.prefab", "--route", route, "--unity", self.fake_unity, "--timeout", "1", "--startup-wait", "1")
+            finally:
+                holder.kill()
+                holder.wait()
+            self.assertEqual(code, 2, route + ": " + out)
+            self.assertIn("(Unity pid %d) is still running after 1s" % os.getpid(), out)
+            self.assertNotIn("not a DotAsset run", out)
+
+    def test_ended_orphan_record_is_removed(self):
+        path = self.orphan(os.getpid() + 1)
+        self.assertIsNone(ops.orphan_batch(os.path.join(self.project, "Library", "DotAsset", "Queue")))
+        self.assertFalse(os.path.exists(path))
+
+    def test_headless_run_is_recorded_while_unity_runs(self):
+        seen = os.path.join(self.tmp, "seen.json")
+        os.environ["FAKE_UNITY_RUNNING"] = seen
+        code, out = self.call("PrefabExport", "Assets/A.prefab", "--route", "batch", "--unity", self.fake_unity)
+        self.assertEqual(code, 0, out)
+        with open(seen) as f:
+            self.assertEqual(json.load(f)["Run"], "PrefabExport")
+        self.assertFalse(os.path.exists(os.path.join(self.project, "Library", "DotAsset", "Queue", "batch", "running.json")))
 
     def test_unlocked_leftover_lockfile_is_not_an_editor(self):
         lock = os.path.join(self.project, "Temp", "UnityLockfile")

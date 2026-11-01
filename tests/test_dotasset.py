@@ -192,6 +192,10 @@ if mode == "error_after_start":
     with open(log, "w") as f:
         f.write("[DotAsset] run started: " + val("-dotassetRun") + "\nAssets/Foo.cs(3,1): error CS0246: missing type\n")
     sys.exit(1)
+if mode == "error_cleared_before_start":
+    with open(log, "w") as f:
+        f.write("Assets/Foo.cs(3,1): error CS0246: missing type\n[DotAsset] run started: " + val("-dotassetRun") + "\nCrash!!!\n")
+    sys.exit(1)
 if mode == "hang":
     import time
     time.sleep(30)
@@ -735,6 +739,14 @@ class BatchRoute(Base):
     def test_compile_error_after_the_run_started_is_unknown(self):
         # An import the run started can log error CS after it wrote, so the run did start and may have written
         os.environ["FAKE_UNITY_MODE"] = "error_after_start"
+        code, out = self.call("EditMaterial", "--unity", self.fake_unity, "--args", "-apply")
+        self.assertEqual(code, 4)
+        self.assertIn("error CS0246", out)
+        self.assertNotIn("does not compile", out)
+
+    def test_compile_error_that_cleared_before_the_run_is_unknown(self):
+        # A startup compile error that cleared before the marker does not mean the run never started
+        os.environ["FAKE_UNITY_MODE"] = "error_cleared_before_start"
         code, out = self.call("EditMaterial", "--unity", self.fake_unity, "--args", "-apply")
         self.assertEqual(code, 4)
         self.assertIn("error CS0246", out)

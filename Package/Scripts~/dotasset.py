@@ -656,9 +656,9 @@ def explain_unity_log(path):
     except OSError:
         log("no Unity log at " + path)
         return False
-    start = text.find(RUN_STARTED)
-    head = text if start < 0 else text[:start]
-    matched = [(hint, before) for pattern, hint, before in LOG_HINTS if re.search(pattern, head if before else text)]
+    # With the marker in the log the run did start, so a startup error that cleared before it is no reason to say otherwise
+    started = RUN_STARTED in text
+    matched = [(hint, before) for pattern, hint, before in LOG_HINTS if not (before and started) and re.search(pattern, text)]
     hints = [hint for hint, _ in matched]
     errors = [l for l in text.splitlines() if re.search(r"error CS\d+", l)]
     for line in errors[:15]:

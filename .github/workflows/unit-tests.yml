@@ -1,0 +1,16 @@
+# The wrapper's unit tests and the naming-rule checks. compile_check and the EditMode tests need Unity and run locally.
+name: unit tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  unittest:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.9"
+      - run: python -m unittest discover -s tests

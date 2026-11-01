@@ -6,6 +6,16 @@ Defined in `Package/Editor/Core/DotAssetVersion.cs` and `Package/package.json`, 
 
 Versions follow one rule. A patch (0.1.x) holds fixes, test upgrades and docs. A minor version (0.x.0) adds something new to call: a run, an op, a spec key, an argument or a wrapper option. While on 0.x, a change that breaks existing calls is also a minor version, marked breaking here. 1.0.0 comes when runs, specs and export JSON are promised to stay stable.
 
+### 0.11.0 (breaking)
+
+- Unity CLI adapter: in a project with `com.unity.pipeline` 0.9 or later, `unity command dotasset run` (name, args, assets, confirm, timeout) and `unity command dotasset list` reach DotAsset in the open editor or a warm `--serve` host, and `unity mcp` lists them. A run that does not exit 0 fails the CLI command with `exit <code>, <summary>` and the run's lines. The adapter has its own asmdef and compiles only with that package. Tested with Pipeline 0.9.1-exp.1 and CLI 1.0.0-beta.15
+- Saved scenes settle in `SceneSettle`, shared by the task queue and the adapter, with the same timings as before
+- Breaking: `UndoRun -run=last` is refused (exit 2) when the newest run belongs to another caller or is itself an `UndoRun`. The wrapper takes `--caller NAME` (default `DOTASSET_CALLER`), which the journal keeps as `Caller`. With no caller on either side, `-run=last` takes the newest run as before
+- Breaking: `--quit` closes only an editor or `--serve` host that `--launch` or `--serve` started for the same caller, recorded in `Queue/launched.json`. Any other editor is left open (exit 2). `--not-mine` closes it anyway. Checked on 6000.3 and 2022.3: Unity saves dirty assets when it quits, so only unsaved scenes block a quit, as before
+- A headless Unity left running by a hard-killed wrapper is named (`a headless DotAsset run (<Run>, Unity pid N) outlived the wrapper that started it`). The next call waits up to `--timeout` for it, then exits 2 naming the pid, instead of waiting for an editor that never comes up
+- The journal keeps the whole Build Settings scene list before a run's first write, so undoing a `MoveAsset` or `DeleteAsset` of a listed scene lists it at its old path again. A run that left the list unchanged keeps no copy of it. `UndoRun` refuses once the list changed after the run. Unity 6 custom build profiles keep their own scene list, which the journal still does not cover
+- Tests: EditMode tests for `SceneSettle`, `EditorRun`, the `-run=last` refusals and the scene list undo (no longer ignored). Unit tests for `--caller`, the orphaned headless run, the `--quit` owner record and the adapter build in `compile_check`. Smoke step for the CLI adapter in the 6.3 project, which now has `com.unity.pipeline`
+
 ### 0.10.2
 
 - The `--serve` host no longer takes the keyboard focus on Unity 6.3 and later. On Windows it runs on a desktop of its own (`DotAssetHost`), where the window batchmode Unity opens cannot come to the front. When Windows refuses that desktop, the host starts as before and the wrapper says so

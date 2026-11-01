@@ -243,7 +243,7 @@ Commands are plain classes: derive from `DotAssetCommand`, name the class `<RunN
 
 Scene and prefab editing, headless runs and agent access are now common. What DotAsset adds is narrower: asset changes that run without anyone at the editor, show a dry run first, keep a journal that `UndoRun` takes back, work headless, and repoint references, including a Missing Script repointed by its old script GUID. Editor tools such as [Find Reference 2](https://assetstore.unity.com/packages/tools/utilities/find-reference-2-59092) (finding references and unused assets) and [GUID Fixer & Meta File Modifier](https://assetstore.unity.com/packages/tools/utilities/guid-fixer-meta-file-modifier-230484) (fixing missing references by GUID) cover parts of this by hand inside the editor. The Unity CLI and Pipeline package are still in beta. The Unity CLI and `unity mcp` were also tested on a real editor: see [Docs/Unity-CLI-and-MCP.md](Docs/Unity-CLI-and-MCP.md).
 
-They combine well: an agent can drive the editor through the Unity CLI, an MCP server or UniCli (builds, tests, the Console), and call DotAsset for asset changes that must be safe and repeatable, with the editor open or closed.
+They combine well: an agent can drive the editor through the Unity CLI, an MCP server or UniCli (builds, tests, the Console), and call DotAsset for asset changes that must be safe and repeatable, with the editor open or closed. With `com.unity.pipeline` installed, DotAsset also answers `unity command dotasset run` itself, see [Docs/AI-Guide.md](Docs/AI-Guide.md).
 
 ## Troubleshooting
 

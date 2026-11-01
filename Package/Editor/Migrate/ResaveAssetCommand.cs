@@ -149,7 +149,7 @@ namespace DotAsset
 
         // Importers of formats Unity reads but never writes (PNG, FBX, WAV, MP4, TTF). Not IsForeignAsset, which is
         // true for a prefab too. Anything else counts as native, which journals the whole file.
-        static bool IsForeign(string path)
+        internal static bool IsForeign(string path)
         {
             AssetImporter importer = AssetImporter.GetAtPath(path);
             return importer is TextureImporter || importer is ModelImporter || importer is AudioImporter

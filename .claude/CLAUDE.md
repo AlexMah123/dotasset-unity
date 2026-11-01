@@ -20,6 +20,7 @@ tests/editmode/run_editmode.py   EditMode tests of the rewriters, ValueCodec and
 examples/                        agent tasks done with DotAsset, e.g. npc_scenario.py
 tools/gen_meta.py                writes missing .meta files for the package
 tools/compile_check.py           compiles the package with every test project's Unity compiler, plus .NET 4.8 and Standard 2.1
+.github/workflows/unit-tests.yml CI: the Python unit tests on every push and pull request (compile_check and EditMode need Unity, run locally)
 Version.md                       release notes
 ```
 
@@ -31,7 +32,7 @@ Patch (0.1.x) for fixes, test upgrades and docs. Minor (0.x.0) for anything new 
 
 Keep the two apart: a verified fix ships as its own patch release instead of waiting for the next minor, and a minor release carries the new features plus only the fixes found while building them.
 
-Release order: implement, `python tools/gen_meta.py` if a file was added, `python tools/compile_check.py`, unit tests, EditMode tests, bump the version, `Version.md` and docs, commit and push, then the smoke matrix, then the tag. The smoke matrix comes last because it is the slow part.
+Release order: implement, `python tools/gen_meta.py` if a file was added, `python tools/compile_check.py`, unit tests, EditMode tests, bump the version, `Version.md` and docs, commit and push, check the CI run passed, then the smoke matrix, then the tag. The smoke matrix comes last because it is the slow part.
 
 Test before smoke: every change carries a Python unit test or an EditMode test that fails on the old code and passes on the new, and it passes before any smoke run. Move logic where a test can reach it if needed. The smoke step adds only what one process cannot show: both routes, the editor open, a real import, another program holding a file.
 

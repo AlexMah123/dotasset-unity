@@ -565,6 +565,62 @@ def check_edit_material(base, tmp):
     return None
 
 
+def unity_cli(base, *argv):
+    """Runs `unity command` against the project's open editor or warm host. The process and the parsed result
+    (None when the output is not JSON)."""
+    r = subprocess.run([shutil.which("unity"), "command", "--project-path", project_of(base)] + list(argv) + ["--result-only"],
+                       capture_output=True, text=True)
+    try:
+        return r, json.loads(r.stdout)
+    except ValueError:
+        return r, None
+
+
+def check_unity_cli(base, tmp):
+    # The adapter compiles only with com.unity.pipeline, which only the 6.3 project has: the others keep testing
+    # the plain path. A dry run leaves the files as they were, confirm writes, a refused run fails the CLI with the
+    # run's lines, and a batch refuses the run (async), so no transactional batch claims to revert its writes.
+    with open(os.path.join(project_of(base), "Packages", "manifest.json"), encoding="utf-8") as f:
+        if "com.unity.pipeline" not in json.load(f).get("dependencies", {}):
+            return "skip: no com.unity.pipeline in this project"
+    if not shutil.which("unity"):
+        return "com.unity.pipeline is installed but the unity CLI is not on PATH"
+    r, catalog = unity_cli(base, "dotasset", "list")
+    if r.returncode != 0 or not isinstance(catalog, list):
+        return run_failed("unity command dotasset list", r)
+    missing = sorted(set(RUNS) - set(c.get("RunName") for c in catalog))
+    if missing:
+        return "dotasset list misses " + ", ".join(missing)
+    path = spec("cli_mat", {"Targets": [{"AssetPath": ROOT + "/Red.mat", "RenderQueue": 2455}]}, tmp)
+    run = ["dotasset", "run", "--name", "EditMaterial", "--args", '-spec="%s"' % path]
+    before = fingerprint(base)
+    r, res = unity_cli(base, *run)
+    if r.returncode != 0 or not res or res.get("DryRun") is not True:
+        return run_failed("unity command dotasset run EditMaterial, a dry run", r)
+    if fingerprint(base) != before:
+        return "the dry run through the CLI changed files under " + ROOT
+    r, res = unity_cli(base, *(run + ["--confirm", "true"]))
+    if r.returncode != 0 or not res or res.get("DryRun") is not False:
+        return run_failed("unity command dotasset run EditMaterial --confirm true", r)
+    queue = export_of("MaterialExport", base, ROOT + "/Red.mat").get("RenderQueue")
+    if queue != 2455:
+        return "after the CLI run with confirm the render queue is %s, expected 2455" % queue
+    before = fingerprint(base)
+    r, res = unity_cli(base, "dotasset", "run", "--name", "EditPrefab", "--args", '-spec="%s"' % SPECS["bad_prefab"], "--confirm", "true")
+    message = " ".join(e.get("message", "") for e in (res or {}).get("errors") or [])
+    if r.returncode != 6 or "exit 1, EditPrefab" not in message:
+        return "a failed EditPrefab through the CLI: exit %s, expected 6 with \"exit 1, EditPrefab\" in the message\n%s" % (
+            r.returncode, (r.stdout + r.stderr)[-2000:])
+    ops = [{"command": "dotasset run", "params": {"name": "EditMaterial", "args": '-spec="%s"' % path, "confirm": True}}]
+    r, res = unity_cli(base, "job", "batch", "--operations", json.dumps(ops))
+    results = (res or {}).get("results") or [{}]
+    if (res or {}).get("applied") != 0 or "not_batchable" not in (results[0].get("error") or ""):
+        return "job batch did not refuse dotasset run\n" + (r.stdout + r.stderr)[-2000:]
+    if fingerprint(base) != before:
+        return "the failed run or the refused batch changed files under " + ROOT
+    return None
+
+
 def door():
     exp = export_of("AnimatorControllerExport", BASE, ROOT + "/Door.controller")
     sm = exp["Layers"][0]["StateMachine"]
@@ -2145,6 +2201,7 @@ def steps_of(specs):
         ("edit the open scene", check_open_scene_edit, None),
         ("settle: edit, reload", check_settle, None),
         ("edit material dry and apply", check_edit_material, None),
+        ("unity cli: list, run, batch", check_unity_cli, None),
         ("edit asset dry and apply", check_edit_asset, None),
         ("no change, no write", check_no_op_edit, None),
         ("edit controller dry, apply", check_edit_controller, None),

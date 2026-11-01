@@ -1,5 +1,6 @@
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using NUnit.Framework;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -121,6 +122,106 @@ namespace DotAsset.Tests
             Assert.AreEqual(0, problems.Count, string.Join("\n", problems.ToArray()));
             Assert.AreEqual("before", File.ReadAllText(DotAssetPaths.Absolute(written)));
             Assert.AreEqual("same", File.ReadAllText(DotAssetPaths.Absolute(held)));
+        }
+
+        [Test]
+        public void MetaOnlyUndoIgnoresAReadOnlySourceFile()
+        {
+            // An import settings change journals only the .meta, so a read-only texture does not block its undo.
+            string path = Folder + "/Rock_n.png";
+            var texture = new Texture2D(2, 2);
+            File.WriteAllBytes(DotAssetPaths.Absolute(path), texture.EncodeToPNG());
+            Object.DestroyImmediate(texture);
+            AssetDatabase.ImportAsset(path);
+            string spec = Path.Combine(Path.GetTempPath(), "DotAssetRestore" + System.Guid.NewGuid().ToString("N") + ".json");
+            File.WriteAllText(spec, "{\"Targets\": [{\"AssetPath\": \"" + path + "\", \"Texture\": {\"TextureType\": \"NormalMap\"}}]}");
+            RunResult edit;
+            RunResult undo;
+            try
+            {
+                edit = RunDispatcher.Run("EditImporter", new string[0], "-spec=\"" + spec + "\" -apply", false);
+                Assert.AreEqual(0, edit.ExitCode, string.Join("\n", edit.Lines.ToArray()));
+                Assert.AreEqual(TextureImporterType.NormalMap, ((TextureImporter)AssetImporter.GetAtPath(path)).textureType);
+                string journal = edit.Outputs.Select(o => o.Replace('\\', '/')).FirstOrDefault(o => o.EndsWith("/journal.json"));
+                Assert.IsNotNull(journal, "EditImporter -apply printed no journal");
+                File.SetAttributes(DotAssetPaths.Absolute(path), FileAttributes.ReadOnly);
+                undo = RunDispatcher.Run("UndoRun", new string[0], "-run=" + Path.GetFileName(Path.GetDirectoryName(journal)) + " -apply", false);
+            }
+            finally
+            {
+                File.SetAttributes(DotAssetPaths.Absolute(path), FileAttributes.Normal);
+                File.Delete(spec);
+            }
+            Assert.AreEqual(0, undo.ExitCode, string.Join("\n", undo.Lines.ToArray()));
+            Assert.AreEqual(TextureImporterType.Default, ((TextureImporter)AssetImporter.GetAtPath(path)).textureType);
+        }
+
+        [Test]
+        public void RollBackDeletesAReadOnlyFilesBackup()
+        {
+            // A backup keeps the read-only attribute of its file, the rolled back journal still goes.
+            string path = Folder + "/Held.txt";
+            File.WriteAllText(DotAssetPaths.Absolute(path), "same");
+            File.SetAttributes(DotAssetPaths.Absolute(path), FileAttributes.ReadOnly);
+            var journal = new RunJournal("JournalRestoreTests");
+            string dir = DotAssetPaths.Combine(RunJournal.Root, journal.Id);
+            List<string> problems;
+            try
+            {
+                RunJournal.Current = journal;
+                RunJournal.Keep(path);
+                RunJournal.Current = null;
+                journal.RollBack(new RunLog("JournalRestoreTests", false), out problems);
+            }
+            finally
+            {
+                RunJournal.Current = null;
+                File.SetAttributes(DotAssetPaths.Absolute(path), FileAttributes.Normal);
+            }
+            bool left = Directory.Exists(dir);
+            bool recovered = RunJournal.RecoverInterrupted().Contains(journal.Id);
+            DeleteJournal(dir);
+            Assert.AreEqual(0, problems.Count, string.Join("\n", problems.ToArray()));
+            Assert.IsFalse(left, "the rolled back journal is still there");
+            Assert.IsFalse(recovered, "a rolled back journal was finalized as interrupted");
+        }
+
+        [Test]
+        public void RollBackThatCannotDeleteItsFolderLeavesNoLog()
+        {
+            // Another program holds a backup, so the folder stays: without its journal.log, or the next run would take
+            // the rolled back run for one that died.
+            string path = Folder + "/Kept.txt";
+            File.WriteAllText(DotAssetPaths.Absolute(path), "same");
+            var journal = new RunJournal("JournalRestoreTests");
+            string dir = DotAssetPaths.Combine(RunJournal.Root, journal.Id);
+            List<string> problems;
+            RunJournal.Current = journal;
+            RunJournal.Keep(path);
+            RunJournal.Current = null;
+            using (new FileStream(DotAssetPaths.Combine(dir, "1"), FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                journal.RollBack(new RunLog("JournalRestoreTests", false), out problems);
+            }
+            bool log = File.Exists(DotAssetPaths.Combine(dir, "journal.log"));
+            bool recovered = RunJournal.RecoverInterrupted().Contains(journal.Id);
+            DeleteJournal(dir);
+            Assert.AreEqual(0, problems.Count, string.Join("\n", problems.ToArray()));
+            Assert.IsFalse(log, "journal.log outlived the rollback");
+            Assert.IsFalse(recovered, "a rolled back journal was finalized as interrupted");
+        }
+
+        static void DeleteJournal(string dir)
+        {
+            if (!Directory.Exists(dir))
+            {
+                return;
+            }
+            foreach (string file in Directory.GetFiles(dir, "*", SearchOption.AllDirectories))
+            {
+                File.SetAttributes(file, FileAttributes.Normal);
+            }
+            Directory.Delete(dir, true);
         }
     }
 }

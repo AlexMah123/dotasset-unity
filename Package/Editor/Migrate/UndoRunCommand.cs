@@ -59,7 +59,7 @@ namespace DotAsset
             var journaled = new HashSet<string>(entries.Select(e => e.Path), System.StringComparer.Ordinal);
             foreach (RunJournal.Entry e in entries)
             {
-                string reason = Changed(e, journaled, runName) ?? RunJournal.Blocked(e.Path) ?? OpenWork.UnsavedIn(e.Path);
+                string reason = Changed(e, journaled, runName) ?? RunJournal.Blocked(e.Path, true, e.MetaOnly) ??OpenWork.UnsavedIn(e.Path);
                 if (reason != null)
                 {
                     ctx.FailTarget(e.Path, reason);

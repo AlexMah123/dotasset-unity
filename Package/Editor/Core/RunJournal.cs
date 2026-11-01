@@ -452,13 +452,23 @@ namespace DotAsset
             }
             try
             {
-                Directory.Delete(Dir, true);
+                DeleteDir(Dir);
             }
             catch (Exception)
             {
                 // A journal left behind is pruned later.
             }
             return null;
+        }
+
+        // A backup keeps the read-only attribute of the file it copies, which Directory.Delete refuses.
+        static void DeleteDir(string dir)
+        {
+            foreach (string file in Directory.GetFiles(dir, "*", SearchOption.AllDirectories))
+            {
+                File.SetAttributes(file, FileAttributes.Normal);
+            }
+            Directory.Delete(dir, true);
         }
 
         // Puts entries back as they were before their run, newest first. Nothing is restored when any path is
@@ -470,7 +480,7 @@ namespace DotAsset
             var problems = new List<string>();
             foreach (Entry e in list)
             {
-                string blocked = Blocked(e.Path, !AlreadyBack(dir, e));
+                string blocked = Blocked(e.Path, !AlreadyBack(dir, e), e.MetaOnly);
                 if (blocked != null)
                 {
                     problems.Add(e.Path + ": " + blocked);
@@ -577,8 +587,9 @@ namespace DotAsset
 
         // Why path cannot be restored now, or null: a scene open in the editor or the prefab in Prefab Mode, at path or
         // inside it when path is a folder. Unity would write its loaded copy back, or lose it with the folder. Also a
-        // read-only file there, which would stop the restore with half the paths back, unless readOnly is false.
-        public static string Blocked(string path, bool readOnly = true)
+        // read-only file there, which would stop the restore with half the paths back, unless readOnly is false. With
+        // metaOnly only the .meta counts, the restore never writes the file itself.
+        public static string Blocked(string path, bool readOnly = true, bool metaOnly = false)
         {
             var roots = new[] { path };
             for (int i = 0; i < SceneManager.sceneCount; i++)
@@ -597,7 +608,8 @@ namespace DotAsset
             }
             if (readOnly && BuildSceneOf(path) == null)
             {
-                string held = ReadOnlyOnDisk(DotAssetPaths.Absolute(path));
+                string abs = DotAssetPaths.Absolute(path);
+                string held = metaOnly ? ReadOnlyOnDisk(abs + ".meta") : ReadOnlyOnDisk(abs);
                 if (held != null)
                 {
                     return (held == path ? string.Empty : "holds " + held + ", ") + "read-only on disk. Clear the attribute first";
@@ -845,7 +857,7 @@ namespace DotAsset
             {
                 try
                 {
-                    Directory.Delete(old, true);
+                    DeleteDir(old);
                 }
                 catch (Exception)
                 {

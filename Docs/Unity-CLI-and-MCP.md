@@ -14,6 +14,8 @@ What Unity's own CLI and MCP server do for asset changes, tested on a real edito
 | Does a failed op make the CLI exit non-zero? | Not inside a batch: the batch exits 0 with `"success": true` |
 | Does `unity mcp` let you load only some tools? | No. Every tool is listed every time (about 26k tokens) |
 
+Since then (release notes read 2026-11-01, not tested): beta.14 (2026-10-21) adds `unity mcp --tools <list>` and `--exclude-tools <list>`, so an agent can load only some tools. Its notes mention no change to the other answers above.
+
 ## Calling commands
 
 ```

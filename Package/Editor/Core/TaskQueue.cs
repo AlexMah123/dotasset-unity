@@ -128,6 +128,8 @@ namespace DotAsset
                 Directory.CreateDirectory(PendingDir);
                 Directory.CreateDirectory(ProcessingDir);
                 Directory.CreateDirectory(DoneDir);
+                // Before the sweep, so a run that died with the last editor or host is finalized before anything edits.
+                RunJournal.RecoverInterrupted();
                 SweepStaleProcessing();
                 DeleteOldDone();
             }
@@ -453,6 +455,7 @@ namespace DotAsset
 
             RunResult result;
             SceneSession.SavedOpenScenes.Clear();
+            RunJournal.TaskId = id;
             try
             {
                 result = RunDispatcher.Run(runName, assets, extra, !Application.isBatchMode);
@@ -461,6 +464,10 @@ namespace DotAsset
             {
                 result = Refusal(runName, "the run threw before it could report: " + e.Message);
                 result.ExitCode = (int)ExitCode.Failed;
+            }
+            finally
+            {
+                RunJournal.TaskId = null;
             }
             if (SceneSession.SavedOpenScenes.Count > 0)
             {

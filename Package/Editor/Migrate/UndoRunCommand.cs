@@ -48,8 +48,12 @@ namespace DotAsset
             }
             string runName = (string)json["RunName"];
             List<RunJournal.Entry> entries = RunJournal.EntriesOf(json);
-            ctx.Log.Info((ctx.DryRun ? "would undo " : "undoing ") + runName + " run " + json["Id"] + ", " + entries.Count + " path(s)"
-                + ((bool?)json["Interrupted"] == true ? ", a run that stopped before it finished" : string.Empty));
+            ctx.Log.Info((ctx.DryRun ? "would undo " : "undoing ") + runName + " run " + json["Id"] + ", " + entries.Count + " path(s)");
+            if ((bool?)json["Interrupted"] == true)
+            {
+                // Its state after the run was taken when the next editor start or run found it, not when it died.
+                ctx.Log.Warn("run " + json["Id"] + " stopped before it finished. The undo cannot see edits made outside Unity between the crash and the next Unity start, nor how far the last path it logged was written");
+            }
 
             // Every path must still be as the run left it, and free to write.
             var journaled = new HashSet<string>(entries.Select(e => e.Path), System.StringComparer.Ordinal);

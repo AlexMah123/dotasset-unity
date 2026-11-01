@@ -162,7 +162,7 @@ namespace DotAsset
             {
                 Id += "x";
             }
-            Recover();
+            RecoverInterrupted();
             Seq = Directory.Exists(Root) ? Directory.GetDirectories(Root).Select(SeqOf).DefaultIfEmpty(0).Max() + 1 : 1;
         }
 
@@ -301,18 +301,29 @@ namespace DotAsset
             string file = DotAssetPaths.Combine(Dir, LogName);
             if (!File.Exists(file))
             {
-                File.WriteAllText(file, new JObject { ["Id"] = Id, ["Seq"] = Seq, ["RunName"] = runName }.ToString(Newtonsoft.Json.Formatting.None) + "\n");
+                var header = new JObject { ["Id"] = Id, ["Seq"] = Seq, ["RunName"] = runName };
+                if (TaskId != null)
+                {
+                    header["Task"] = TaskId;
+                }
+                File.WriteAllText(file, header.ToString(Newtonsoft.Json.Formatting.None) + "\n");
             }
             File.AppendAllText(file, JObject.FromObject(entry).ToString(Newtonsoft.Json.Formatting.None) + "\n");
         }
 
+        // The queue task the run executing now serves, "headless" for a run Cli.Run started, null for a run from the
+        // window. journal.log's header keeps it, so a recovered journal names the task that died.
+        public static string TaskId;
+
         // Finalizes the journals of runs that died before Close: journal.json from the log, each path's state now as
-        // After, marked Interrupted. The journal of the run executing now is left alone.
-        static void Recover()
+        // After, marked Interrupted. The journal of the run executing now is left alone. Called when the queue starts
+        // and before every run, so the state is taken before anyone edits those files. Returns the ids finalized.
+        public static List<string> RecoverInterrupted()
         {
+            var finalized = new List<string>();
             if (!Directory.Exists(Root))
             {
-                return;
+                return finalized;
             }
             string current = Current == null ? null : DotAssetPaths.Normalize(Current.Dir);
             foreach (string dir in Directory.GetDirectories(Root).Select(DotAssetPaths.Normalize))
@@ -353,21 +364,28 @@ namespace DotAsset
                             list.Add(e);
                         }
                     }
-                    Json.WriteFile(DotAssetPaths.Combine(dir, FileName), new JObject
+                    var json = new JObject
                     {
                         ["Id"] = header["Id"],
                         ["Seq"] = header["Seq"] ?? 0,
                         ["RunName"] = header["RunName"],
                         ["Interrupted"] = true,
                         ["Entries"] = list,
-                    });
+                    };
+                    if (header["Task"] != null)
+                    {
+                        json["Task"] = header["Task"];
+                    }
+                    Json.WriteFile(DotAssetPaths.Combine(dir, FileName), json);
                     File.Delete(log);
+                    finalized.Add((string)header["Id"]);
                 }
                 catch (Exception)
                 {
                     // An unreadable log stays, pruned with its folder later.
                 }
             }
+            return finalized;
         }
 
         bool Copy(string abs, string name)
@@ -730,7 +748,7 @@ namespace DotAsset
             {
                 return null;
             }
-            Recover();
+            RecoverInterrupted();
             if (id == "last")
             {
                 return Newest(Directory.GetDirectories(Root).Select(DotAssetPaths.Normalize)

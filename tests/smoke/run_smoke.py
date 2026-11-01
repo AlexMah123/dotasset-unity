@@ -1468,26 +1468,29 @@ def check_journal_undo(base, tmp):
     if queue() != 2491:
         return "a refused UndoRun changed Journal.mat"
 
-    # A run that died before it closed its journal: only journal.log is left, its last line cut off. UndoRun must
-    # finalize it and restore what the log names.
+    # A run that died before it closed its journal: only journal.log is left, its last line cut off. Any run, a
+    # MaterialExport here, finalizes it before anyone edits, so an edit by hand afterwards refuses the undo.
     r, res = edit(2500)
     cut = journal_of(res)
-    folder = os.path.join(project_of(base), "Library", "DotAsset", "Journal", cut or "?")
-    try:
-        with open(os.path.join(folder, "journal.json"), encoding="utf-8") as f:
-            closed = json.load(f)
-    except (OSError, ValueError) as e:
-        return "no journal.json for EditMaterial run %s: %s" % (cut, e)
-    lines = [json.dumps({"Id": closed["Id"], "RunName": closed["RunName"]})]
-    lines += [json.dumps({k: v for k, v in e.items() if k != "After"}) for e in closed["Entries"]]
-    with open(os.path.join(folder, "journal.log"), "w", encoding="utf-8", newline="\n") as f:
-        f.write("\n".join(lines) + '\n{"Path": "Assets/cut off')
-    os.remove(os.path.join(folder, "journal.json"))
-    r, res = call(base, ["UndoRun", "--args", "-run=%s -apply" % cut])
-    if r.returncode != 0 or "stopped before it finished" not in r.stdout:
-        return run_failed("UndoRun of an interrupted run", r)
-    if queue() != 2491:
-        return "after undoing the interrupted run the render queue is %s, expected 2491" % queue()
+    problem = plant_cut_log(base, cut)
+    if problem:
+        return problem
+    if queue() != 2500:
+        return "the export that recovers the interrupted run reads render queue %s, expected 2500" % queue()
+    problem = undo_interrupted(base, mat, cut, queue)
+    if problem:
+        return problem
+
+    # The same with the log there before the editor or the warm host starts: the queue finalizes it as it starts,
+    # before any run.
+    r, res = edit(2500)
+    cut = journal_of(res)
+    problem = restart_with(base, lambda: plant_cut_log(base, cut))
+    if problem:
+        return problem
+    problem = undo_interrupted(base, mat, cut, queue)
+    if problem:
+        return "after a restart: " + problem
 
     # A scene CreateAsset added to the Build Settings leaves the list again when the run is undone. Unity writes
     # EditorBuildSettings.asset when it exits, so the file is read after the host restarts, and not with the editor open.
@@ -1514,6 +1517,72 @@ def check_journal_undo(base, tmp):
         if ("path: " + scene) in f.read():
             return "after UndoRun the build scene is still in EditorBuildSettings.asset"
     return None
+
+
+def plant_cut_log(base, run_id):
+    """Turns a closed journal back into what a run that died leaves: journal.log only, its last line cut off."""
+    folder = os.path.join(project_of(base), "Library", "DotAsset", "Journal", run_id or "?")
+    try:
+        with open(os.path.join(folder, "journal.json"), encoding="utf-8") as f:
+            closed = json.load(f)
+    except (OSError, ValueError) as e:
+        return "no journal.json for run %s: %s" % (run_id, e)
+    lines = [json.dumps({"Id": closed["Id"], "RunName": closed["RunName"]})]
+    lines += [json.dumps({k: v for k, v in e.items() if k != "After"}) for e in closed["Entries"]]
+    with open(os.path.join(folder, "journal.log"), "w", encoding="utf-8", newline="\n") as f:
+        f.write("\n".join(lines) + '\n{"Path": "Assets/cut off')
+    os.remove(os.path.join(folder, "journal.json"))
+    return None
+
+
+def undo_interrupted(base, mat, run_id, queue):
+    """mat edited by hand after its interrupted run was recovered refuses the undo. With the edit taken back the undo
+    restores the render queue from before the run. A problem or None."""
+    path = os.path.join(project_of(base), *mat.split("/"))
+    with open(path, "rb") as f:
+        recovered = f.read()
+    edited = recovered.replace(b"m_CustomRenderQueue: 2500", b"m_CustomRenderQueue: 2505")
+    if edited == recovered:
+        return "no m_CustomRenderQueue: 2500 in %s to edit by hand" % mat
+    with open(path, "wb") as f:
+        f.write(edited)
+    try:
+        r, _ = call(base, ["UndoRun", "--args", "-run=%s -apply" % run_id])
+    finally:
+        with open(path, "wb") as f:
+            f.write(recovered)
+    if r.returncode != 1 or "changed after" not in r.stdout + r.stderr:
+        return run_failed("UndoRun after an edit by hand, expected exit 1 and 'changed after'", r)
+    r, _ = call(base, ["UndoRun", "--args", "-run=%s -apply" % run_id])
+    if r.returncode != 0 or "stopped before it finished" not in r.stdout + r.stderr:
+        return run_failed("UndoRun of an interrupted run", r)
+    if queue() != 2491:
+        return "after undoing the interrupted run the render queue is %s, expected 2491" % queue()
+    return None
+
+
+def restart_with(base, between):
+    """Stops the Unity that serves the queue (the editor, or the warm host on the headless route), calls between
+    while nothing has the project open, and starts it again. A problem or None."""
+    editor = editor_open(base)
+    if editor:
+        r = subprocess.run(base + ["--quit"], capture_output=True, text=True)
+        if r.returncode != 0:
+            return run_failed("--quit", r)
+    else:
+        HOSTED[0] = True
+        problem = host(base, HOSTED, False)
+        if problem:
+            return problem
+    problem = between()
+    if editor:
+        r = subprocess.run(base + ["--launch"], capture_output=True, text=True)
+        if r.returncode != 0:
+            return problem or run_failed("--launch", r)
+    else:
+        started = host(base, HOSTED, True)
+        problem = problem or started
+    return problem
 
 
 def check_rollback_blocked(base, tmp):

@@ -94,6 +94,8 @@ namespace DotAsset
         {
             var watch = Stopwatch.StartNew();
             RunJournal.BeginRun();
+            // Every run, an export too, so a crashed run's state is taken before anyone edits its files.
+            RunJournal.RecoverInterrupted();
             var log = new RunLog(runName ?? "(none)", inEditor);
             var result = new RunResult { RunName = runName };
             var ctx = new RunContext

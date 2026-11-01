@@ -35,6 +35,7 @@ namespace DotAsset
 
                 // No editor check here: Unity itself refuses to open a project another instance holds,
                 // so reaching this line means the project is ours.
+                RunJournal.TaskId = "headless";
                 RunResult result = RunDispatcher.Run(run, RunArgs.SplitList(assets), extra, false);
                 if (!string.IsNullOrEmpty(resultPath))
                 {

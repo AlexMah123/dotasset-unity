@@ -1339,6 +1339,31 @@ def journal_of(res):
     return None
 
 
+class held_open:
+    """Holds a file open the way another program can: others may read it, nobody may write it, and it is not
+    read-only, so nothing finds out before the write itself."""
+
+    def __init__(self, path):
+        self.path = path
+
+    def __enter__(self):
+        import ctypes
+        from ctypes import wintypes
+        self.kernel = ctypes.WinDLL("kernel32", use_last_error=True)
+        self.kernel.CreateFileW.restype = wintypes.HANDLE
+        self.kernel.CreateFileW.argtypes = [wintypes.LPCWSTR, wintypes.DWORD, wintypes.DWORD, wintypes.LPVOID,
+                                            wintypes.DWORD, wintypes.DWORD, wintypes.HANDLE]
+        self.kernel.CloseHandle.argtypes = [wintypes.HANDLE]
+        # GENERIC_READ, FILE_SHARE_READ, OPEN_EXISTING, FILE_ATTRIBUTE_NORMAL
+        self.handle = self.kernel.CreateFileW(self.path, 0x80000000, 1, None, 3, 0x80, None)
+        if self.handle in (None, wintypes.HANDLE(-1).value):
+            raise OSError(ctypes.get_last_error(), "could not hold " + self.path)
+        return self
+
+    def __exit__(self, *exc):
+        self.kernel.CloseHandle(self.handle)
+
+
 def check_journal_undo(base, tmp):
     # A material edited, undone, moved and moved back by UndoRun with its GUID, then -atomic across two targets.
     mat = ROOT + "/Journal.mat"
@@ -1393,6 +1418,27 @@ def check_journal_undo(base, tmp):
     if queue() != before:
         return "after UndoRun once writable the render queue is %s, expected %s" % (queue(), before)
     problem = expect(base, "UndoRun of the read-only case twice", ["UndoRun", "--args", "-run=%s -apply" % run_id], 2)
+    if problem:
+        return problem
+
+    # A file another program holds open passes every check before the restore and fails at its copy. That failed
+    # undo must stay open too, so the same undo goes through once the file is free.
+    r, res = edit(2480)
+    run_id = journal_of(res)
+    if r.returncode != 0 or not run_id:
+        return "EditMaterial -apply exit %s, journal %s: %s" % (r.returncode, run_id, res.get("Outputs"))
+    with held_open(mat_file):
+        problem = expect(base, "UndoRun of a held file", ["UndoRun", "--args", "-run=%s -apply" % run_id], 1)
+    if problem:
+        return problem
+    if queue() != 2480:
+        return "a failed UndoRun of a held file changed Journal.mat"
+    problem = expect(base, "UndoRun once free", ["UndoRun", "--args", "-run=%s -apply" % run_id], 0)
+    if problem:
+        return problem
+    if queue() != before:
+        return "after UndoRun once free the render queue is %s, expected %s" % (queue(), before)
+    problem = expect(base, "UndoRun of the held case twice", ["UndoRun", "--args", "-run=%s -apply" % run_id], 2)
     if problem:
         return problem
 

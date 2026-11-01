@@ -6,6 +6,20 @@ Defined in `Package/Editor/Core/DotAssetVersion.cs` and `Package/package.json`, 
 
 Versions follow one rule. A patch (0.1.x) holds fixes, test upgrades and docs. A minor version (0.x.0) adds something new to call: a run, an op, a spec key, an argument or a wrapper option. While on 0.x, a change that breaks existing calls is also a minor version, marked breaking here. 1.0.0 comes when runs, specs and export JSON are promised to stay stable.
 
+### 0.10.1
+
+- Folder entries in a journal hash what is under them (relative path, length and write time of every file, plus the folder's `.meta`), not the constant `folder`, so `UndoRun` refuses to delete a folder the run created once something was added to it. A file another program holds hashes to `unreadable: <reason>`, which never matches. An older journal's bare `folder` passes only when everything under it is an entry of that journal
+- Rollbacks and `UndoRun` restore all or nothing: every path is checked first (a scene open in the editor or a prefab in Prefab Mode, also inside a journaled folder, or a read-only file the run wrote), and nothing is restored when one is blocked. A file still as it was before the run is left alone, read-only or not. A rollback that cannot finish keeps its journal and prints a W line with the `UndoRun` command that finishes it. `MoveAsset` refuses a source with unsaved changes, as `DeleteAsset` does
+- A failed `UndoRun` can be retried: the run counts as undone only when every path was restored
+- An interrupted run is recovered before anything else runs, at editor or `--serve` start and before every run, so its journal no longer takes in edits made after the crash. `UndoRun` of an interrupted run says what it cannot check
+- An editor that dies mid-task, or a run that throws past the dispatcher, gives exit 4 when the run could write, and names the task's interrupted journal with its `UndoRun` line. A compile error logged after the run started no longer reads as "never started"
+- Queued tasks expire `--timeout` plus 120 s after they were queued, so a task left by a killed wrapper never runs later with nobody watching. The wrapper prints `task: <id>` right after queuing
+- A stale heartbeat counts only while Unity holds the project lock, so a dead editor's pid reused by another Unity no longer gets the task
+- `ResaveAsset` journals only the `.meta` with `-metaonly` and for textures, models, audio, video and fonts, whose source a resave only reads. Prefabs, scenes and other native assets keep a full copy
+- Known issue: undoing a `MoveAsset` of a Build Settings scene brings the scene back but leaves the scene list at the moved path. Fix it in File > Build Settings by hand, whole-list journaling comes in 0.11.0. Unity 6 custom build profiles keep their own scene list, which the journal does not cover
+- Docs: pass a run id rather than `-run=last` when callers share the project or an undo is retried, only `--quit` what you started, the misleading message after a hard-killed headless call, the comparison re-checked and dated with a narrower claim
+- Tests: EditMode tests for folder hashes, recovery, the all-or-nothing restore, task expiry, the retry, which assets resave `.meta`-only, and the scene list after an undo (ignored until 0.11.0). Unit tests for the wrapper fixes. Smoke steps for the read-only and held-file undo and the `.meta`-only resave. CI runs the Python unit tests on windows-latest
+
 ### 0.10.0 (breaking)
 
 - Migrate runs are atomic by default: a failed target rolls back every file the run wrote. `-atomic=false` keeps the targets that worked (it used to turn `-atomic` on)

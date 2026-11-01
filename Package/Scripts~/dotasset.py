@@ -644,6 +644,10 @@ LOG_HINTS = [
 ]
 
 
+# Cli.Run logs this right before the run. A compile error after it comes from an import the run started.
+RUN_STARTED = "[DotAsset] run started"
+
+
 def explain_unity_log(path):
     """Prints the errors and hints from a Unity log. True when the log shows the run never started."""
     try:
@@ -652,7 +656,9 @@ def explain_unity_log(path):
     except OSError:
         log("no Unity log at " + path)
         return False
-    matched = [(hint, before) for pattern, hint, before in LOG_HINTS if re.search(pattern, text)]
+    start = text.find(RUN_STARTED)
+    head = text if start < 0 else text[:start]
+    matched = [(hint, before) for pattern, hint, before in LOG_HINTS if re.search(pattern, head if before else text)]
     hints = [hint for hint, _ in matched]
     errors = [l for l in text.splitlines() if re.search(r"error CS\d+", l)]
     for line in errors[:15]:

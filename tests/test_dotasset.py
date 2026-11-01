@@ -188,6 +188,10 @@ if mode == "crash":
     with open(log, "w") as f:
         f.write("Crash!!!\n")
     sys.exit(1)
+if mode == "error_after_start":
+    with open(log, "w") as f:
+        f.write("[DotAsset] run started: " + val("-dotassetRun") + "\nAssets/Foo.cs(3,1): error CS0246: missing type\n")
+    sys.exit(1)
 if mode == "hang":
     import time
     time.sleep(30)
@@ -721,6 +725,14 @@ class BatchRoute(Base):
         self.assertEqual(code, 1)
         self.assertIn("error CS1002", out)
         self.assertIn("does not compile", out)
+
+    def test_compile_error_after_the_run_started_is_unknown(self):
+        # An import the run started can log error CS after it wrote, so the run did start and may have written
+        os.environ["FAKE_UNITY_MODE"] = "error_after_start"
+        code, out = self.call("EditMaterial", "--unity", self.fake_unity, "--args", "-apply")
+        self.assertEqual(code, 4)
+        self.assertIn("error CS0246", out)
+        self.assertNotIn("does not compile", out)
 
     def test_timeout_kills_unity(self):
         os.environ["FAKE_UNITY_MODE"] = "hang"

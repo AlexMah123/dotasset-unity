@@ -332,7 +332,13 @@ class EditorControl(Base):
         record = os.path.join(self.tmp, "argv.json")
         os.environ["FAKE_UNITY_RECORD"] = record
         os.environ["FAKE_EDITOR_PID"] = str(os.getpid())
-        code, out = self.call("--launch", "--unity", self.fake_unity, "--startup-wait", "30")
+        # The wrapper leaves the editor running on purpose. The test waits for the fake one to exit, not leaving it behind.
+        started = []
+        start = ops.start_detached
+        with mock.patch.object(ops, "start_detached", lambda *a: started.append(start(*a)) or started[-1]):
+            code, out = self.call("--launch", "--unity", self.fake_unity, "--startup-wait", "30")
+        for proc in started:
+            proc.wait(30)
         self.assertEqual(code, 0, out)
         self.assertIn("the editor is ready", out)
         with open(record) as f:

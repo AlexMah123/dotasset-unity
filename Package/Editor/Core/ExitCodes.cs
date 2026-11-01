@@ -15,6 +15,7 @@ namespace DotAsset
         IssuesFound = 3,
         // Wrapper only, never returned by a run: the wrapper lost sight of a run that may have written its targets
         // (interrupted, timed out, Unity exited mid-run). The run's own result, if one comes, is in dotasset.py --result.
+        // A result that says "Outcome": "unknown" keeps ExitCode 1 and the wrapper turns it into 4.
         Unknown = 4,
     }
 
@@ -64,6 +65,23 @@ namespace DotAsset
         public static bool IsDryRunByDefault(CommandGroup group)
         {
             return group == CommandGroup.Edit || group == CommandGroup.Migrate;
+        }
+
+        // Whether a run with these arguments may have written: an Import, or an Edit or Migrate given -apply.
+        public static bool CouldWrite(string runName, string extra)
+        {
+            CommandGroup group = Resolve(runName);
+            if (group == CommandGroup.Export || group == CommandGroup.Audit)
+            {
+                return false;
+            }
+            if (group == CommandGroup.Import)
+            {
+                return true;
+            }
+            RunArgs args = RunArgs.Parse(extra);
+            args.NormalizeSwitches();
+            return args.Has("apply");
         }
     }
 }

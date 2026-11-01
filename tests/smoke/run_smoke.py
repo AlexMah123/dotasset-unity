@@ -25,6 +25,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import uuid
 import zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -1482,12 +1483,20 @@ def check_journal_undo(base, tmp):
         return problem
 
     # The same with the log there before the editor or the warm host starts: the queue finalizes it as it starts,
-    # before any run.
+    # before any run. The run was a queue task the editor died in: the sweep reports it as an unknown outcome
+    # naming its journal. Another task whose result was written just before the editor died keeps that result.
     r, res = edit(2500)
     cut = journal_of(res)
-    problem = restart_with(base, lambda: plant_cut_log(base, cut))
+    died, finished = uuid.uuid4().hex, uuid.uuid4().hex
+    problem = restart_with(base, lambda: plant_cut_log(base, cut, died) or plant_stale_tasks(base, mat, died, finished))
     if problem:
         return problem
+    r, _ = call(base, ["--result", finished])
+    if r.returncode != 3 or "planted result" not in r.stdout:
+        return run_failed("--result of a task whose result was written before the editor stopped, expected exit 3", r)
+    r, _ = call(base, ["--result", died])
+    if r.returncode != 4 or "editor stopped" not in r.stdout or "its journal %s was recovered" % cut not in r.stdout:
+        return run_failed("--result of a task the editor died in, expected exit 4 naming journal " + cut, r)
     problem = undo_interrupted(base, mat, cut, queue)
     if problem:
         return "after a restart: " + problem
@@ -1519,19 +1528,37 @@ def check_journal_undo(base, tmp):
     return None
 
 
-def plant_cut_log(base, run_id):
-    """Turns a closed journal back into what a run that died leaves: journal.log only, its last line cut off."""
+def plant_cut_log(base, run_id, task=None):
+    """Turns a closed journal back into what a run that died leaves: journal.log only, its last line cut off. task is
+    the queue task the run belonged to."""
     folder = os.path.join(project_of(base), "Library", "DotAsset", "Journal", run_id or "?")
     try:
         with open(os.path.join(folder, "journal.json"), encoding="utf-8") as f:
             closed = json.load(f)
     except (OSError, ValueError) as e:
         return "no journal.json for run %s: %s" % (run_id, e)
-    lines = [json.dumps({"Id": closed["Id"], "RunName": closed["RunName"]})]
+    header = {"Id": closed["Id"], "RunName": closed["RunName"]}
+    if task:
+        header["Task"] = task
+    lines = [json.dumps(header)]
     lines += [json.dumps({k: v for k, v in e.items() if k != "After"}) for e in closed["Entries"]]
     with open(os.path.join(folder, "journal.log"), "w", encoding="utf-8", newline="\n") as f:
         f.write("\n".join(lines) + '\n{"Path": "Assets/cut off')
     os.remove(os.path.join(folder, "journal.json"))
+    return None
+
+
+def plant_stale_tasks(base, mat, died, finished):
+    """What an editor that died leaves in the queue: died still in processing/, finished in processing/ with its
+    result already in done/."""
+    queue_dir = os.path.join(project_of(base), "Library", "DotAsset", "Queue")
+    for folder in ("processing", "done"):
+        os.makedirs(os.path.join(queue_dir, folder), exist_ok=True)
+    for task in (died, finished):
+        with open(os.path.join(queue_dir, "processing", task + ".json"), "w", encoding="utf-8") as f:
+            json.dump({"Id": task, "RunName": "EditMaterial", "Assets": [], "ExtraArgs": '-spec="%s.json" -apply' % mat}, f)
+    with open(os.path.join(queue_dir, "done", finished + ".json"), "w", encoding="utf-8") as f:
+        json.dump({"RunName": "AuditMaterial", "ExitCode": 3, "Summary": "planted result", "Lines": [], "Outputs": []}, f)
     return None
 
 

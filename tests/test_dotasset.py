@@ -528,6 +528,30 @@ class QueueRoute(Base):
             gate.set()
             editor.stop.set()
 
+    def test_result_with_unknown_outcome_is_4(self):
+        done = os.path.join(self.project, ops.QUEUE_RELATIVE, ops.DONE)
+        os.makedirs(done)
+        unknown, old = "a" * 32, "b" * 32
+        with open(os.path.join(done, unknown + ".json"), "w") as f:
+            json.dump(dict(result("EditMaterial", code=1, error="the editor stopped"), Outcome="unknown"), f)
+        with open(os.path.join(done, old + ".json"), "w") as f:
+            json.dump(result("EditMaterial", code=1, error="the editor stopped"), f)
+        code, out = self.call("--result", unknown)
+        self.assertEqual(code, 4, "the editor stopped mid-run, it may have written")
+        code, out = self.call("--result", old)
+        self.assertEqual(code, 1, "a result without the marker keeps its exit code")
+
+    def test_result_of_a_task_whose_editor_is_gone(self):
+        processing = os.path.join(self.project, ops.QUEUE_RELATIVE, ops.PROCESSING)
+        os.makedirs(processing)
+        task = "c" * 32
+        with open(os.path.join(processing, task + ".json"), "w") as f:
+            json.dump({"Id": task, "RunName": "EditMaterial", "Assets": [], "ExtraArgs": "-apply"}, f)
+        code, out = self.call("--result", task)
+        self.assertEqual(code, 4)
+        self.assertIn("the editor that took it is gone", out)
+        self.assertNotIn("still running", out)
+
     def test_result_refuses_a_bad_task_id(self):
         code, out = self.call("--result", "../x")
         self.assertEqual(code, 2)

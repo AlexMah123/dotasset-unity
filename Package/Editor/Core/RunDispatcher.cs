@@ -28,6 +28,8 @@ namespace DotAsset
         public List<JObject> Plan = new List<JObject>();
         public bool PlanTruncated;
         public JObject PlanTotals;
+        // "unknown" when the run may have written and did not get to report how far it got. The wrapper exits 4.
+        public string Outcome;
 
         public JObject ToJson()
         {
@@ -53,6 +55,10 @@ namespace DotAsset
                 json["Plan"] = new JArray(Plan.Select(o => (object)o).ToArray());
                 json["PlanTruncated"] = PlanTruncated;
                 json["PlanTotals"] = PlanTotals;
+            }
+            if (Outcome != null)
+            {
+                json["Outcome"] = Outcome;
             }
             return json;
         }

@@ -758,6 +758,25 @@ namespace DotAsset
             return File.Exists(DotAssetPaths.Combine(dir, FileName)) ? dir : null;
         }
 
+        // The id of the Interrupted journal the queue task taskId left, or null. Matched by task, not by run name,
+        // so a crashed headless run of the same name is never taken for it.
+        public static string InterruptedOf(string taskId)
+        {
+            if (string.IsNullOrEmpty(taskId) || !Directory.Exists(Root))
+            {
+                return null;
+            }
+            foreach (string dir in Newest(Directory.GetDirectories(Root).Select(DotAssetPaths.Normalize)))
+            {
+                JObject json = Load(DotAssetPaths.Combine(dir, FileName));
+                if (json != null && (bool?)json["Interrupted"] == true && (string)json["Task"] == taskId)
+                {
+                    return (string)json["Id"];
+                }
+            }
+            return null;
+        }
+
         public static JObject Load(string file)
         {
             try

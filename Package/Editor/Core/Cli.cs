@@ -22,13 +22,15 @@ namespace DotAsset
         {
             int code = (int)ExitCode.Failed;
             string resultPath = null;
+            string run = null;
+            string extra = null;
             try
             {
                 string[] argv = Environment.GetCommandLineArgs();
-                string run = Value(argv, "-dotassetRun");
-                string assets = Decode(Value(argv, "-dotassetAssetsB64")) ?? Value(argv, "-dotassetAssets") ?? string.Empty;
-                string extra = Decode(Value(argv, "-dotassetArgsB64")) ?? Value(argv, "-dotassetArgs") ?? string.Empty;
                 resultPath = Value(argv, "-dotassetResult");
+                run = Value(argv, "-dotassetRun");
+                string assets = Decode(Value(argv, "-dotassetAssetsB64")) ?? Value(argv, "-dotassetAssets") ?? string.Empty;
+                extra = Decode(Value(argv, "-dotassetArgsB64")) ?? Value(argv, "-dotassetArgs") ?? string.Empty;
 
                 Application.SetStackTraceLogType(LogType.Log, StackTraceLogType.None);
                 Application.SetStackTraceLogType(LogType.Warning, StackTraceLogType.None);
@@ -47,8 +49,41 @@ namespace DotAsset
             {
                 Debug.LogException(e);
                 code = (int)ExitCode.Failed;
+                WriteThrown(resultPath, run, extra, e);
             }
             EditorApplication.Exit(code);
+        }
+
+        // A result for a run that threw past the dispatcher, so the wrapper does not have to guess from the Unity log.
+        // A run that could write may have, its journal close and rollback run outside the run's own try.
+        static void WriteThrown(string resultPath, string run, string extra, Exception e)
+        {
+            if (string.IsNullOrEmpty(resultPath))
+            {
+                return;
+            }
+            string error = "the run threw before it could report: " + e.Message;
+            var result = new RunResult
+            {
+                RunName = run,
+                ExitCode = (int)ExitCode.Failed,
+                Error = error,
+                Summary = (run ?? "run") + " failed: " + error,
+                Errors = 1,
+                Lines = { "E " + error },
+            };
+            if (run != null && Groups.CouldWrite(run, extra))
+            {
+                result.Outcome = "unknown";
+            }
+            try
+            {
+                Json.WriteFile(resultPath, result.ToJson());
+            }
+            catch (Exception)
+            {
+                // No result file: the wrapper falls back to the Unity log, which has the exception.
+            }
         }
 
         static string Value(string[] argv, string key)

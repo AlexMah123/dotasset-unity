@@ -464,6 +464,11 @@ namespace DotAsset
             {
                 result = Refusal(runName, "the run threw before it could report: " + e.Message);
                 result.ExitCode = (int)ExitCode.Failed;
+                // The journal close and the rollback run outside the run's own try, so files may be written.
+                if (Groups.CouldWrite(runName, extra))
+                {
+                    result.Outcome = "unknown";
+                }
             }
             finally
             {
@@ -586,13 +591,20 @@ namespace DotAsset
         }
 
         // A task left in processing/ means the editor stopped in the middle of it. Report it instead of rerunning it.
-        // One that finished and was settling when the domain reloaded reports its own result.
+        // One that finished and was settling when the domain reloaded reports its own result. One whose result was
+        // written just before the editor stopped keeps that result.
         static void SweepStaleProcessing()
         {
             foreach (string file in Directory.GetFiles(ProcessingDir, "*.json"))
             {
                 string id = Path.GetFileNameWithoutExtension(file);
                 string donePath = DotAssetPaths.Combine(DoneDir, id + ".json");
+                if (File.Exists(donePath))
+                {
+                    TryDelete(SettlingPath(file));
+                    TryDelete(file);
+                    continue;
+                }
                 JObject settled;
                 string unread;
                 if (Json.TryReadFile(SettlingPath(file), out settled, out unread))
@@ -617,9 +629,23 @@ namespace DotAsset
                 }
                 JObject task;
                 string error;
-                string runName = Json.TryReadFile(file, out task, out error) ? Json.Str(task, "RunName") : null;
+                bool read = Json.TryReadFile(file, out task, out error);
+                string runName = read ? Json.Str(task, "RunName") : null;
                 var result = Refusal(runName, "the editor stopped while this task was running. Check the targets before rerunning, a write may have reached disk");
                 result.ExitCode = (int)ExitCode.Failed;
+                // An unreadable task may have been anything, a writing run too.
+                if (!read || Groups.CouldWrite(runName, Json.Str(task, "ExtraArgs", string.Empty)))
+                {
+                    result.Outcome = "unknown";
+                }
+                // Start recovered its journal just before, under this task's id.
+                string journal = RunJournal.InterruptedOf(id);
+                if (journal != null)
+                {
+                    result.Lines.Add("W its journal " + journal + " was recovered. Undo with: UndoRun --args \"-run=" + journal
+                        + " -apply\", not -run=last, which may name a later run");
+                    result.Warnings++;
+                }
                 WriteDone(donePath, result);
                 TryDelete(file);
             }

@@ -474,6 +474,9 @@ def unknown_outcome(args, task_id, result_path):
 
 
 def exit_code_of(result):
+    # The editor stopped mid-run, or the run threw after it may have written: the result keeps 1 for older wrappers.
+    if result.get("Outcome") == "unknown":
+        return EXIT_UNKNOWN
     try:
         code = int(result.get("ExitCode", EXIT_FAILED))
     except (TypeError, ValueError):
@@ -540,6 +543,8 @@ def task_result(args, project, task_id):
         return print_done(args, done_path)
     for folder, what in ((PROCESSING, "the editor is still running it"), (PENDING, "it is still waiting in the queue")):
         if os.path.exists(os.path.join(queue_root, folder, task_id + ".json")):
+            if folder == PROCESSING and not live_editor(queue_root):
+                what = "the editor that took it is gone. Its next start writes the result, a write may have reached disk"
             log("task %s has no result yet, %s" % (task_id, what))
             return unknown_outcome(args, task_id, done_path)
     log("error: no task %s in the queue: its result was already read, or it never reached the editor "

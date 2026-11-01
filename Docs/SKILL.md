@@ -73,3 +73,4 @@ Audits write `<report>.fix.json` for the matching fix run (`EditImporter`, `Edit
 - Spec paths are absolute or relative to the project root. Quote values that contain spaces.
 - Writes are all or nothing per target, so a failed target leaves its file unchanged. Migrate runs are also all or nothing across every target of the run (`-atomic=false` turns it off), Edit and Import runs with `-atomic`. A rollback that cannot finish keeps the journal and prints the `UndoRun` command to run once the scene or prefab it names is closed.
 - `--quit` and `--open-scene` refuse while there are unsaved changes. Ask the user before adding `--force`.
+- Keep `--timeout` (default 600 s) below your own tool timeout. A queued task expires `--timeout` plus 120 s after it was queued. If your tool kills the wrapper before that, the editor can still take the task and run it with nobody watching. The `task:` line gives the id for `--result`.

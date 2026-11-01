@@ -1612,6 +1612,29 @@ def restart_with(base, between):
     return problem
 
 
+def check_expired_task(base, tmp):
+    # A task left in pending/ by a wrapper that was killed while waiting: past its ExpiresUnix the editor or warm host
+    # refuses it instead of running it with nobody watching.
+    mat = ROOT + "/Materials/Blue.mat"
+    before = export_of("MaterialExport", base, mat).get("RenderQueue")
+    path = spec("expired_edit", {"Targets": [{"AssetPath": mat, "RenderQueue": 2999}]}, tmp)
+    task = uuid.uuid4().hex
+    queue_dir = os.path.join(project_of(base), "Library", "DotAsset", "Queue")
+    with open(os.path.join(queue_dir, "pending", task + ".json"), "w", encoding="utf-8") as f:
+        json.dump({"Id": task, "RunName": "EditMaterial", "Assets": [], "ExtraArgs": '-spec="%s" -apply' % path,
+                   "ExpiresUnix": time.time() - 60}, f)
+    done = os.path.join(queue_dir, "done", task + ".json")
+    deadline = time.time() + 60
+    while not os.path.exists(done) and time.time() < deadline:
+        time.sleep(0.2)
+    r, _ = call(base, ["--result", task])
+    if r.returncode != 2 or "expired" not in r.stdout:
+        return run_failed("--result of an expired task, expected exit 2 and 'expired'", r)
+    if export_of("MaterialExport", base, mat).get("RenderQueue") != before:
+        return "the expired EditMaterial task changed Blue.mat"
+    return None
+
+
 def check_rollback_blocked(base, tmp):
     # An -atomic rollback with a scene among its paths open in the editor restores nothing and keeps its journal.
     # Once the scene is closed, the UndoRun it printed finishes the rollback.
@@ -2054,6 +2077,7 @@ def steps_of(specs):
         ("serialize reference type", check_serialize_reference_type, None),
         ("journal, undo, -atomic", check_journal_undo, None),
         ("rollback blocked by an open scene", check_rollback_blocked, None),
+        ("expired task refused", check_expired_task, None),
         ("editor states: pause, compile, play", check_editor_states, None),
         ("unused assets, audit and delete", check_unused_asset, None),
     ]

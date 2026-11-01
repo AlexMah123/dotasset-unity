@@ -21,6 +21,7 @@ import time
 import unittest
 from contextlib import redirect_stdout
 from io import StringIO
+from unittest import mock
 
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PACKAGE = os.path.join(ROOT, "Package")
@@ -551,6 +552,52 @@ class QueueRoute(Base):
         self.assertEqual(code, 4)
         self.assertIn("the editor that took it is gone", out)
         self.assertNotIn("still running", out)
+
+    def test_task_expires_after_its_timeout_and_its_id_prints_for_agents(self):
+        editor = FakeEditor(self.project, lambda t: result(t["RunName"]))
+        editor.start()
+        try:
+            start = time.time()
+            code, out = self.call("PrefabExport", "Assets/A.prefab", "--timeout", "30", "--agent")
+            end = time.time()
+        finally:
+            editor.stop.set()
+        self.assertEqual(code, 0)
+        task = editor.tasks[0]
+        self.assertGreaterEqual(task["ExpiresUnix"], start + 30 + ops.TASK_EXPIRY_MARGIN_SEC)
+        self.assertLessEqual(task["ExpiresUnix"], end + 30 + ops.TASK_EXPIRY_MARGIN_SEC)
+        self.assertIn("task: " + task["Id"], out, "kept under --agent, a killed caller needs it for --result")
+
+    def test_paused_editor_that_took_the_task_is_waited_for(self):
+        editor = FakeEditor(self.project, lambda t: result(t["RunName"]), claim=False)
+        editor.start()
+        orig = ops.withdraw
+        # The editor pauses after the task was queued, and takes it just before the wrapper withdraws it.
+        ops.withdraw = lambda queue_root, task_id: False
+
+        def pause_then_run():
+            time.sleep(0.3)
+            editor.state = "paused"
+            time.sleep(1.5)
+            editor.claim = True
+            editor.state = "ready"
+        threading.Thread(target=pause_then_run, daemon=True).start()
+        try:
+            code, out = self.call("PrefabExport", "Assets/A.prefab", "--timeout", "20")
+        finally:
+            ops.withdraw = orig
+            editor.stop.set()
+        self.assertEqual(code, 0)
+        self.assertNotIn("withdrawn", out)
+
+    def test_withdraw_retries_a_held_file(self):
+        queue = os.path.join(self.project, ops.QUEUE_RELATIVE)
+        with mock.patch.object(ops.os, "remove", side_effect=[PermissionError("held"), None]):
+            self.assertTrue(ops.withdraw(queue, "d" * 32))
+        out = StringIO()
+        with mock.patch.object(ops.os, "remove", side_effect=PermissionError("held")), redirect_stdout(out):
+            self.assertFalse(ops.withdraw(queue, "d" * 32), "still held, the task counts as taken")
+        self.assertIn("could not withdraw", out.getvalue())
 
     def test_result_refuses_a_bad_task_id(self):
         code, out = self.call("--result", "../x")

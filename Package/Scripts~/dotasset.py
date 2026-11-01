@@ -61,6 +61,9 @@ HEARTBEAT_FRESHNESS_SEC = 15.0
 # Beyond this an idle heartbeat counts as dead for routing. Generous, an unfocused editor can tick slowly.
 STALE_HEARTBEAT_SEC = 120.0
 
+# Added to --timeout for a queued task's ExpiresUnix.
+TASK_EXPIRY_MARGIN_SEC = 120
+
 EXIT_SUCCESS = 0
 EXIT_FAILED = 1
 EXIT_REFUSED = 2
@@ -71,7 +74,7 @@ BUSY_STATES = {"busy", "compiling", "importing", "playmode", "reloading", "start
 
 # --agent: compact output for AI agents. Wrapper progress is muted, only its errors, warnings and hints print.
 AGENT = False
-AGENT_KEEP = ("error:", "warning:", "hint:", "interrupted", "outcome:")
+AGENT_KEEP = ("error:", "warning:", "hint:", "interrupted", "outcome:", "task:")
 AGENT_MAX_LINES = 10
 
 
@@ -489,10 +492,13 @@ def exit_code_of(result):
 
 # ---------------------------------------------------------------- queue route
 
-def write_task(queue_root, task_id, run, assets, extra):
+def write_task(queue_root, task_id, run, assets, extra, timeout):
     pending = os.path.join(queue_root, PENDING)
     os.makedirs(pending, exist_ok=True)
-    task = {"Id": task_id, "RunName": run, "Assets": assets, "ExtraArgs": extra}
+    # A wrapper killed from outside cannot withdraw its task. Past this the editor refuses it instead of running it
+    # with nobody watching. The margin covers a claim right at the timeout.
+    task = {"Id": task_id, "RunName": run, "Assets": assets, "ExtraArgs": extra,
+            "ExpiresUnix": time.time() + timeout + TASK_EXPIRY_MARGIN_SEC}
     tmp = os.path.join(pending, task_id + ".json.tmp")
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(task, f)
@@ -501,11 +507,20 @@ def write_task(queue_root, task_id, run, assets, extra):
 
 def withdraw(queue_root, task_id):
     """Removes a task the editor has not claimed yet. True when it was still pending."""
-    try:
-        os.remove(os.path.join(queue_root, PENDING, task_id + ".json"))
-        return True
-    except FileNotFoundError:
-        return False
+    path = os.path.join(queue_root, PENDING, task_id + ".json")
+    for attempt in range(5):
+        try:
+            os.remove(path)
+            return True
+        except FileNotFoundError:
+            return False
+        except OSError as e:
+            # Briefly held by the editor's claim or a virus scanner. Still held, the task counts as taken.
+            if attempt == 4:
+                log("warning: could not withdraw task %s: %s" % (task_id, e))
+                return False
+            time.sleep(0.1)
+    return False
 
 
 def print_done(args, done_path):
@@ -567,7 +582,9 @@ def run_queue(args, queue_root, run, assets, extra, alive):
 
 def wait_queue(args, queue_root, task_id, run, assets, extra, alive):
     log("route: editor (pid %s, %s)" % (alive.get("Pid"), alive.get("State")))
-    write_task(queue_root, task_id, run, assets, extra)
+    write_task(queue_root, task_id, run, assets, extra, args.timeout)
+    # Printed before any wait, so a caller killed while waiting can still look the task up.
+    log("task: %s (python dotasset.py --result %s)" % (task_id, task_id))
     done_path = os.path.join(queue_root, DONE, task_id + ".json")
     processing_path = os.path.join(queue_root, PROCESSING, task_id + ".json")
     deadline = time.time() + args.timeout
@@ -599,8 +616,8 @@ def wait_queue(args, queue_root, task_id, run, assets, extra, alive):
             if age > HEARTBEAT_FRESHNESS_SEC and state != "busy" and not warned_stale:
                 warned_stale = True
                 log("the editor's heartbeat is %.0fs old: a modal dialog, a long import, or Unity throttled in the background" % age)
-            if state == "paused" and os.path.exists(os.path.join(queue_root, PENDING, task_id + ".json")):
-                withdraw(queue_root, task_id)
+            # Withdrawn only when still pending: a task the editor took just before pausing runs, keep waiting for it.
+            if state == "paused" and withdraw(queue_root, task_id):
                 log("error: the editor's queue is paused (Window > DotAsset > Accept tasks). Task withdrawn")
                 return EXIT_REFUSED
             if not is_unity_process(pid):

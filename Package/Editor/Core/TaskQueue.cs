@@ -12,7 +12,7 @@ namespace DotAsset
 {
     // File contract between the wrapper and the open editor, all under <Project>/Library/DotAsset/Queue:
     //   .alive                 heartbeat JSON (Pid, State, versions), rewritten every HeartbeatSeconds
-    //   pending/<id>.json      the wrapper writes a task {Id, RunName, Assets[], ExtraArgs}
+    //   pending/<id>.json      the wrapper writes a task {Id, RunName, Assets[], ExtraArgs, ExpiresUnix}
     //   processing/<id>.json   the editor claims a task by moving it here
     //   done/<id>.json         the editor writes the RunResult here, the wrapper reads and deletes it
     //   quit.<id>.json              the wrapper asks the editor to close {Id, Force}, taken once no task is pending
@@ -400,6 +400,18 @@ namespace DotAsset
             return "unsaved changes in " + string.Join(", ", dirty) + ". Save them first, or " + action + " with --force to discard them";
         }
 
+        // True once the task's ExpiresUnix (seconds since 1970, UTC) has passed. The wrapper sets it to its own timeout
+        // plus a margin. A task without it, from an older wrapper, never expires.
+        public static bool IsExpired(JObject task, double nowUnix)
+        {
+            JToken expires = Json.Get(task, "ExpiresUnix");
+            if (expires == null || (expires.Type != JTokenType.Integer && expires.Type != JTokenType.Float))
+            {
+                return false;
+            }
+            return nowUnix > (double)expires;
+        }
+
         static string NextPending()
         {
             try
@@ -444,6 +456,14 @@ namespace DotAsset
             }
 
             string runName = Json.Str(task, "RunName");
+            if (IsExpired(task, DateTimeOffset.UtcNow.ToUnixTimeMilliseconds() / 1000.0))
+            {
+                // The wrapper stopped waiting long ago, a run now would write with nobody watching.
+                UnityEngine.Debug.LogWarning("[DotAsset] " + (runName ?? "a task") + " expired before the editor took it, not run (task " + id + ")");
+                WriteDone(donePath, Refusal(runName, "expired before the editor took it, the wrapper had stopped waiting. Nothing was written, rerun it if still wanted"));
+                TryDelete(processingPath);
+                return;
+            }
             var assets = new List<string>();
             var assetsToken = Json.Get(task, "Assets") as JArray;
             if (assetsToken != null)

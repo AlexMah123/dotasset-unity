@@ -211,6 +211,10 @@ namespace DotAsset
             return path.StartsWith(BuildScenePrefix, StringComparison.Ordinal) ? path.Substring(BuildScenePrefix.Length) : null;
         }
 
+        // Set around a write that changes only the .meta of the paths kept with KeepMeta. ForceReserializeAssets hands
+        // the save hook the asset path, not the .meta, and that full Keep must not copy the file after all.
+        public static bool MetaOnlySaves;
+
         // Keep for a write that changes only the .meta (import settings): the asset file itself is not copied.
         public static void KeepMeta(string path)
         {
@@ -250,7 +254,7 @@ namespace DotAsset
             if (!kept.Add(path))
             {
                 // A full Keep after a .meta-only one adds the file, still as it was: only the .meta was written since.
-                Entry earlier = metaOnly ? null : entries.Find(e => e.Path == path && e.MetaOnly);
+                Entry earlier = metaOnly || MetaOnlySaves ? null : entries.Find(e => e.Path == path && e.MetaOnly);
                 if (earlier != null)
                 {
                     Copy(DotAssetPaths.Absolute(path), earlier.Backup);

@@ -119,15 +119,39 @@ namespace DotAsset
                 ctx.Log.Info(list.Count + " asset(s) would be resaved");
                 return ctx.FailedTargets.Count > 0 ? ExitCode.Failed : ExitCode.Success;
             }
-            var options = ctx.Args.Has("metaonly") ? ForceReserializeAssetsOptions.ReserializeMetadata : ForceReserializeAssetsOptions.ReserializeAssetsAndMetadata;
-            // Reserializing bypasses the AssetDatabase save hooks.
+            bool metaOnly = ctx.Args.Has("metaonly");
+            var options = metaOnly ? ForceReserializeAssetsOptions.ReserializeMetadata : ForceReserializeAssetsOptions.ReserializeAssetsAndMetadata;
+            // Kept before the reserialize, not left to the save hook. An imported file (texture, model, audio) is only
+            // read, its resave writes the .meta alone, so the journal copies just that.
             foreach (string path in list)
             {
-                RunJournal.Keep(path);
+                if (metaOnly || IsForeign(path))
+                {
+                    RunJournal.KeepMeta(path);
+                }
+                else
+                {
+                    RunJournal.Keep(path);
+                }
             }
-            AssetDatabase.ForceReserializeAssets(list, options);
+            RunJournal.MetaOnlySaves = true;
+            try
+            {
+                AssetDatabase.ForceReserializeAssets(list, options);
+            }
+            finally
+            {
+                RunJournal.MetaOnlySaves = false;
+            }
             ctx.Log.Info("resaved " + list.Count + " asset(s)");
             return ctx.FailedTargets.Count > 0 ? ExitCode.Failed : ExitCode.Success;
+        }
+
+        // Unsure counts as native, which journals the whole file.
+        static bool IsForeign(string path)
+        {
+            Object main = AssetDatabase.LoadMainAssetAtPath(path);
+            return main != null && AssetDatabase.IsForeignAsset(main);
         }
     }
 }

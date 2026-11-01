@@ -1836,6 +1836,54 @@ def check_importer(base, tmp):
     kind = texture_type(base, texture)
     if kind != "Default":
         return "after undoing EditImporter the texture is %s, expected Default" % kind
+    return resave_journals_meta(base, texture)
+
+
+def resave_journals_meta(base, texture):
+    # A resave writes only the .meta of an imported texture and with -metaonly, so its journal copies only the .meta.
+    # A native material resaved in full still gets its whole file copied.
+    mat = ROOT + "/Materials/Blue.mat"
+
+    def disk(asset):
+        with open(os.path.join(project_of(base), *asset.split("/")), "rb") as f:
+            return f.read()
+
+    def resave(assets, args):
+        r, res = call(base, ["ResaveAsset", ",".join(assets), "--args", args])
+        run_id = journal_of(res)
+        folder = os.path.join(project_of(base), "Library", "DotAsset", "Journal", run_id or "?")
+        try:
+            with open(os.path.join(folder, "journal.json"), encoding="utf-8") as f:
+                entries = {e["Path"]: e for e in json.load(f)["Entries"]}
+        except (OSError, ValueError) as e:
+            return "ResaveAsset %s exit %s, no journal %s: %s" % (args, r.returncode, run_id, e), None, None
+        if r.returncode != 0:
+            return run_failed("ResaveAsset " + args, r), None, None
+        return None, folder, entries
+
+    def kept(folder, entry, whole):
+        return entry is not None and bool(entry.get("MetaOnly")) != whole \
+            and os.path.exists(os.path.join(folder, entry["Backup"])) == whole \
+            and os.path.exists(os.path.join(folder, entry["Backup"] + ".meta"))
+
+    source = disk(texture)
+    problem, folder, entries = resave([texture, mat], "-apply")
+    if problem:
+        return problem
+    if not kept(folder, entries.get(texture), False):
+        return "the ResaveAsset journal copies more than the texture's .meta: %s" % entries.get(texture)
+    if not kept(folder, entries.get(mat), True):
+        return "the ResaveAsset journal does not copy the whole material: %s" % entries.get(mat)
+    if disk(texture) != source:
+        return "ResaveAsset changed the texture file itself"
+    source = disk(mat)
+    problem, folder, entries = resave([mat], "-metaonly -apply")
+    if problem:
+        return problem
+    if not kept(folder, entries.get(mat), False):
+        return "the ResaveAsset -metaonly journal copies more than the material's .meta: %s" % entries.get(mat)
+    if disk(mat) != source:
+        return "ResaveAsset -metaonly changed the material file itself"
     return None
 
 

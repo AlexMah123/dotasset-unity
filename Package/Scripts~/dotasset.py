@@ -366,9 +366,11 @@ def live_editor(queue_root):
     if alive.get("ProjectPath") and not same_path(alive["ProjectPath"], project):
         return None
     # A heartbeat that stopped long ago with a state that should be ticking belongs to a dead or hung editor whose
-    # pid got reused. busy, reloading, compiling and importing legitimately block the editor's update loop.
-    if alive.get("_age", 0) > STALE_HEARTBEAT_SEC and alive.get("State") not in ("busy", "reloading", "compiling", "importing"):
-        return None
+    # pid got reused. busy, reloading, compiling and importing legitimately block the editor's update loop, but only
+    # an editor that still holds the project lock can be in one, a pid reused by another Unity does not hold it.
+    if alive.get("_age", 0) > STALE_HEARTBEAT_SEC:
+        if alive.get("State") not in ("busy", "reloading", "compiling", "importing") or not project_locked(project):
+            return None
     try:
         pid = int(alive.get("Pid", 0))
     except (TypeError, ValueError):

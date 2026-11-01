@@ -657,7 +657,10 @@ class QueueRoute(Base):
         with open(alive, "w") as f:
             json.dump({"Pid": os.getpid(), "State": "busy"}, f)
         os.utime(alive, (old, old))
-        self.assertIsNotNone(ops.live_editor(queue), "a long run keeps the heartbeat old and busy")
+        with mock.patch.object(ops, "project_locked", return_value=True):
+            self.assertIsNotNone(ops.live_editor(queue), "a long run keeps the heartbeat old and busy")
+        with mock.patch.object(ops, "project_locked", return_value=False):
+            self.assertIsNone(ops.live_editor(queue), "a dead editor's pid reused by another Unity holds no lock")
 
     def test_process_names(self):
         self.assertIn("unity.exe", ops.UNITY_NAMES)

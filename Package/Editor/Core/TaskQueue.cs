@@ -164,7 +164,7 @@ namespace DotAsset
             {
                 return "playmode";
             }
-            if (processing || settling != null || RunDispatcher.IsRunning)
+            if (processing || SceneSettle.Busy || RunDispatcher.IsRunning)
             {
                 return "busy";
             }
@@ -181,10 +181,6 @@ namespace DotAsset
                 Start();
             }
             double now = EditorApplication.timeSinceStartup;
-            if (settling != null)
-            {
-                Settle(now);
-            }
             string state = CurrentState();
             if (now >= nextHeartbeat || state != lastState)
             {
@@ -494,89 +490,21 @@ namespace DotAsset
             {
                 RunJournal.TaskId = null;
             }
-            if (SceneSession.SavedOpenScenes.Count > 0)
+            // Report the run only after Unity's own follow-up on the open scenes it saved, see SceneSettle. The result
+            // waits on disk, so a domain reload in the meantime still reports it (SweepStaleProcessing). The settle
+            // ends on a later update at the earliest, after this file is written.
+            if (SceneSettle.Begin(result, settled =>
             {
-                // Report the run only after Unity's own follow-up on those scenes, see Settle. The result waits on
-                // disk, so a domain reload in the meantime still reports it (SweepStaleProcessing).
-                settling = new Settling
-                {
-                    Result = result,
-                    DonePath = donePath,
-                    ProcessingPath = processingPath,
-                    Scenes = new List<string>(SceneSession.SavedOpenScenes),
-                    Started = EditorApplication.timeSinceStartup,
-                    LastDirty = EditorApplication.timeSinceStartup,
-                    UndoGroup = Undo.GetCurrentGroup(),
-                };
-                SceneSession.SavedOpenScenes.Clear();
+                WriteDone(donePath, settled);
+                TryDelete(SettlingPath(processingPath));
+                TryDelete(processingPath);
+            }))
+            {
                 WriteDone(SettlingPath(processingPath), result);
                 return;
             }
             WriteDone(donePath, result);
             TryDelete(processingPath);
-        }
-
-        sealed class Settling
-        {
-            public RunResult Result;
-            public string DonePath;
-            public string ProcessingPath;
-            public List<string> Scenes;
-            public double Started;
-            public double LastDirty;
-            public int UndoGroup;
-            public readonly List<string> SavedAgain = new List<string>();
-        }
-
-        // A run that saved a scene open in the editor is reported once Unity has settled: some of what was just added
-        // is completed by Unity on a later frame (a new Light gets its baking state) and that marks the scene dirty
-        // again. Each update saves such a scene again. The run is done after SettleQuietSeconds without a change,
-        // at most SettleMaxSeconds after it ended. The next task waits, so it never finds the scene dirty.
-        // Unity's follow-up records no undo, a person's edit starts a new undo group. Once the group moves, nothing
-        // is saved again and the run ends at once: the scene now holds their unsaved work, not the run's.
-        const double SettleQuietSeconds = 0.4;
-        const double SettleMaxSeconds = 3.0;
-        static Settling settling;
-
-        static void Settle(double now)
-        {
-            bool edited = Undo.GetCurrentGroup() != settling.UndoGroup;
-            var leftDirty = new List<string>();
-            foreach (string path in settling.Scenes)
-            {
-                UnityEngine.SceneManagement.Scene scene = UnityEngine.SceneManagement.SceneManager.GetSceneByPath(path);
-                if (scene.IsValid() && scene.isLoaded && scene.isDirty)
-                {
-                    if (edited)
-                    {
-                        leftDirty.Add(path);
-                        continue;
-                    }
-                    settling.LastDirty = now;
-                    if (UnityEditor.SceneManagement.EditorSceneManager.SaveScene(scene) && !settling.SavedAgain.Contains(path))
-                    {
-                        settling.SavedAgain.Add(path);
-                    }
-                    RunJournal.Rehash(path);
-                }
-            }
-            if (!edited && now - settling.LastDirty < SettleQuietSeconds && now - settling.Started < SettleMaxSeconds)
-            {
-                return;
-            }
-            foreach (string path in settling.SavedAgain)
-            {
-                settling.Result.Lines.Add("I saved " + path + " again after Unity updated it");
-            }
-            foreach (string path in leftDirty)
-            {
-                settling.Result.Lines.Add("W " + path + " was edited in the editor right after the run saved it. Those changes are left unsaved");
-                settling.Result.Warnings++;
-            }
-            WriteDone(settling.DonePath, settling.Result);
-            TryDelete(SettlingPath(settling.ProcessingPath));
-            TryDelete(settling.ProcessingPath);
-            settling = null;
         }
 
         // The result of a run still settling, next to its task in processing/. Not *.json, so it is never taken for a task.

@@ -25,7 +25,7 @@ namespace DotAsset
         // The journal of the run executing now. Null outside a writing run and while a rollback restores files.
         public static RunJournal Current { get; internal set; }
 
-        // The folder of the journal closed last, so a save Unity makes after the run (TaskQueue.Settle) updates it.
+        // The folder of the journal closed last, so a save Unity makes after the run (SceneSettle) updates it.
         // Reset at each run start, a run that closes no journal must not update an earlier run's.
         static string lastClosed;
 
@@ -763,7 +763,7 @@ namespace DotAsset
             return BitConverter.ToString(bytes).Replace("-", string.Empty);
         }
 
-        // A save after the run (TaskQueue.Settle) changed path again. Its new state is what an undo must find, for the
+        // A save after the run (SceneSettle) changed path again. Its new state is what an undo must find, for the
         // path and for every journaled folder it lies in.
         public static void Rehash(string path)
         {

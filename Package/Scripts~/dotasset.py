@@ -494,13 +494,15 @@ def exit_code_of(result):
 
 # ---------------------------------------------------------------- queue route
 
-def write_task(queue_root, task_id, run, assets, extra, timeout):
+def write_task(queue_root, task_id, run, assets, extra, timeout, caller=None):
     pending = os.path.join(queue_root, PENDING)
     os.makedirs(pending, exist_ok=True)
     # A wrapper killed from outside cannot withdraw its task. Past this the editor refuses it instead of running it
     # with nobody watching. The margin covers a claim right at the timeout.
     task = {"Id": task_id, "RunName": run, "Assets": assets, "ExtraArgs": extra,
             "ExpiresUnix": time.time() + timeout + TASK_EXPIRY_MARGIN_SEC}
+    if caller:
+        task["Caller"] = caller
     tmp = os.path.join(pending, task_id + ".json.tmp")
     with open(tmp, "w", encoding="utf-8") as f:
         json.dump(task, f)
@@ -584,7 +586,7 @@ def run_queue(args, queue_root, run, assets, extra, alive):
 
 def wait_queue(args, queue_root, task_id, run, assets, extra, alive):
     log("route: editor (pid %s, %s)" % (alive.get("Pid"), alive.get("State")))
-    write_task(queue_root, task_id, run, assets, extra, args.timeout)
+    write_task(queue_root, task_id, run, assets, extra, args.timeout, args.caller)
     # Printed before any wait, so a caller killed while waiting can still look the task up.
     log("task: %s (python dotasset.py --result %s)" % (task_id, task_id))
     done_path = os.path.join(queue_root, DONE, task_id + ".json")
@@ -765,6 +767,8 @@ def run_batch_unity(args, project, queue_root, run, assets, extra):
         cmd += ["-dotassetAssetsB64", b64(",".join(assets))]
     if extra:
         cmd += ["-dotassetArgsB64", b64(extra)]
+    if args.caller:
+        cmd += ["-dotassetCaller", args.caller]
     log("route: batchmode (%s)" % unity)
     started = time.time()
     try:
@@ -1280,6 +1284,8 @@ def main(argv=None):
     p.add_argument("--args", dest="extra", default="", help="extra arguments for the run, e.g. '-spec=\"C:/t/x.json\" -apply'")
     p.add_argument("--project", default=os.environ.get("DOTASSET_PROJECT"), help="Unity project folder (default: the one containing the current directory)")
     p.add_argument("--unity", default=None, help="Unity editor executable for the headless route")
+    p.add_argument("--caller", default=os.environ.get("DOTASSET_CALLER"),
+                   help="who is calling, kept in the run's journal: UndoRun -run=last refuses another caller's run (default: DOTASSET_CALLER)")
     p.add_argument("--timeout", type=int, default=600, help="seconds before giving up (default 600)")
     p.add_argument("--startup-wait", type=int, default=300, help="seconds to wait for a starting editor's queue (default 300)")
     p.add_argument("--route", choices=["auto", "editor", "batch"], default="auto")

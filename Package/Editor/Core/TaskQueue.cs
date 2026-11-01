@@ -472,6 +472,7 @@ namespace DotAsset
             RunResult result;
             SceneSession.SavedOpenScenes.Clear();
             RunJournal.TaskId = id;
+            RunJournal.Caller = Json.Str(task, "Caller");
             try
             {
                 result = RunDispatcher.Run(runName, assets, extra, !Application.isBatchMode);
@@ -489,6 +490,7 @@ namespace DotAsset
             finally
             {
                 RunJournal.TaskId = null;
+                RunJournal.Caller = null;
             }
             // Report the run only after Unity's own follow-up on the open scenes it saved, see SceneSettle. The result
             // waits on disk, so a domain reload in the meantime still reports it (SweepStaleProcessing). The settle

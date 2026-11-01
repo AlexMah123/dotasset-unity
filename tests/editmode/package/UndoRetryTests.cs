@@ -80,5 +80,42 @@ namespace DotAsset.Tests
             Assert.AreEqual(2480, Queue(), "the refused undo changed the material");
             Assert.AreEqual(0, RunDispatcher.Run("UndoRun", new string[0], run, false).ExitCode, "readable again, the undo goes through");
         }
+
+        [Test]
+        public void LastTakesOnlyThisCallersRunAndNeverAnUndo()
+        {
+            // B5: -run=last refuses another caller's run, and after an undo it refuses to redo.
+            int before = Queue();
+            UnityEngine.TestTools.LogAssert.ignoreFailingMessages = true;
+            try
+            {
+                RunJournal.Caller = "agent-a";
+                RunResult edit = RunDispatcher.Run("EditMaterial", new string[0], "-spec=\"" + spec + "\" -apply", false);
+                Assert.AreEqual(0, edit.ExitCode, string.Join("\n", edit.Lines.ToArray()));
+                string journal = edit.Outputs.Select(o => o.Replace('\\', '/')).First(o => o.EndsWith("/journal.json"));
+                Assert.AreEqual("agent-a", (string)RunJournal.Load(journal)["Caller"]);
+
+                RunJournal.Caller = "agent-b";
+                RunResult other = RunDispatcher.Run("UndoRun", new string[0], "-run=last -apply", false);
+                Assert.AreEqual(2, other.ExitCode, string.Join("\n", other.Lines.ToArray()));
+                Assert.IsTrue(other.Lines.Any(l => l.Contains("caller agent-a")), string.Join("\n", other.Lines.ToArray()));
+                RunJournal.Caller = null;
+                Assert.AreEqual(2, RunDispatcher.Run("UndoRun", new string[0], "-run=last -apply", false).ExitCode, "no caller is not agent-a");
+                Assert.AreEqual(2480, Queue(), "a refused undo changed the material");
+
+                RunJournal.Caller = "agent-a";
+                RunResult undo = RunDispatcher.Run("UndoRun", new string[0], "-run=last -apply", false);
+                Assert.AreEqual(0, undo.ExitCode, string.Join("\n", undo.Lines.ToArray()));
+                Assert.AreEqual(before, Queue());
+                RunResult redo = RunDispatcher.Run("UndoRun", new string[0], "-run=last -apply", false);
+                Assert.AreEqual(2, redo.ExitCode, string.Join("\n", redo.Lines.ToArray()));
+                Assert.IsTrue(redo.Lines.Any(l => l.Contains("is an undo")), string.Join("\n", redo.Lines.ToArray()));
+                Assert.AreEqual(before, Queue(), "-run=last redid the run");
+            }
+            finally
+            {
+                RunJournal.Caller = null;
+            }
+        }
     }
 }

@@ -229,7 +229,7 @@ class Base(unittest.TestCase):
             with open(self.fake_unity, "w") as f:
                 f.write(FAKE_UNITY)
             os.chmod(self.fake_unity, os.stat(self.fake_unity).st_mode | stat.S_IEXEC)
-        for k in ("FAKE_UNITY_MODE", "FAKE_UNITY_EXIT", "FAKE_UNITY_RECORD", "FAKE_EDITOR_PID", "FAKE_UNITY_LINGER", "DOTASSET_UNITY", "DOTASSET_PROJECT"):
+        for k in ("FAKE_UNITY_MODE", "FAKE_UNITY_EXIT", "FAKE_UNITY_RECORD", "FAKE_EDITOR_PID", "FAKE_UNITY_LINGER", "DOTASSET_UNITY", "DOTASSET_PROJECT", "DOTASSET_CALLER"):
             os.environ.pop(k, None)
 
     def tearDown(self):
@@ -463,6 +463,20 @@ class EditorControl(Base):
 
 
 class QueueRoute(Base):
+    def test_caller_reaches_the_task(self):
+        # --caller, or DOTASSET_CALLER when it is not given, goes into the task for the run's journal (B5).
+        editor = FakeEditor(self.project, lambda t: result(t["RunName"]))
+        editor.start()
+        os.environ["DOTASSET_CALLER"] = "agent-a"
+        try:
+            self.assertEqual(self.call("MaterialExport", "Assets/A.mat")[0], 0)
+            self.assertEqual(self.call("MaterialExport", "Assets/A.mat", "--caller", "agent-b")[0], 0)
+            del os.environ["DOTASSET_CALLER"]
+            self.assertEqual(self.call("MaterialExport", "Assets/A.mat")[0], 0)
+        finally:
+            editor.stop.set()
+        self.assertEqual([t.get("Caller") for t in editor.tasks], ["agent-a", "agent-b", None])
+
     def test_round_trip(self):
         editor = FakeEditor(self.project, lambda t: result(t["RunName"], lines=["I got " + ",".join(t["Assets"]) + " | " + t["ExtraArgs"], "W heads up", "E broken"]))
         editor.start()
@@ -707,6 +721,16 @@ class QueueRoute(Base):
 
 
 class BatchRoute(Base):
+    def test_caller_reaches_unity(self):
+        # The journal keeps who started a run, so UndoRun -run=last never takes another caller's run (B5).
+        record = os.path.join(self.tmp, "argv.json")
+        os.environ["FAKE_UNITY_RECORD"] = record
+        self.assertEqual(self.call("MaterialExport", "Assets/A.mat", "--unity", self.fake_unity, "--caller", "agent-a")[0], 0)
+        argv = json.loads(read(record))
+        self.assertEqual(argv[argv.index("-dotassetCaller") + 1], "agent-a")
+        self.assertEqual(self.call("MaterialExport", "Assets/A.mat", "--unity", self.fake_unity)[0], 0)
+        self.assertNotIn("-dotassetCaller", json.loads(read(record)), "no caller, no flag")
+
     def test_arguments_survive_quoting(self):
         record = os.path.join(self.tmp, "argv.json")
         os.environ["FAKE_UNITY_RECORD"] = record

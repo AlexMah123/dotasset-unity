@@ -149,12 +149,14 @@ namespace DotAsset
 
         public string Id { get; private set; }
         readonly string runName;
+        readonly string caller;
         readonly List<Entry> entries = new List<Entry>();
         readonly HashSet<string> kept = new HashSet<string>(StringComparer.Ordinal);
 
         public RunJournal(string runName)
         {
             this.runName = runName;
+            caller = Caller;
             // UTC to the millisecond for a readable id. The order comes from Seq, a clock set back or a DST change
             // would turn a name order around.
             Id = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fff", System.Globalization.CultureInfo.InvariantCulture);
@@ -310,6 +312,10 @@ namespace DotAsset
                 {
                     header["Task"] = TaskId;
                 }
+                if (caller != null)
+                {
+                    header["Caller"] = caller;
+                }
                 File.WriteAllText(file, header.ToString(Newtonsoft.Json.Formatting.None) + "\n");
             }
             File.AppendAllText(file, JObject.FromObject(entry).ToString(Newtonsoft.Json.Formatting.None) + "\n");
@@ -318,6 +324,10 @@ namespace DotAsset
         // The queue task the run executing now serves, "headless" for a run Cli.Run started, null for a run from the
         // window. journal.log's header keeps it, so a recovered journal names the task that died.
         public static string TaskId;
+
+        // Who started the run executing now, the wrapper's --caller (DOTASSET_CALLER), or null. The journal keeps it,
+        // so UndoRun -run=last never takes another caller's run.
+        public static string Caller;
 
         // Finalizes the journals of runs that died before Close: journal.json from the log, each path's state now as
         // After, marked Interrupted. The journal of the run executing now is left alone. Called when the queue starts
@@ -380,6 +390,10 @@ namespace DotAsset
                     {
                         json["Task"] = header["Task"];
                     }
+                    if (header["Caller"] != null)
+                    {
+                        json["Caller"] = header["Caller"];
+                    }
                     Json.WriteFile(DotAssetPaths.Combine(dir, FileName), json);
                     File.Delete(log);
                     finalized.Add((string)header["Id"]);
@@ -412,13 +426,18 @@ namespace DotAsset
                 e.After = Hash(e.Path);
             }
             string file = DotAssetPaths.Combine(Dir, FileName);
-            Json.WriteFile(file, new JObject
+            var json = new JObject
             {
                 ["Id"] = Id,
                 ["Seq"] = Seq,
                 ["RunName"] = runName,
                 ["Entries"] = new JArray(entries.Select(e => (object)JObject.FromObject(e)).ToArray()),
-            });
+            };
+            if (caller != null)
+            {
+                json["Caller"] = caller;
+            }
+            Json.WriteFile(file, json);
             File.Delete(DotAssetPaths.Combine(Dir, LogName));
             lastClosed = Dir;
             Prune();

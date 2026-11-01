@@ -40,6 +40,12 @@ namespace DotAsset
                 ctx.Log.Error("no journal " + id + " in Library/DotAsset/Journal. Only the newest 30 writing runs are kept, rolled back -atomic runs keep none");
                 return ExitCode.Refused;
             }
+            string notLast = id == "last" ? RefusesLast(json, RunJournal.Caller) : null;
+            if (notLast != null)
+            {
+                ctx.Log.Error(notLast);
+                return ExitCode.Refused;
+            }
             string undoneBy = (string)json["UndoneBy"];
             if (undoneBy != null)
             {
@@ -100,6 +106,26 @@ namespace DotAsset
                 Json.WriteFile(DotAssetPaths.Combine(dir, RunJournal.FileName), json);
             }
             return problems.Count > 0 ? ExitCode.Failed : ExitCode.Success;
+        }
+
+        // Why -run=last must not take the newest journal, or null. After an undo the newest run is that undo, so a
+        // retry would redo the run. A run another caller started is theirs to undo. With no --caller on either side,
+        // one caller working alone, it passes.
+        internal static string RefusesLast(JObject newest, string caller)
+        {
+            string id = (string)newest["Id"];
+            if ((string)newest["RunName"] == "UndoRun")
+            {
+                return "the newest run, " + id + ", is an undo, -run=last would redo what it undid. Pass -run=" + id
+                    + " to redo on purpose, or the id of the run to undo";
+            }
+            string by = (string)newest["Caller"];
+            if (by != caller)
+            {
+                return "the newest run, " + newest["RunName"] + " " + id + ", was started by " + (by == null ? "a caller without --caller" : "caller " + by)
+                    + ", not by " + (caller == null ? "this caller (no --caller)" : "caller " + caller) + ". Pass -run=" + id + " to undo it anyway";
+            }
+            return null;
         }
 
         // Why the path is no longer as the run left it, or null. A path unreadable at either end never passes. A folder

@@ -68,7 +68,7 @@ namespace DotAsset
                 string reason = Changed(e, journaled, runName) ?? RunJournal.Blocked(e.Path, true, e.MetaOnly) ??OpenWork.UnsavedIn(e.Path);
                 if (reason != null)
                 {
-                    ctx.FailTarget(e.Path, reason);
+                    ctx.FailTarget(e.Path == RunJournal.BuildSceneList ? "Build Settings scene list" : e.Path, reason);
                 }
             }
             if (ctx.FailedTargets.Count > 0)
@@ -81,6 +81,11 @@ namespace DotAsset
             {
                 foreach (RunJournal.Entry e in entries.Where(e => !e.Folder || !e.Existed))
                 {
+                    if (e.Path == RunJournal.BuildSceneList)
+                    {
+                        ctx.PlanFile("restore", "Build Settings scene list", "as before " + runName);
+                        continue;
+                    }
                     if (e.Path.StartsWith(RunJournal.BuildScenePrefix, System.StringComparison.Ordinal))
                     {
                         ctx.PlanFile(e.Existed ? "add to build" : "remove from build", e.Path.Substring(RunJournal.BuildScenePrefix.Length),

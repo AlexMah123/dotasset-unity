@@ -37,10 +37,8 @@ namespace DotAsset.Tests
             return string.Join(", ", EditorBuildSettings.scenes.Select(s => s.path).ToArray());
         }
 
-        // Fails on 6000.0.85f1: the list keeps the moved path. MoveAsset journals no scene list, whole-list
-        // journaling is planned for 0.11.0, which turns this test on.
+        // Dec 5: before 0.11.0 the list kept the moved path, nothing journaled the list.
         [Test]
-        [Ignore("Dec 5: the scene list keeps the moved path after the undo, fixed in 0.11.0")]
         public void UndoingAMoveListsTheSceneAtItsPathAgain()
         {
             string guid = AssetDatabase.AssetPathToGUID(From);
@@ -55,6 +53,22 @@ namespace DotAsset.Tests
             Assert.AreEqual(guid, AssetDatabase.AssetPathToGUID(From), "the undo gave the scene a new GUID");
             Assert.IsTrue(EditorBuildSettings.scenes.Any(s => s.path == From), message);
             Assert.IsFalse(EditorBuildSettings.scenes.Any(s => s.path == To), message);
+        }
+
+        [Test]
+        public void ARunThatLeavesTheListAloneKeepsNoListAndIsUndoneAfterTheListChanged()
+        {
+            string text = Folder + "/Note.txt";
+            File.WriteAllText(DotAssetPaths.Absolute(text), "note");
+            AssetDatabase.ImportAsset(text);
+            RunResult move = RunDispatcher.Run("MoveAsset", new string[0], "-from=" + text + " -to=" + Folder + "/Moved.txt -apply", false);
+            Assert.AreEqual(0, move.ExitCode, string.Join("\n", move.Lines.ToArray()));
+            string journal = move.Outputs.Select(o => o.Replace('\\', '/')).First(o => o.EndsWith("/journal.json"));
+            Assert.IsFalse(RunJournal.EntriesOf(RunJournal.Load(journal)).Any(e => e.Path == RunJournal.BuildSceneList), "the list is journaled although the move left it alone");
+            EditorBuildSettings.scenes = before;
+            RunResult undo = RunDispatcher.Run("UndoRun", new string[0], "-run=" + Path.GetFileName(Path.GetDirectoryName(journal)) + " -apply", false);
+            Assert.AreEqual(0, undo.ExitCode, string.Join("\n", undo.Lines.ToArray()));
+            Assert.IsTrue(File.Exists(DotAssetPaths.Absolute(text)));
         }
     }
 }

@@ -231,9 +231,15 @@ namespace DotAsset.Tests
             RunJournal.Current = journal;
             RunJournal.Keep(path);
             RunJournal.Current = null;
-            using (new FileStream(DotAssetPaths.Combine(dir, "1"), FileMode.Open, FileAccess.Read, FileShare.Read))
+            List<FileStream> held = Directory.GetFiles(dir).Where(f => Path.GetFileName(f) != "journal.log")
+                .Select(f => new FileStream(f, FileMode.Open, FileAccess.Read, FileShare.Read)).ToList();
+            try
             {
                 journal.RollBack(new RunLog("JournalRestoreTests", false), out problems);
+            }
+            finally
+            {
+                held.ForEach(f => f.Dispose());
             }
             bool log = File.Exists(DotAssetPaths.Combine(dir, "journal.log"));
             bool recovered = RunJournal.RecoverInterrupted().Contains(journal.Id);

@@ -203,6 +203,12 @@ namespace DotAsset
         // changed (another edit, or on Unity 6 another active build profile).
         public const string BuildScenePrefix = "BuildSettings:";
 
+        // The entry for the whole scene list, kept before a run's first write: moving or deleting a scene changes the
+        // list as a side effect, and putting the file back does not put its place in the list back. Its backup is the
+        // list as JSON. Dropped at Close when the run left the list as it was, so a later list change never blocks an
+        // undo of a run that did not touch it.
+        public const string BuildSceneList = BuildScenePrefix;
+
         public static void KeepBuildScene(string scenePath)
         {
             Keep(BuildScenePrefix + DotAssetPaths.Normalize(scenePath));
@@ -233,11 +239,17 @@ namespace DotAsset
             {
                 return;
             }
+            if (path == BuildSceneList)
+            {
+                KeepSceneList();
+                return;
+            }
             string buildScene = BuildSceneOf(path);
             if (buildScene != null)
             {
                 if (kept.Add(path))
                 {
+                    KeepSceneList();
                     var scene = new Entry { Path = path, Existed = EditorBuildSettings.scenes.Any(s => s.path == buildScene) };
                     entries.Add(scene);
                     Append(scene);
@@ -265,6 +277,7 @@ namespace DotAsset
                 }
                 return;
             }
+            KeepSceneList();
             string abs = DotAssetPaths.Absolute(path);
             var entry = new Entry { Path = path };
             entries.Add(entry);
@@ -297,6 +310,52 @@ namespace DotAsset
                 entry.HadMeta = Copy(abs + ".meta", entry.Backup + ".meta");
             }
             Append(entry);
+        }
+
+        // First in the journal, so Restore, newest first, sets the list last, once the scene files are back.
+        void KeepSceneList()
+        {
+            if (!kept.Add(BuildSceneList))
+            {
+                return;
+            }
+            var entry = new Entry { Path = BuildSceneList, Existed = true };
+            entries.Add(entry);
+            entry.Backup = entries.Count.ToString();
+            Directory.CreateDirectory(Dir);
+            File.WriteAllText(DotAssetPaths.Combine(Dir, entry.Backup), SceneList().ToString(Newtonsoft.Json.Formatting.None));
+            Append(entry);
+        }
+
+        static JArray SceneList()
+        {
+            return new JArray(EditorBuildSettings.scenes.Select(s => (object)new JObject { ["Path"] = s.path, ["Enabled"] = s.enabled }).ToArray());
+        }
+
+        static string SceneListHash(JArray list)
+        {
+            string scenes = string.Join("\n", list.Select(s => (string)s["Path"] + ((bool)s["Enabled"] ? "" : " (disabled)")).ToArray());
+            using (var sha = SHA1.Create())
+            {
+                return "scenes " + Hex(sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(scenes)));
+            }
+        }
+
+        // The scene list entry of a run that left the list as it was, which needs no undo.
+        static bool SceneListUnchanged(string dir, string path, string backup, string now)
+        {
+            if (path != BuildSceneList)
+            {
+                return false;
+            }
+            try
+            {
+                return SceneListHash(JArray.Parse(File.ReadAllText(DotAssetPaths.Combine(dir, backup)))) == now;
+            }
+            catch (Exception)
+            {
+                return false;
+            }
         }
 
         // One line per entry, written after its copies, so a line always has its backup. A folder's line comes before
@@ -367,6 +426,10 @@ namespace DotAsset
                         }
                         string path = (string)e["Path"];
                         e["After"] = Hash(path);
+                        if (SceneListUnchanged(dir, path, (string)e["Backup"], (string)e["After"]))
+                        {
+                            continue;
+                        }
                         int index;
                         if (at.TryGetValue(path, out index))
                         {
@@ -425,6 +488,7 @@ namespace DotAsset
             {
                 e.After = Hash(e.Path);
             }
+            entries.RemoveAll(e => SceneListUnchanged(Dir, e.Path, e.Backup, e.After));
             string file = DotAssetPaths.Combine(Dir, FileName);
             var json = new JObject
             {
@@ -516,6 +580,17 @@ namespace DotAsset
             {
                 Entry e = list[i];
                 string buildScene = BuildSceneOf(e.Path);
+                if (e.Path == BuildSceneList)
+                {
+                    Keep(e.Path);
+                    JArray before = JArray.Parse(File.ReadAllText(DotAssetPaths.Combine(dir, e.Backup)));
+                    if (SceneListHash(before) != Hash(BuildSceneList))
+                    {
+                        EditorBuildSettings.scenes = before.Select(s => new EditorBuildSettingsScene((string)s["Path"], (bool)s["Enabled"])).ToArray();
+                    }
+                    restored++;
+                    continue;
+                }
                 if (buildScene != null)
                 {
                     Keep(e.Path);
@@ -704,11 +779,7 @@ namespace DotAsset
         {
             if (BuildSceneOf(path) != null)
             {
-                string scenes = string.Join("\n", EditorBuildSettings.scenes.Select(s => s.path + (s.enabled ? "" : " (disabled)")).ToArray());
-                using (var sha = SHA1.Create())
-                {
-                    return "scenes " + Hex(sha.ComputeHash(System.Text.Encoding.UTF8.GetBytes(scenes)));
-                }
+                return SceneListHash(SceneList());
             }
             string abs = DotAssetPaths.Absolute(path);
             try

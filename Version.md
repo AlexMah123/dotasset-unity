@@ -6,6 +6,14 @@ Defined in `Package/Editor/Core/DotAssetVersion.cs` and `Package/package.json`, 
 
 Versions follow one rule. A patch (0.1.x) holds fixes, test upgrades and docs. A minor version (0.x.0) adds something new to call: a run, an op, a spec key, an argument or a wrapper option. While on 0.x, a change that breaks existing calls is also a minor version, marked breaking here. 1.0.0 comes when runs, specs and export JSON are promised to stay stable.
 
+### 0.10.2
+
+- The `--serve` host no longer takes the keyboard focus on Unity 6.3 and later. On Windows it runs on a desktop of its own (`DotAssetHost`), where the window batchmode Unity opens cannot come to the front. When Windows refuses that desktop, the host starts as before and the wrapper says so
+- `UndoRun` of a `.meta`-only run (`EditImporter`, `ResaveAsset -metaonly`) checks only the `.meta` for read-only, so a read-only texture no longer blocks restoring its import settings. A rolled back or pruned journal whose backup copied a read-only file is now deleted
+- A failed restore says the file is missing from disk whenever it is, not only after some other path was deleted
+- A compile error that cleared before the run started no longer reads as a run that never started: a run that then dies without a result gives exit 4, not 1
+- Tests: EditMode tests for the `.meta`-only undo of a read-only file, deleting a journal with read-only backups, the missing-file note, `UndoRun` refusing a path it cannot read, and `MoveAsset` of a folder holding unsaved work. A rollback that cannot delete its folder leaving a false interrupted run was not reproduced on 6000.0, the test stays as a guard. Unit tests for the compile error case and the host's desktop
+
 ### 0.10.1
 
 - Folder entries in a journal hash what is under them (relative path, length and write time of every file, plus the folder's `.meta`), not the constant `folder`, so `UndoRun` refuses to delete a folder the run created once something was added to it. A file another program holds hashes to `unreadable: <reason>`, which never matches. An older journal's bare `folder` passes only when everything under it is an entry of that journal

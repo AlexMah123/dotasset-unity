@@ -1887,8 +1887,9 @@ def check_importer(base, tmp):
 
 def resave_journals_meta(base, texture):
     # A resave writes only the .meta of an imported texture and with -metaonly, so its journal copies only the .meta.
-    # A native material resaved in full still gets its whole file copied.
+    # A native material, prefab or scene resaved in full still gets its whole file copied.
     mat = ROOT + "/Materials/Blue.mat"
+    native = [mat, ROOT + "/Crate.prefab", ROOT + "/Smoke.unity"]
 
     def disk(asset):
         with open(os.path.join(project_of(base), *asset.split("/")), "rb") as f:
@@ -1913,13 +1914,14 @@ def resave_journals_meta(base, texture):
             and os.path.exists(os.path.join(folder, entry["Backup"] + ".meta"))
 
     source = disk(texture)
-    problem, folder, entries = resave([texture, mat], "-apply")
+    problem, folder, entries = resave([texture] + native, "-apply")
     if problem:
         return problem
     if not kept(folder, entries.get(texture), False):
         return "the ResaveAsset journal copies more than the texture's .meta: %s" % entries.get(texture)
-    if not kept(folder, entries.get(mat), True):
-        return "the ResaveAsset journal does not copy the whole material: %s" % entries.get(mat)
+    for asset in native:
+        if not kept(folder, entries.get(asset), True):
+            return "the ResaveAsset journal does not copy the whole %s: %s" % (asset, entries.get(asset))
     if disk(texture) != source:
         return "ResaveAsset changed the texture file itself"
     source = disk(mat)

@@ -147,11 +147,13 @@ namespace DotAsset
             return ctx.FailedTargets.Count > 0 ? ExitCode.Failed : ExitCode.Success;
         }
 
-        // Unsure counts as native, which journals the whole file.
+        // Importers of formats Unity reads but never writes (PNG, FBX, WAV, MP4, TTF). Not IsForeignAsset, which is
+        // true for a prefab too. Anything else counts as native, which journals the whole file.
         static bool IsForeign(string path)
         {
-            Object main = AssetDatabase.LoadMainAssetAtPath(path);
-            return main != null && AssetDatabase.IsForeignAsset(main);
+            AssetImporter importer = AssetImporter.GetAtPath(path);
+            return importer is TextureImporter || importer is ModelImporter || importer is AudioImporter
+                || importer is VideoClipImporter || importer is TrueTypeFontImporter;
         }
     }
 }

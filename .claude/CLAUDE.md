@@ -11,6 +11,7 @@ Package/                         the UPM package (com.alexmah.dotasset), install
 │   ├── DotAsset.Editor.asmdef
 │   ├── Core/                    shared layer: dispatcher, queue, batch entry, value codec, sessions, paths
 │   ├── Export/ Import/ Edit/ Migrate/ Audit/   one <RunName>Command.cs per run
+│   ├── UnityCli/                Unity CLI adapter, its own asmdef, compiled only with com.unity.pipeline
 │   └── UI/                      Window > DotAsset
 └── Scripts~/dotasset.py              the wrapper (the ~ keeps Unity from importing it)
 Docs/                            agent-facing docs, one per group plus AI-Guide.md

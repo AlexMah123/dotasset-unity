@@ -28,12 +28,23 @@ OBSOLETE = ("CS0612", "CS0618", "CS0619", "CS0672")
 DIAGNOSTIC = re.compile(r"^(.*?)\((\d+),(\d+)\): (error|warning) (CS\d+|\w+): (.*)$")
 
 
-def sources():
+def own_assembly(folder):
+    return any(f.endswith(".asmdef") for f in os.listdir(folder))
+
+
+def sources(root=EDITOR):
+    """The .cs files of the assembly whose .asmdef is in root. A subfolder with an .asmdef of its own is another one."""
     found = []
-    for dirpath, dirnames, filenames in os.walk(EDITOR):
-        dirnames[:] = sorted(d for d in dirnames if not d.endswith("~") and not d.startswith("."))
+    for dirpath, dirnames, filenames in os.walk(root):
+        dirnames[:] = sorted(d for d in dirnames if not d.endswith("~") and not d.startswith(".")
+                             and not own_assembly(os.path.join(dirpath, d)))
         found += [os.path.join(dirpath, f).replace(os.sep, "/") for f in sorted(filenames) if f.endswith(".cs")]
     return found
+
+
+# Assemblies inside the package that compile only in some projects: (name, folder). A project that compiled one has
+# its command in the DAG, and the check builds it against the DotAsset.Editor.dll it just made.
+OPTIONAL = [("DotAsset.Editor.UnityCli", os.path.join(EDITOR, "UnityCli"))]
 
 
 def default_projects():
@@ -58,8 +69,8 @@ def unity_version(project):
         return "?"
 
 
-def compile_command(project):
-    """The csc argv Unity runs for DotAsset.Editor, with the .rsp paths it names. None when not found."""
+def compile_command(project, assembly="DotAsset.Editor"):
+    """The csc argv Unity runs for assembly, with the .rsp paths it names. None when not found."""
     path = os.path.join(project, DAG)
     if not os.path.isfile(path):
         return None
@@ -67,7 +78,7 @@ def compile_command(project):
         dag = json.load(f)
     for n in dag.get("Nodes", []):
         action = n.get("Action", "")
-        if "DotAsset.Editor.rsp" in action and "csc" in action:
+        if "/%s.rsp" % assembly in action.replace("\\", "/") and "csc" in action:
             return shlex.split(action, posix=False)
     return None
 
@@ -100,25 +111,48 @@ def swap_framework(lines, profile):
 
 
 def check(project, profile="unity"):
-    """(project, version, profile, problems, warnings) for one project."""
+    """(project, version, profile, problems, warnings, optional assemblies built) for one project. The optional
+    assemblies are built on Unity's own profile only."""
     version = unity_version(project)
     argv = compile_command(project)
     if not argv:
-        return project, version, profile, ["no DotAsset.Editor compile recorded in %s, open the project once" % DAG], []
+        return project, version, profile, ["no DotAsset.Editor compile recorded in %s, open the project once" % DAG], [], []
     out = tempfile.mkdtemp(prefix="dotasset_compile_")
-    rsp = os.path.join(out, "DotAsset.Editor.rsp")
+    problems, warnings = build(project, argv, "DotAsset.Editor", sources(), profile, out, None)
+    extras = []
+    if not problems and profile == "unity":
+        for assembly, folder in OPTIONAL:
+            extra = compile_command(project, assembly)
+            if extra:
+                p, w = build(project, extra, assembly, sources(folder), profile, out, os.path.join(out, "DotAsset.Editor.dll"))
+                problems += p
+                warnings += w
+                extras.append(assembly)
+    for name in os.listdir(out):
+        os.remove(os.path.join(out, name))
+    os.rmdir(out)
+    return project, version, profile, sorted(set(problems)), sorted(set(warnings)), extras
+
+
+def build(project, argv, assembly, files, profile, out, editor_dll):
+    """Runs Unity's compile of assembly with files instead of its recorded sources, into out. editor_dll replaces the
+    project's own DotAsset.Editor reference. Returns (problems, warnings)."""
+    rsp = os.path.join(out, assembly + ".rsp")
     command = []
     for a in argv:
         a = a.strip('"')
         if a == "/shared":
             continue  # the compiler server outlives the check
-        if a.startswith("@") and a.endswith("DotAsset.Editor.rsp"):
+        if a.startswith("@") and a.endswith(assembly + ".rsp"):
             with open(os.path.join(project, a[1:]), encoding="utf-8-sig") as f:
                 lines = [l.strip() for l in f if l.strip()]
             keep = swap_framework([l for l in lines if not l.startswith(("-out:", "-refout:", "-langversion:"))
                                    and not (l.startswith('"') and l.endswith('.cs"'))], profile)
-            keep += ['-out:"%s"' % os.path.join(out, "DotAsset.Editor.dll"), "-langversion:7.3"]
-            keep += ['"%s"' % s for s in sources()]
+            if editor_dll:
+                keep = ['-r:"%s"' % editor_dll if re.match(r'^-r:".*[/\\]DotAsset\.Editor(\.ref)?\.dll"$', l) else l
+                        for l in keep]
+            keep += ['-out:"%s"' % os.path.join(out, assembly + ".dll"), "-langversion:7.3"]
+            keep += ['"%s"' % s for s in files]
             with open(rsp, "w", encoding="utf-8") as f:
                 f.write("\n".join(keep) + "\n")
             command.append("@" + rsp)
@@ -139,11 +173,8 @@ def check(project, profile="unity"):
         elif where.startswith(editor):
             warnings.append(text)
     if r.returncode != 0 and not problems:
-        problems.append("csc exit %d\n%s" % (r.returncode, (r.stdout + r.stderr).strip()[-2000:]))
-    for name in os.listdir(out):
-        os.remove(os.path.join(out, name))
-    os.rmdir(out)
-    return project, version, profile, sorted(set(problems)), sorted(set(warnings))
+        problems.append("%s: csc exit %d\n%s" % (assembly, r.returncode, (r.stdout + r.stderr).strip()[-2000:]))
+    return problems, warnings
 
 
 def main():
@@ -161,11 +192,12 @@ def main():
         print("skip .NET Framework 4.8 pass, no reference assemblies at %s" % NET48)
     failed = 0
     with ThreadPoolExecutor(max_workers=len(jobs)) as pool:
-        for project, version, profile, problems, warnings in pool.map(lambda j: check(*j), jobs):
+        for project, version, profile, problems, warnings, extras in pool.map(lambda j: check(*j), jobs):
             failed += 1 if problems else 0
-            print("%-4s Unity %-12s %-15s %s" % ("FAIL" if problems else "ok", version,
-                                                 "" if profile == "unity" else profile,
-                                                 os.path.basename(os.path.normpath(project))))
+            print("%-4s Unity %-12s %-15s %s%s" % ("FAIL" if problems else "ok", version,
+                                                   "" if profile == "unity" else profile,
+                                                   os.path.basename(os.path.normpath(project)),
+                                                   "".join("  +" + e for e in extras)))
             for p in problems:
                 print("     " + p.replace("\n", "\n     "))
             for w in warnings:

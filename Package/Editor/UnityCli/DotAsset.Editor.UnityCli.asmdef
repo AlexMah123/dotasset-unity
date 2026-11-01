@@ -1,0 +1,29 @@
+{
+    "name": "DotAsset.Editor.UnityCli",
+    "rootNamespace": "DotAsset",
+    "references": [
+        "DotAsset.Editor",
+        "Unity.Pipeline.Attributes"
+    ],
+    "includePlatforms": [
+        "Editor"
+    ],
+    "excludePlatforms": [],
+    "allowUnsafeCode": false,
+    "overrideReferences": true,
+    "precompiledReferences": [
+        "Newtonsoft.Json.dll"
+    ],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "DOTASSET_PIPELINE"
+    ],
+    "versionDefines": [
+        {
+            "name": "com.unity.pipeline",
+            "expression": "0.9.0",
+            "define": "DOTASSET_PIPELINE"
+        }
+    ],
+    "noEngineReferences": false
+}

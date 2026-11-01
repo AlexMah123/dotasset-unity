@@ -994,6 +994,20 @@ class PackageFiles(unittest.TestCase):
         r = subprocess.run([sys.executable, os.path.join(ROOT, "tools", "gen_meta.py"), "--check"], capture_output=True, text=True)
         self.assertEqual(r.returncode, 0, r.stdout)
 
+    def test_compile_check_builds_the_adapter_apart(self):
+        """Editor/UnityCli has an .asmdef of its own and needs com.unity.pipeline, so it is not part of DotAsset.Editor."""
+        sys.path.insert(0, os.path.join(ROOT, "tools"))
+        try:
+            import compile_check
+        finally:
+            sys.path.pop(0)
+        editor = [os.path.basename(s) for s in compile_check.sources()]
+        self.assertIn("EditorRun.cs", editor)
+        self.assertNotIn("UnityCliCommands.cs", editor)
+        name, folder = compile_check.OPTIONAL[0]
+        self.assertEqual(name, "DotAsset.Editor.UnityCli")
+        self.assertEqual([os.path.basename(s) for s in compile_check.sources(folder)], ["UnityCliCommands.cs"])
+
     def test_versions_agree(self):
         pkg = json.loads(read(os.path.join(PACKAGE, "package.json")))
         cs = read(os.path.join(PACKAGE, "Editor", "Core", "DotAssetVersion.cs"))

@@ -104,6 +104,27 @@ python dotasset.py EditImporter --args '-spec="Library/DotAsset/Audit/AuditTextu
 
 Spec paths are absolute or relative to the project root. Quote values that contain spaces: `-spec="C:/My Specs/a.json"`. On Git Bash for Windows, `--args` values that start with `/` may need `MSYS_NO_PATHCONV=1`.
 
+### Through the Unity CLI
+
+In a project with `com.unity.pipeline` 0.9 or later (Unity 6.0+), DotAsset also answers the [Unity CLI](https://unity.com/blog/meet-the-unity-cli) and `unity mcp`, in the open editor. The adapter compiles only when that package is installed. Tested with Pipeline 0.9.1-exp.1 and CLI 1.0.0-beta.15.
+
+```bash
+unity command dotasset list                                                                   # every run, as --list
+unity command dotasset run --name MoveAsset --args "-from=Assets/A.txt -to=Assets/B.txt"                  # dry run
+unity command dotasset run --name MoveAsset --args "-from=Assets/A.txt -to=Assets/B.txt" --confirm true   # write
+unity command dotasset run --name PrefabExport --assets "Assets/Prefabs/Player.prefab,Assets/Prefabs/Enemies"
+```
+
+| Argument | Effect |
+| --- | --- |
+| `name` | the run, required |
+| `args` | the run's arguments as in `--args` |
+| `assets` | the entry assets, comma-separated as the AssetList |
+| `confirm` | `true` adds `-apply`. Without it Edit and Migrate runs only plan |
+| `timeout` | seconds the CLI waits, default 1800. A run that outlasts it still finishes and writes, so read its log before you rerun it |
+
+A run that exits 0 returns the result JSON (`--result-only` prints just that), the same as `--json`. Any other exit fails the command (the CLI exits non-zero) with `exit <code>, <summary>` and the run's lines as the message. Runs are reported after the open scenes they saved have settled, and wait for a queued run that is still settling. The wrapper's flags (`--launch`, `--quit`, `--status`, the headless route) have no CLI form. Use `dotasset.py` when the editor is closed.
+
 ## Reading results
 
 Every run prints its log, then `[dotasset] <summary>` and the path of its log file. Lines starting `error:` and `warning:` are the ones to read first.

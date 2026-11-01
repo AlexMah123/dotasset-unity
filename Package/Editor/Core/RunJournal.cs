@@ -462,14 +462,15 @@ namespace DotAsset
         }
 
         // Puts entries back as they were before their run, newest first. Nothing is restored when any path is
-        // Blocked, and the first path that fails stops the rest, so a move is not left half undone without notice.
+        // Blocked, and the first path that fails stops the rest, so a move is not left half undone without notice. A
+        // file still as it was before the run is left as it is, read-only or not.
         // Returns "path: reason" per blocked path or for the failure, empty when every path is back.
         public static List<string> Restore(string dir, List<Entry> list, RunLog log)
         {
             var problems = new List<string>();
             foreach (Entry e in list)
             {
-                string blocked = Blocked(e.Path);
+                string blocked = Blocked(e.Path, !AlreadyBack(dir, e));
                 if (blocked != null)
                 {
                     problems.Add(e.Path + ": " + blocked);
@@ -500,6 +501,13 @@ namespace DotAsset
                         scenes.Add(new EditorBuildSettingsScene(buildScene, true));
                     }
                     EditorBuildSettings.scenes = scenes.ToArray();
+                    restored++;
+                    continue;
+                }
+                if (AlreadyBack(dir, e))
+                {
+                    // Imported again all the same: a failed save can leave the editor's copy changed.
+                    reimport.Add(e.Path);
                     restored++;
                     continue;
                 }
@@ -569,8 +577,8 @@ namespace DotAsset
 
         // Why path cannot be restored now, or null: a scene open in the editor or the prefab in Prefab Mode, at path or
         // inside it when path is a folder. Unity would write its loaded copy back, or lose it with the folder. Also a
-        // read-only file there, which would stop the restore with half the paths back.
-        public static string Blocked(string path)
+        // read-only file there, which would stop the restore with half the paths back, unless readOnly is false.
+        public static string Blocked(string path, bool readOnly = true)
         {
             var roots = new[] { path };
             for (int i = 0; i < SceneManager.sceneCount; i++)
@@ -587,15 +595,48 @@ namespace DotAsset
             {
                 return (stage.assetPath == path ? string.Empty : "holds " + stage.assetPath + ", ") + "open in Prefab Mode. Close it first";
             }
-            if (BuildSceneOf(path) == null)
+            if (readOnly && BuildSceneOf(path) == null)
             {
-                string readOnly = ReadOnlyOnDisk(DotAssetPaths.Absolute(path));
-                if (readOnly != null)
+                string held = ReadOnlyOnDisk(DotAssetPaths.Absolute(path));
+                if (held != null)
                 {
-                    return (readOnly == path ? string.Empty : "holds " + readOnly + ", ") + "read-only on disk. Clear the attribute first";
+                    return (held == path ? string.Empty : "holds " + held + ", ") + "read-only on disk. Clear the attribute first";
                 }
             }
             return null;
+        }
+
+        // True when restoring the file entry would copy only the bytes already there: the run kept it but never wrote
+        // it, as when that write failed on a read-only file. Restore skips it, a read-only copy would refuse the copy.
+        static bool AlreadyBack(string dir, Entry e)
+        {
+            if (!e.Existed || e.Folder || BuildSceneOf(e.Path) != null)
+            {
+                return false;
+            }
+            string abs = DotAssetPaths.Absolute(e.Path);
+            if (!e.MetaOnly && !SameBytes(abs, DotAssetPaths.Combine(dir, e.Backup)))
+            {
+                return false;
+            }
+            return !e.HadMeta || SameBytes(abs + ".meta", DotAssetPaths.Combine(dir, e.Backup + ".meta"));
+        }
+
+        static bool SameBytes(string a, string b)
+        {
+            try
+            {
+                if (!File.Exists(a) || !File.Exists(b) || new FileInfo(a).Length != new FileInfo(b).Length)
+                {
+                    return false;
+                }
+                return File.ReadAllBytes(a).SequenceEqual(File.ReadAllBytes(b));
+            }
+            catch (Exception)
+            {
+                // Unreadable counts as different, which restores it as before.
+                return false;
+            }
         }
 
         // The project path of a read-only file at abs, its .meta, or a file under it when abs is a folder, or null.

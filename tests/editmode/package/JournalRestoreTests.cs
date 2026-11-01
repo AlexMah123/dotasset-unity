@@ -86,5 +86,41 @@ namespace DotAsset.Tests
             StringAssert.StartsWith(created + ": ", problems[0]);
             Assert.AreEqual("after", File.ReadAllText(DotAssetPaths.Absolute(kept)), "the entry after the failure is left alone");
         }
+
+        [Test]
+        public void ReadOnlyFileTheRunNeverWroteDoesNotBlock()
+        {
+            // A run kept two files and failed writing the read-only one: the rollback still puts the other one back.
+            string journal = Path.Combine(Path.GetTempPath(), "DotAssetRestore" + System.Guid.NewGuid().ToString("N"));
+            Directory.CreateDirectory(journal);
+            File.WriteAllText(Path.Combine(journal, "1"), "before");
+            File.WriteAllText(Path.Combine(journal, "2"), "same");
+            string written = Folder + "/Written.txt";
+            string held = Folder + "/Held.txt";
+            File.WriteAllText(DotAssetPaths.Absolute(written), "after");
+            File.WriteAllText(DotAssetPaths.Absolute(held), "same");
+            File.SetAttributes(DotAssetPaths.Absolute(held), FileAttributes.ReadOnly);
+            var entries = new List<RunJournal.Entry>
+            {
+                new RunJournal.Entry { Path = written, Existed = true, Backup = "1" },
+                new RunJournal.Entry { Path = held, Existed = true, Backup = "2" },
+            };
+            List<string> problems;
+            string blocked;
+            try
+            {
+                blocked = RunJournal.Blocked(held);
+                problems = RunJournal.Restore(journal, entries, new RunLog("JournalRestoreTests", false));
+            }
+            finally
+            {
+                File.SetAttributes(DotAssetPaths.Absolute(held), FileAttributes.Normal);
+                Directory.Delete(journal, true);
+            }
+            StringAssert.StartsWith("read-only on disk", blocked, "an undo's own check still names a read-only file");
+            Assert.AreEqual(0, problems.Count, string.Join("\n", problems.ToArray()));
+            Assert.AreEqual("before", File.ReadAllText(DotAssetPaths.Absolute(written)));
+            Assert.AreEqual("same", File.ReadAllText(DotAssetPaths.Absolute(held)));
+        }
     }
 }

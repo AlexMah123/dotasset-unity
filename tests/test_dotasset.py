@@ -350,6 +350,22 @@ class EditorControl(Base):
         self.assertNotIn("-batchmode", argv)
         self.assertIn("-projectPath", argv)
 
+    @unittest.skipIf(sys.platform != "win32", "desktops are Windows only")
+    def test_serve_host_starts_on_its_own_desktop(self):
+        # The child writes the name of the desktop it runs on, a window there cannot take the user's focus.
+        out = os.path.join(self.tmp, "desktop.txt")
+        child = ("import ctypes, sys; u = ctypes.windll.user32; u.GetThreadDesktop.restype = ctypes.c_void_p; "
+                 "h = u.GetThreadDesktop(ctypes.windll.kernel32.GetCurrentThreadId()); b = ctypes.create_unicode_buffer(256); "
+                 "u.GetUserObjectInformationW(ctypes.c_void_p(h), 2, b, ctypes.sizeof(b), None); "
+                 "open(sys.argv[1], 'w').write(b.value); sys.exit(7)")
+        proc = ops.start_detached([sys.executable, "-c", child, out], False, True)
+        deadline = time.time() + 30
+        while proc.poll() is None and time.time() < deadline:
+            time.sleep(0.1)
+        self.assertEqual(proc.returncode, 7)
+        with open(out) as f:
+            self.assertEqual(f.read(), "DotAssetHost")
+
     def test_launch_reports_an_editor_that_exits_early(self):
         os.environ["FAKE_UNITY_MODE"] = "exit_early"
         code, out = self.call("--launch", "--unity", self.fake_unity, "--startup-wait", "30")

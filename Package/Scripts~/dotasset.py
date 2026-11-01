@@ -933,6 +933,66 @@ def hidden_console():
     return {"startupinfo": info}
 
 
+HOST_DESKTOP = "DotAssetHost"
+
+
+class DesktopProcess:
+    """The pid, poll() and returncode of a process started by start_on_own_desktop, as a Popen has them."""
+
+    def __init__(self, handle, pid, desktop):
+        # The desktop handle stays open until the host has a thread on it, which keeps the desktop alive after.
+        self.handle, self.pid, self.desktop, self.returncode = handle, pid, desktop, None
+
+    def poll(self):
+        import ctypes
+        from ctypes import wintypes
+        code = wintypes.DWORD()
+        if self.returncode is None and ctypes.windll.kernel32.GetExitCodeProcess(wintypes.HANDLE(self.handle), ctypes.byref(code)) and code.value != 259:  # STILL_ACTIVE
+            self.returncode = code.value
+        return self.returncode
+
+
+def start_on_own_desktop(cmd):
+    """Starts cmd detached on a desktop of its own, where no window it opens can take the focus: the Unity 6.6
+    batchmode host opens one and activates it whatever the start flags say. A DesktopProcess, or None when Windows
+    refuses, then the caller starts it the usual way. Windows only."""
+    import ctypes
+    from ctypes import wintypes
+    user32 = ctypes.WinDLL("user32", use_last_error=True)
+    kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+
+    class STARTUPINFOW(ctypes.Structure):
+        _fields_ = [("cb", wintypes.DWORD), ("lpReserved", wintypes.LPWSTR), ("lpDesktop", wintypes.LPWSTR),
+                    ("lpTitle", wintypes.LPWSTR), ("dwX", wintypes.DWORD), ("dwY", wintypes.DWORD),
+                    ("dwXSize", wintypes.DWORD), ("dwYSize", wintypes.DWORD), ("dwXCountChars", wintypes.DWORD),
+                    ("dwYCountChars", wintypes.DWORD), ("dwFillAttribute", wintypes.DWORD), ("dwFlags", wintypes.DWORD),
+                    ("wShowWindow", wintypes.WORD), ("cbReserved2", wintypes.WORD), ("lpReserved2", ctypes.c_void_p),
+                    ("hStdInput", wintypes.HANDLE), ("hStdOutput", wintypes.HANDLE), ("hStdError", wintypes.HANDLE)]
+
+    class PROCESS_INFORMATION(ctypes.Structure):
+        _fields_ = [("hProcess", wintypes.HANDLE), ("hThread", wintypes.HANDLE), ("dwProcessId", wintypes.DWORD),
+                    ("dwThreadId", wintypes.DWORD)]
+
+    # Opens the desktop when an earlier host made it. GENERIC_ALL.
+    user32.CreateDesktopW.restype = wintypes.HANDLE
+    desktop = user32.CreateDesktopW(HOST_DESKTOP, None, None, 0, 0x10000000, None)
+    if not desktop:
+        log("could not make a desktop for the host (Windows error %d), it starts on yours and its window may take the focus" % ctypes.get_last_error())
+        return None
+    info = STARTUPINFOW()
+    info.cb = ctypes.sizeof(info)
+    info.lpDesktop = "WinSta0\\" + HOST_DESKTOP
+    process = PROCESS_INFORMATION()
+    line = ctypes.create_unicode_buffer(subprocess.list2cmdline(cmd))
+    flags = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+    if not kernel32.CreateProcessW(None, line, None, None, False, flags, None, None, ctypes.byref(info), ctypes.byref(process)):
+        log("could not start the host on its own desktop (Windows error %d), it starts on yours and its window may take the focus" % ctypes.get_last_error())
+        user32.CloseDesktop(wintypes.HANDLE(desktop))
+        return None
+    kernel32.CloseHandle(wintypes.HANDLE(process.hThread))
+    return DesktopProcess(process.hProcess, process.dwProcessId, desktop)
+
+
 def start_detached(cmd, visible=True, hidden=False):
     """Starts the editor so it outlives this script and the terminal that ran it. Not visible: it starts minimized
     and never takes the focus. Hidden: for the batchmode host, whose windows Unity 6 activates even when minimized."""
@@ -940,6 +1000,9 @@ def start_detached(cmd, visible=True, hidden=False):
     if sys.platform == "win32":
         kwargs["creationflags"] = 0x00000008 | 0x00000200  # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
         if hidden:
+            proc = start_on_own_desktop(cmd)
+            if proc is not None:
+                return proc
             kwargs.update(hidden_console())
         elif not visible:
             info = subprocess.STARTUPINFO()

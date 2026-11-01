@@ -66,7 +66,7 @@ The wrapper is `dotasset.py` (in the package's `Scripts~/`, or copied to the pro
 | `--list`, `--status` | every run with its summary; what the editor's queue is doing |
 | `--result <task>` | the result of a task the wrapper gave up on (exit 4), once the editor finishes it. Exit 4 while it still runs, 2 when it was already read |
 | `--launch` | open the project in the editor (no window interaction needed) and wait until its queue is `ready`. Exit 0 when ready, also when an editor was already open. The editor starts minimized and never takes the focus, `--visible` shows it |
-| `--serve` | start a warm headless host: batchmode Unity, no window, that takes runs through the same queue as an open editor until `--quit`. Exit 0 when ready. Runs report `inEditor` false, `--status` prints `host pid` |
+| `--serve` | start a warm headless host: batchmode Unity, no window (on Windows it runs on a desktop of its own, so it never takes the focus), that takes runs through the same queue as an open editor until `--quit`. Exit 0 when ready. Runs report `inEditor` false, `--status` prints `host pid` |
 | `--quit [--force]` | close the editor or `--serve` host that has the project open, once it is idle. Refused (exit 2) while a scene or Prefab Mode has unsaved changes, `--force` discards them |
 | `--open-scene A.unity[,B.unity] [--force]` | open scenes in that editor: the first replaces what is open, the rest are added. Refused like `--quit`. The last line is `previously open: <paths>`, pass them back to `--open-scene` to restore the user's layout |
 

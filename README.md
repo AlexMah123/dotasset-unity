@@ -36,7 +36,8 @@ Every write goes through Unity's own API (`SerializedObject`, `PrefabUtility`, `
 - **Editor open**: the task goes to the editor's queue and runs on its main thread, the editor stays open, a scene open in the editor is edited on one undo group (one Ctrl+Z)
 - **Editor closed**: Unity starts with `-batchmode -nographics`, runs the task, exits. For many runs in a row, `--serve` keeps one headless Unity up until `--quit`
 - **Writes**: all or nothing per target, unknown spec keys and arguments are refused rather than ignored. Edit and Migrate are dry runs until `-apply`, and a dry run that tries to save, move or delete anyway is refused and fails. A Migrate run that fails a target rolls back every file it wrote (`-atomic=false` keeps the targets that worked)
-- **Undo**: every writing run journals the files it touches under `Library/DotAsset/Journal/`, and `UndoRun -run=last -apply` puts them back
+- **Undo**: every writing run journals the files it touches under `Library/DotAsset/Journal/`, and the Build Settings scene list when the run changes it, and `UndoRun -run=last -apply` puts them back. With several callers on one project, `--caller` makes `-run=last` take only your own runs
+- **Unity CLI**: with `com.unity.pipeline` 0.9 or later, `unity command dotasset run` and `unity mcp` reach the same runs in the open editor or a warm `--serve` host
 
 ## Supported assets
 
@@ -61,7 +62,7 @@ Window > Package Manager > + > Add package from git URL:
 https://github.com/AlexMah123/dotasset-unity.git?path=/Package
 ```
 
-Pin a version by adding a release tag to the URL, such as `#v0.10.0`, or `#<commit>`. Or copy `Package/` into your project as `Packages/com.alexmah.dotasset/`. It pulls in `com.unity.nuget.newtonsoft-json`.
+Pin a version by adding a release tag to the URL, such as `#v0.11.0`, or `#<commit>`. Or copy `Package/` into your project as `Packages/com.alexmah.dotasset/`. It pulls in `com.unity.nuget.newtonsoft-json`.
 
 **2. Get the wrapper**
 
@@ -88,7 +89,7 @@ python dotasset.py AuditTexture --args '-scandir=Assets'
 
 The wrapper finds the project from the current directory (or `--project`) and the editor from `ProjectSettings/ProjectVersion.txt` through Unity Hub's install folder (or `--unity`, or `DOTASSET_UNITY`). `python dotasset.py --list` prints every run, `--status` shows what the editor's queue is doing.
 
-No one needs to be at the machine for the editor route either: `--launch` opens the project in the editor, minimized and without taking the focus (`--visible` shows it), and waits until its queue is ready, `--open-scene` opens scenes in it, and `--quit` closes it again once it is idle. `--open-scene` and `--quit` are refused while a scene has unsaved changes, unless `--force`.
+No one needs to be at the machine for the editor route either: `--launch` opens the project in the editor, minimized and without taking the focus (`--visible` shows it), and waits until its queue is ready, `--open-scene` opens scenes in it, and `--quit` closes it again once it is idle. `--quit` closes only an editor or host that `--launch` or `--serve` started for the same `--caller`, so an editor someone else opened stays open. `--open-scene` and `--quit` are refused while a scene has unsaved changes, unless `--force`.
 
 ```
 python dotasset.py --launch                              # open the editor, wait until it takes tasks
@@ -234,7 +235,7 @@ Commands are plain classes: derive from `DotAssetCommand`, name the class `<RunN
 | Tool | Checked | Editor closed | Writes | Best for |
 | :-- | :-- | :-: | :-- | :-- |
 | **DotAsset** | | ✓ (headless) | Fixed runs: dry run by default, all or nothing per asset, journaled so `UndoRun` takes a run back, unknown keys refused, never over unsaved work in the editor | Reference-aware migrations (remap references and scripts, moves, deletes that check users), audits with fix specs, repeatable asset edits, in CI or by an agent |
-| [Unity CLI](https://unity.com/blog/meet-the-unity-cli) with `com.unity.pipeline` (Unity 6+) | Tested 2026-10-30 (beta.13), docs 2026-11-01 (beta.14) | Headless `unity cmd` | About 150 editor commands, `batch` of up to 200 ops on one undo (rollback covers Undo, not asset files; dry run validates only), `eval` for any C#, custom `[CliCommand]`s, `unity mcp` for agents (`--tools` and `--exclude-tools` pick which tools it lists since beta.14) | Editor installs, builds, tests, Project Auditor, general editor work |
+| [Unity CLI](https://unity.com/blog/meet-the-unity-cli) with `com.unity.pipeline` (Unity 6+) | Tested 2026-10-30 (beta.13), docs 2026-11-01 (beta.14), DotAsset's adapter tested 2026-11-02 (beta.15) | Headless `unity cmd` | About 150 editor commands, `batch` of up to 200 ops on one undo (rollback covers Undo, not asset files; dry run validates only), `eval` for any C#, custom `[CliCommand]`s, `unity mcp` for agents (`--tools` and `--exclude-tools` pick which tools it lists since beta.14) | Editor installs, builds, tests, Project Auditor, general editor work |
 | [IvanMurzak/Unity-MCP](https://github.com/IvanMurzak/Unity-MCP) | Docs 2026-11-01 | Batch mode (`-batchmode -nographics` with `-UNITY_MCP_KEEP_CONNECTED=true`) | Editor tools, including Prefab Mode open and save, asset move and delete (no reference checks documented) | Agent work in an open editor, or a batch-mode Unity in CI |
 | [CoplayDev/unity-mcp](https://github.com/CoplayDev/unity-mcp) | Docs 2026-11-01 (v10.3.0) | ✗ | Editor tools: assets, scenes, scripts, tests | Interactive work in an open editor |
 | [AnkleBreaker unity-mcp-plugin](https://github.com/AnkleBreaker-Studio/unity-mcp-plugin) | Docs 2026-11-01 (2.41.4) | ✗ | 260+ editor tools, named undo groups for writes that register Undo (not filesystem changes) | Interactive work in an open editor |
@@ -283,10 +284,10 @@ DotAsset is a preview until 1.0.0, see [Version.md](Version.md) for each release
 
 | Unity | Version tested | Result | Date |
 | :-- | :-- | :-- | :-- |
-| 6.6 | 6000.6.7f1 | passes | 2026-10-31 |
-| 6.3 LTS | 6000.3.27f1 | passes | 2026-10-31 |
-| 6.0 LTS | 6000.0.85f1 | passes | 2026-10-31 |
-| 2022.3 LTS | 2022.3.18f1 | passes | 2026-10-31 |
+| 6.6 | 6000.6.7f1 | passes | 2026-11-02 |
+| 6.3 LTS | 6000.3.27f1 | passes | 2026-11-02 |
+| 6.0 LTS | 6000.0.85f1 | passes | 2026-11-02 |
+| 2022.3 LTS | 2022.3.18f1 | passes | 2026-11-02 |
 
 Each release also passes the smoke test in a 2,071-asset project (1,000 textures, 500 materials, 500 prefabs, 20 scenes with 100 instances each), where project-wide runs take 3.5 to 6 seconds headless and under 2 seconds with the editor open. Patches within a tested version are expected to work, Unity keeps the API stable within a version. Rerun the smoke test when moving to a new Unity version. The wrapper has its own unit tests (both routes, startup wait, fallback, quoting, timeouts, exit codes including the unknown outcome and `--result`, log clean-up), see [Development](#development). EditMode tests run the YAML rewriters (`RenameField` through variants, nested prefabs and stripped objects, `RemapScript`, `RenameSerializeReferenceType`) on fixture text, and `ValueCodec`, the argument parser and the registry's group and `WritesWithoutApply` checks in Unity's Test Framework: `python tests/editmode/run_editmode.py --project <project with com.unity.test-framework>`.
 

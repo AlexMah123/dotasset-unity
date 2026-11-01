@@ -76,6 +76,8 @@ Use the Unity CLI and `unity mcp` for general editor work: installs, builds, tes
 - **Exit codes that report failure.** A run with a failed target exits non-zero (see the README).
 - **Small output, and the editor can be closed.** Also runs on Unity 2022.3, which the Pipeline package does not support.
 
+Since DotAsset 0.11.0 the two meet: with `com.unity.pipeline` installed, `unity command dotasset run` and `unity command dotasset list` call DotAsset in the open editor or a warm `--serve` host, and `unity mcp` lists them. `unity command job batch` refuses `dotasset run`, so no batch claims to revert a DotAsset write. Tested 2026-11-02 with Pipeline 0.9.1-exp.1 and CLI 1.0.0-beta.15, see the CLI section of [AI-Guide.md](AI-Guide.md).
+
 ## Not tested yet
 
 - Whether RQL queries save a scene's earlier unsaved edits.

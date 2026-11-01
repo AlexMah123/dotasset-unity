@@ -17,6 +17,7 @@ python dotasset.py <RunName> "<AssetList>" --args "<-key=value ...>" --agent
 - It uses the open editor when there is one, headless Unity otherwise. `--launch` opens the editor, `--serve` starts a warm headless host for many runs in a row, `--quit` closes either.
 - Always pass `--agent`. A clean run prints one line, `exit <code> <summary>`. Lines that follow start with `error:`, `warning:`, `failed:`, `out:`, `plan:` or `log:`.
 - `--list` prints every run, project-specific ones included.
+- With `com.unity.pipeline` installed, `unity command dotasset run --name <RunName> --args "..."` reaches the same runs (`--confirm true` for `-apply`). The wrapper is still needed for the closed editor, `--launch` and `--quit`, see `Docs/AI-Guide.md`.
 
 ## Pick a run
 

@@ -106,7 +106,7 @@ Spec paths are absolute or relative to the project root. Quote values that conta
 
 ### Through the Unity CLI
 
-In a project with `com.unity.pipeline` 0.9 or later (Unity 6.0+), DotAsset also answers the [Unity CLI](https://unity.com/blog/meet-the-unity-cli) and `unity mcp`, in the open editor. The adapter compiles only when that package is installed. Tested with Pipeline 0.9.1-exp.1 and CLI 1.0.0-beta.15.
+In a project with `com.unity.pipeline` 0.9 or later (Unity 6.0+), DotAsset also answers the [Unity CLI](https://unity.com/blog/meet-the-unity-cli) and `unity mcp`, in the open editor or a warm `--serve` host. The adapter compiles only when that package is installed. Tested with Pipeline 0.9.1-exp.1 and CLI 1.0.0-beta.15.
 
 ```bash
 unity command dotasset list                                                                   # every run, as --list
@@ -123,7 +123,7 @@ unity command dotasset run --name PrefabExport --assets "Assets/Prefabs/Player.p
 | `confirm` | `true` adds `-apply`. Without it Edit and Migrate runs only plan |
 | `timeout` | seconds the CLI waits, default 1800. A run that outlasts it still finishes and writes, so read its log before you rerun it |
 
-A run that exits 0 returns the result JSON (`--result-only` prints just that), the same as `--json`. Any other exit fails the command (the CLI exits non-zero) with `exit <code>, <summary>` and the run's lines as the message. Runs are reported after the open scenes they saved have settled, and wait for a queued run that is still settling. The wrapper's flags (`--launch`, `--quit`, `--status`, the headless route) have no CLI form. Use `dotasset.py` when the editor is closed.
+A run that exits 0 returns the result JSON (`--result-only` prints just that), the same as `--json`. Any other exit fails the command (the CLI exits non-zero) with `exit <code>, <summary>` and the run's lines as the message. Runs are reported after the open scenes they saved have settled, and wait for a queued run that is still settling. `unity command job batch` refuses `dotasset run` (`not_batchable`, it is async): DotAsset writes files that Undo cannot revert, so run it on its own, before or after the batch. The wrapper's flags (`--launch`, `--quit`, `--status`, the headless route) have no CLI form. With the editor closed, use `dotasset.py`, or start a warm host with `dotasset.py --serve` and the CLI reaches that host as it reaches the editor.
 
 ## Reading results
 

@@ -546,7 +546,8 @@ namespace DotAsset
         }
 
         // Why path cannot be restored now, or null: a scene open in the editor or the prefab in Prefab Mode, at path or
-        // inside it when path is a folder. Unity would write its loaded copy back, or lose it with the folder.
+        // inside it when path is a folder. Unity would write its loaded copy back, or lose it with the folder. Also a
+        // read-only file there, which would stop the restore with half the paths back.
         public static string Blocked(string path)
         {
             var roots = new[] { path };
@@ -563,6 +564,40 @@ namespace DotAsset
             if (stage != null && AssetScan.Under(stage.assetPath, roots))
             {
                 return (stage.assetPath == path ? string.Empty : "holds " + stage.assetPath + ", ") + "open in Prefab Mode. Close it first";
+            }
+            if (BuildSceneOf(path) == null)
+            {
+                string readOnly = ReadOnlyOnDisk(DotAssetPaths.Absolute(path));
+                if (readOnly != null)
+                {
+                    return (readOnly == path ? string.Empty : "holds " + readOnly + ", ") + "read-only on disk. Clear the attribute first";
+                }
+            }
+            return null;
+        }
+
+        // The project path of a read-only file at abs, its .meta, or a file under it when abs is a folder, or null.
+        // Restoring would stop at it with half the paths back.
+        static string ReadOnlyOnDisk(string abs)
+        {
+            try
+            {
+                var files = new List<string> { abs, abs + ".meta" };
+                if (Directory.Exists(abs))
+                {
+                    files.AddRange(Directory.GetFiles(abs, "*", SearchOption.AllDirectories));
+                }
+                foreach (string file in files)
+                {
+                    if (File.Exists(file) && (File.GetAttributes(file) & FileAttributes.ReadOnly) != 0)
+                    {
+                        return DotAssetPaths.ToProjectRelative(file);
+                    }
+                }
+            }
+            catch (Exception)
+            {
+                // A folder that cannot be listed fails in the restore itself, with its reason.
             }
             return null;
         }

@@ -19,6 +19,7 @@ import json
 import os
 import re
 import shutil
+import stat
 import struct
 import subprocess
 import sys
@@ -1366,6 +1367,31 @@ def check_journal_undo(base, tmp):
     if queue() != before:
         return "after UndoRun the render queue is %s, expected %s" % (queue(), before)
     problem = expect(base, "UndoRun twice", ["UndoRun", "--args", "-run=%s -apply" % run_id], 2)
+    if problem:
+        return problem
+
+    # A read-only file, as a VCS checkout leaves one, refuses the undo without marking the run undone. Once it is
+    # writable the same undo goes through, and only then counts as done.
+    r, res = edit(2475)
+    run_id = journal_of(res)
+    if r.returncode != 0 or not run_id:
+        return "EditMaterial -apply exit %s, journal %s: %s" % (r.returncode, run_id, res.get("Outputs"))
+    mat_file = os.path.join(project_of(base), *mat.split("/"))
+    os.chmod(mat_file, stat.S_IREAD)
+    try:
+        problem = expect(base, "UndoRun of a read-only file", ["UndoRun", "--args", "-run=%s -apply" % run_id], 1)
+    finally:
+        os.chmod(mat_file, stat.S_IREAD | stat.S_IWRITE)
+    if problem:
+        return problem
+    if queue() != 2475:
+        return "a refused UndoRun of a read-only file changed Journal.mat"
+    problem = expect(base, "UndoRun once writable", ["UndoRun", "--args", "-run=%s -apply" % run_id], 0)
+    if problem:
+        return problem
+    if queue() != before:
+        return "after UndoRun once writable the render queue is %s, expected %s" % (queue(), before)
+    problem = expect(base, "UndoRun of the read-only case twice", ["UndoRun", "--args", "-run=%s -apply" % run_id], 2)
     if problem:
         return problem
 

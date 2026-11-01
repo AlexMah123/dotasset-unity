@@ -89,7 +89,8 @@ namespace DotAsset
                 int colon = problem.IndexOf(": ", System.StringComparison.Ordinal);
                 ctx.FailTarget(problem.Substring(0, colon), problem.Substring(colon + 2));
             }
-            if (RunJournal.Current != null)
+            // A failed undo stays open, so it can be run again once the problem is fixed.
+            if (problems.Count == 0 && RunJournal.Current != null)
             {
                 json["UndoneBy"] = RunJournal.Current.Id;
                 Json.WriteFile(DotAssetPaths.Combine(dir, RunJournal.FileName), json);

@@ -60,5 +60,25 @@ namespace DotAsset.Tests
             Assert.AreEqual(before, Queue());
             Assert.AreEqual(2, RunDispatcher.Run("UndoRun", new string[0], run, false).ExitCode, "a second undo is refused");
         }
+
+        [Test]
+        public void UndoRefusesAPathItCannotRead()
+        {
+            // Unreadable now cannot be told apart from changed, so nothing is restored until it can be read.
+            RunResult edit = RunDispatcher.Run("EditMaterial", new string[0], "-spec=\"" + spec + "\" -apply", false);
+            Assert.AreEqual(0, edit.ExitCode, string.Join("\n", edit.Lines.ToArray()));
+            string journal = edit.Outputs.Select(o => o.Replace('\\', '/')).FirstOrDefault(o => o.EndsWith("/journal.json"));
+            string run = "-run=" + Path.GetFileName(Path.GetDirectoryName(journal)) + " -apply";
+            UnityEngine.TestTools.LogAssert.ignoreFailingMessages = true;
+            RunResult refused;
+            using (new FileStream(DotAssetPaths.Absolute(Mat), FileMode.Open, FileAccess.Read, FileShare.None))
+            {
+                refused = RunDispatcher.Run("UndoRun", new string[0], run, false);
+            }
+            Assert.AreEqual(1, refused.ExitCode, string.Join("\n", refused.Lines.ToArray()));
+            Assert.IsTrue(refused.Lines.Any(l => l.Contains("could not be read")), string.Join("\n", refused.Lines.ToArray()));
+            Assert.AreEqual(2480, Queue(), "the refused undo changed the material");
+            Assert.AreEqual(0, RunDispatcher.Run("UndoRun", new string[0], run, false).ExitCode, "readable again, the undo goes through");
+        }
     }
 }

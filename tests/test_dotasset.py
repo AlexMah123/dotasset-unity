@@ -362,6 +362,27 @@ class EditorControl(Base):
         with open(os.path.join(self.project, ops.QUEUE_RELATIVE, "launched.json")) as f:
             self.assertEqual(json.load(f), {"Pid": os.getpid(), "Caller": None, "Served": False})
 
+    def test_launch_starts_minimized_unless_visible(self):
+        os.environ["FAKE_EDITOR_PID"] = str(os.getpid())
+        seen = []
+        start = ops.start_detached
+
+        def recording(cmd, visible=True, hidden=False):
+            seen.append(visible)
+            return start(cmd, visible, hidden)
+        for flags in ((), ("--visible",)):
+            with mock.patch.object(ops, "start_detached", recording):
+                code, out = self.call("--launch", "--unity", self.fake_unity, "--startup-wait", "30", *flags)
+            self.assertEqual(code, 0, out)
+            queue = os.path.join(self.project, ops.QUEUE_RELATIVE)
+            deadline = time.time() + 10
+            while not os.path.exists(os.path.join(queue, ".fake_exited")) and time.time() < deadline:
+                time.sleep(0.1)
+            for name in (".fake_started", ".fake_exited", ops.ALIVE, "launched.json"):
+                if os.path.exists(os.path.join(queue, name)):
+                    os.remove(os.path.join(queue, name))
+        self.assertEqual(seen, [False, True])
+
     def test_launch_after_an_ended_orphan_opens_the_saved_scenes(self):
         # The v0.11.0 matrix failure: a killed wrapper's Unity emptied the scene setup on exit, --launch opened Untitled.
         saved = "sceneSetups:\n- path: Assets/Scenes/Main.unity\n  isLoaded: 1\n"
@@ -913,6 +934,59 @@ class BatchRoute(Base):
     def test_assets_flag_in_args_is_refused(self):
         code, out = self.call("PrefabExport", "--args", "-assets=Assets/A.prefab", "--unity", self.fake_unity)
         self.assertEqual(code, 2)
+
+    def test_graphics_drops_nographics(self):
+        record = os.path.join(self.tmp, "argv.json")
+        os.environ["FAKE_UNITY_RECORD"] = record
+        self.assertEqual(self.call("MaterialExport", "--unity", self.fake_unity, "--graphics")[0], 0)
+        argv = json.loads(read(record))
+        self.assertIn("-batchmode", argv)
+        self.assertNotIn("-nographics", argv)
+
+    def test_quiet_keeps_warnings_and_the_summary(self):
+        code, out = self.call("MaterialExport", "--unity", self.fake_unity, "--quiet")
+        self.assertEqual(code, 0)
+        self.assertNotIn("assets=", out)
+        self.assertIn("warning: careful", out)
+        self.assertIn("MaterialExport fake", out)
+
+    def test_list_runs_the_command_catalog(self):
+        code, out = self.call("--list", "--unity", self.fake_unity)
+        self.assertEqual(code, 0)
+        self.assertIn("CommandCatalogExport fake", out)
+
+    def test_visible_without_launch_is_refused(self):
+        code, out = self.call("MaterialExport", "--visible", "--unity", self.fake_unity)
+        self.assertEqual(code, 2)
+        self.assertIn("--visible only goes with --launch", out)
+
+
+class Status(Base):
+    def test_no_editor(self):
+        code, out = self.call("--status")
+        self.assertEqual(code, 0)
+        self.assertIn("no editor has this project open", out)
+
+    def test_editor_heartbeat_with_pending_tasks(self):
+        editor = FakeEditor(self.project, lambda t: result(t["RunName"]), state="paused")
+        open(os.path.join(editor.queue, ops.PENDING, "t1.json"), "w").close()
+        code, out = self.call("--status")
+        self.assertEqual(code, 0)
+        self.assertIn("editor pid %d, state paused" % os.getpid(), out)
+        self.assertIn("1 pending", out)
+
+    def test_locked_project_without_heartbeat(self):
+        lock = os.path.join(self.project, "Temp", "UnityLockfile")
+        os.makedirs(os.path.dirname(lock))
+        open(lock, "w").close()
+        holder = hold_unity_lock(lock)
+        try:
+            code, out = self.call("--status")
+        finally:
+            holder.kill()
+            holder.wait()
+        self.assertEqual(code, 0)
+        self.assertIn("no task queue heartbeat", out)
 
 
 class HeadlessLock(Base):

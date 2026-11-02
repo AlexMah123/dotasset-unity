@@ -169,6 +169,10 @@ if seen and val("-dotassetResult"):
     with open(seen, "w") as f:
         f.write(open(running).read() if os.path.exists(running) else "")
 setup = os.path.join(val("-projectPath"), "Library", "LastSceneManagerSetup.txt")
+setup_seen = os.environ.get("FAKE_UNITY_SETUP_SEEN")
+if setup_seen:
+    with open(setup_seen, "w") as f:
+        f.write(open(setup).read() if os.path.exists(setup) else "")
 if os.path.isdir(os.path.dirname(setup)):
     with open(setup, "w") as f:
         f.write("sceneSetups: []\n")
@@ -234,7 +238,7 @@ class Base(unittest.TestCase):
             with open(self.fake_unity, "w") as f:
                 f.write(FAKE_UNITY)
             os.chmod(self.fake_unity, os.stat(self.fake_unity).st_mode | stat.S_IEXEC)
-        for k in ("FAKE_UNITY_MODE", "FAKE_UNITY_EXIT", "FAKE_UNITY_RECORD", "FAKE_EDITOR_PID", "FAKE_UNITY_LINGER", "FAKE_UNITY_RUNNING", "DOTASSET_UNITY", "DOTASSET_PROJECT", "DOTASSET_CALLER"):
+        for k in ("FAKE_UNITY_MODE", "FAKE_UNITY_EXIT", "FAKE_UNITY_RECORD", "FAKE_EDITOR_PID", "FAKE_UNITY_LINGER", "FAKE_UNITY_RUNNING", "FAKE_UNITY_SETUP_SEEN", "DOTASSET_UNITY", "DOTASSET_PROJECT", "DOTASSET_CALLER"):
             os.environ.pop(k, None)
 
     def tearDown(self):
@@ -357,6 +361,23 @@ class EditorControl(Base):
         # --quit closes it for this caller only.
         with open(os.path.join(self.project, ops.QUEUE_RELATIVE, "launched.json")) as f:
             self.assertEqual(json.load(f), {"Pid": os.getpid(), "Caller": None, "Served": False})
+
+    def test_launch_after_an_ended_orphan_opens_the_saved_scenes(self):
+        # The v0.11.0 matrix failure: a killed wrapper's Unity emptied the scene setup on exit, --launch opened Untitled.
+        saved = "sceneSetups:\n- path: Assets/Scenes/Main.unity\n  isLoaded: 1\n"
+        orphan_with_emptied_setup(self.project, saved)
+        seen = os.path.join(self.tmp, "setup_seen.txt")
+        os.environ["FAKE_UNITY_SETUP_SEEN"] = seen
+        os.environ["FAKE_EDITOR_PID"] = str(os.getpid())
+        started = []
+        start = ops.start_detached
+        with mock.patch.object(ops, "start_detached", lambda *a: started.append(start(*a)) or started[-1]):
+            code, out = self.call("--launch", "--unity", self.fake_unity, "--startup-wait", "30")
+        for proc in started:
+            proc.wait(30)
+        self.assertEqual(code, 0, out)
+        with open(seen) as f:
+            self.assertEqual(f.read(), saved)
 
     @unittest.skipIf(sys.platform != "win32", "desktops are Windows only")
     def test_serve_host_starts_on_its_own_desktop(self):
@@ -1006,6 +1027,20 @@ def hold_unity_lock(path):
     return holder
 
 
+def orphan_with_emptied_setup(project, saved):
+    """What a wrapper killed mid-run leaves once its Unity has exited: running.json with the scenes it saved, the
+    scene setup as batch Unity writes it on exit. Returns the record's path."""
+    batch = os.path.join(project, ops.QUEUE_RELATIVE, "batch")
+    os.makedirs(batch, exist_ok=True)
+    path = os.path.join(batch, "running.json")
+    with open(path, "w") as f:
+        json.dump({"Pid": os.getpid() + 1, "Run": "EditMaterial", "Task": "t", "Started": time.time(),
+                   "SceneSetupB64": base64.b64encode(saved.encode()).decode()}, f)
+    with open(os.path.join(project, "Library", "LastSceneManagerSetup.txt"), "w") as f:
+        f.write("sceneSetups: []\n")
+    return path
+
+
 class StartupWait(Base):
     def test_locked_project_waits_for_heartbeat(self):
         lock = os.path.join(self.project, "Temp", "UnityLockfile")
@@ -1090,16 +1125,46 @@ class StartupWait(Base):
 
     def test_ended_orphan_record_is_removed(self):
         path = self.orphan(os.getpid() + 1)
-        self.assertIsNone(ops.orphan_batch(os.path.join(self.project, "Library", "DotAsset", "Queue")))
+        self.assertIsNone(ops.orphan_batch(self.project, os.path.join(self.project, "Library", "DotAsset", "Queue")))
+        self.assertFalse(os.path.exists(path))
+
+    def test_ended_orphan_gives_the_scene_setup_back(self):
+        # Its Unity emptied the setup on exit with no wrapper left to restore it. The next run does, before saving its own.
+        saved = "sceneSetups:\n- path: Assets/Scenes/Main.unity\n  isLoaded: 1\n"
+        path = orphan_with_emptied_setup(self.project, saved)
+        code, out = self.call("PrefabExport", "Assets/A.prefab", "--route", "batch", "--unity", self.fake_unity)
+        self.assertEqual(code, 0, out)
+        with open(os.path.join(self.project, "Library", "LastSceneManagerSetup.txt")) as f:
+            self.assertEqual(f.read(), saved)
+        self.assertFalse(os.path.exists(path))
+
+    def test_ended_orphan_leaves_a_newer_scene_setup(self):
+        # An editor opened and closed since then saved scenes of its own, the record's are older.
+        path = orphan_with_emptied_setup(self.project, "sceneSetups:\n- path: Assets/Scenes/Old.unity\n  isLoaded: 1\n")
+        newer = "sceneSetups:\n- path: Assets/Scenes/New.unity\n  isLoaded: 1\n"
+        setup = os.path.join(self.project, "Library", "LastSceneManagerSetup.txt")
+        with open(setup, "w") as f:
+            f.write(newer)
+        self.assertIsNone(ops.orphan_batch(self.project, os.path.join(self.project, ops.QUEUE_RELATIVE)))
+        with open(setup) as f:
+            self.assertEqual(f.read(), newer)
         self.assertFalse(os.path.exists(path))
 
     def test_headless_run_is_recorded_while_unity_runs(self):
         seen = os.path.join(self.tmp, "seen.json")
         os.environ["FAKE_UNITY_RUNNING"] = seen
+        setup = os.path.join(self.project, "Library", "LastSceneManagerSetup.txt")
+        os.makedirs(os.path.dirname(setup), exist_ok=True)
+        saved = "sceneSetups:\n- path: Assets/Scenes/Main.unity\n  isLoaded: 1\n"
+        with open(setup, "w", newline="") as f:
+            f.write(saved)
         code, out = self.call("PrefabExport", "Assets/A.prefab", "--route", "batch", "--unity", self.fake_unity)
         self.assertEqual(code, 0, out)
         with open(seen) as f:
-            self.assertEqual(json.load(f)["Run"], "PrefabExport")
+            running = json.load(f)
+        self.assertEqual(running["Run"], "PrefabExport")
+        # The scenes to give back if this wrapper is killed before Unity exits.
+        self.assertEqual(base64.b64decode(running["SceneSetupB64"]).decode(), saved)
         self.assertFalse(os.path.exists(os.path.join(self.project, "Library", "DotAsset", "Queue", "batch", "running.json")))
 
     def test_unlocked_leftover_lockfile_is_not_an_editor(self):

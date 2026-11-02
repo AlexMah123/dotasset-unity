@@ -331,7 +331,7 @@ def batch_run_active(queue_root):
 RUNNING = "running.json"
 
 
-def orphan_batch(queue_root):
+def orphan_batch(project, queue_root):
     """The headless run whose wrapper was killed while its Unity kept running: {"Pid", "Run", ...} from
     batch/running.json when that Unity is still alive, else None. Its Unity holds the project until the run ends.
     Callers check the batch lock first: while a wrapper holds it, the record is that wrapper's own run."""
@@ -342,7 +342,12 @@ def orphan_batch(queue_root):
     except (OSError, ValueError):
         return None
     if not is_unity_process(running.get("Pid") or 0):
-        # It ended. A record nobody removed is stale.
+        # It ended with no wrapper left to put the scene setup back, so the next editor would open an Untitled scene.
+        # Only over a setup that lists no scene: one an editor saved since then is newer than the record's.
+        saved = running.get("SceneSetupB64")
+        current = read_scene_setup(project)
+        if saved and (current is None or b"path:" not in current):
+            restore_scene_setup(project, base64.b64decode(saved))
         try:
             os.remove(path)
         except OSError:
@@ -750,15 +755,16 @@ def run_batch(args, project, queue_root, run, assets, extra):
                 return EXIT_REFUSED
             time.sleep(0.5)
     try:
-        # A headless run whose wrapper was killed keeps the project until its Unity exits.
-        orphan = orphan_batch(queue_root) if project_locked(project) else None
-        if orphan:
+        # A headless run whose wrapper was killed keeps the project until its Unity exits. One that ended has its
+        # scene setup given back here, before this run saves the setup it restores.
+        orphan = orphan_batch(project, queue_root)
+        if orphan and project_locked(project):
             log("a headless DotAsset run (%s, Unity pid %s) outlived the wrapper that started it, waiting for it to finish (up to %ds)"
                 % (orphan.get("Run"), orphan.get("Pid"), args.timeout))
             deadline = time.time() + args.timeout
-            while project_locked(project) and orphan_batch(queue_root) and time.time() < deadline:
+            while project_locked(project) and orphan_batch(project, queue_root) and time.time() < deadline:
                 time.sleep(0.5)
-            if project_locked(project) and orphan_batch(queue_root):
+            if project_locked(project) and orphan_batch(project, queue_root):
                 log("error: the headless run of %s (Unity pid %s) is still running after %ds. Wait for it, or end that Unity process and retry"
                     % (orphan.get("Run"), orphan.get("Pid"), args.timeout))
                 return EXIT_REFUSED
@@ -774,14 +780,14 @@ def run_batch(args, project, queue_root, run, assets, extra):
             return EXIT_REFUSED
         saved = read_scene_setup(project)
         try:
-            return run_batch_unity(args, project, queue_root, run, assets, extra)
+            return run_batch_unity(args, project, queue_root, run, assets, extra, saved)
         finally:
             restore_scene_setup(project, saved)
     finally:
         lock.release()
 
 
-def run_batch_unity(args, project, queue_root, run, assets, extra):
+def run_batch_unity(args, project, queue_root, run, assets, extra, saved_scenes=None):
     unity = find_unity(args.unity, project)
     if not unity:
         version = project_unity_version(project) or "?"
@@ -812,11 +818,14 @@ def run_batch_unity(args, project, queue_root, run, assets, extra):
         log("error: cannot start Unity: %s" % e)
         return EXIT_FAILED
     # Removed once Unity exits. A wrapper killed before that leaves it, so the next call knows whose Unity holds the
-    # project (orphan_batch).
+    # project, and gives back the scene setup once it ended (orphan_batch).
     running = os.path.join(batch_dir, RUNNING)
+    record = {"Pid": proc.pid, "Run": run, "Task": task_id, "Started": started}
+    if saved_scenes is not None:
+        record["SceneSetupB64"] = base64.b64encode(saved_scenes).decode("ascii")
     try:
         with open(running, "w", encoding="utf-8") as f:
-            json.dump({"Pid": proc.pid, "Run": run, "Task": task_id, "Started": started}, f)
+            json.dump(record, f)
     except OSError:
         pass
     try:
@@ -934,7 +943,7 @@ def route(args, project, run, assets, extra):
     queue_root = os.path.join(project, QUEUE_RELATIVE)
     if args.route in ("auto", "editor"):
         alive = live_editor(queue_root)
-        if alive is None and project_locked(project) and (batch_run_active(queue_root) or orphan_batch(queue_root)):
+        if alive is None and project_locked(project) and (batch_run_active(queue_root) or orphan_batch(project, queue_root)):
             # A headless DotAsset run holds the project, not a starting editor. run_batch waits its turn.
             if args.route == "editor":
                 log("error: --route editor, but the project is held by a headless DotAsset run, not an editor")
@@ -1110,6 +1119,8 @@ def launch(args, project, serve=False):
         while project_locked(project) and live_editor(queue_root) is None and time.time() < deadline:
             time.sleep(0.5)
     try:
+        # A headless run whose wrapper was killed and whose Unity ended gives its scene setup back before Unity reads it.
+        orphan_batch(project, queue_root)
         return launch_locked(args, project, queue_root, serve)
     finally:
         lock.release()

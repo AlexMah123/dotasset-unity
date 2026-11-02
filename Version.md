@@ -6,6 +6,13 @@ Defined in `Package/Editor/Core/DotAssetVersion.cs` and `Package/package.json`, 
 
 Versions follow one rule. A patch (0.1.x) holds fixes, test upgrades and docs. A minor version (0.x.0) adds something new to call: a run, an op, a spec key, an argument or a wrapper option. While on 0.x, a change that breaks existing calls is also a minor version, marked breaking here. 1.0.0 comes when runs, specs and export JSON are promised to stay stable.
 
+### 0.11.1
+
+- A headless Unity whose wrapper was killed no longer leaves the editor opening an Untitled scene. `Queue/batch/running.json` keeps the scene setup the wrapper saved, and once that Unity has ended the next call (a run, `--launch` or `--serve`) puts it back, but only over a setup that lists no scene, so one an editor saved since then is kept. Found when the 0.11.0 smoke matrix failed after a hand check had killed a wrapper
+- AI-Guide: the Unity CLI's exit codes for `dotasset`. A failed run and a run past `--timeout` are both 6 (not 14), an unknown command 13, no editor or host 12, a bad CLI argument 2. 12 can be run again, 6 not before reading the run's log. `--timeout` takes whole seconds
+- Checked, no change: a run with no `--timeout` gets the adapter's 1800 s, not Pipeline's 60 s default (a 70 s run on 6000.3 with CLI 1.0.0-beta.15 exited 0)
+- Tests: unit tests for the scene setup after an orphaned run, through the headless route and `--launch`, the guard for a newer setup, and the record carrying the setup
+
 ### 0.11.0 (breaking)
 
 - Unity CLI adapter: in a project with `com.unity.pipeline` 0.9 or later, `unity command dotasset run` (name, args, assets, confirm, timeout) and `unity command dotasset list` reach DotAsset in the open editor or a warm `--serve` host, and `unity mcp` lists them. A run that does not exit 0 fails the CLI command with `exit <code>, <summary>` and the run's lines. The adapter has its own asmdef and compiles only with that package. Tested with Pipeline 0.9.1-exp.1 and CLI 1.0.0-beta.15

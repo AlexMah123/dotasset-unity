@@ -62,7 +62,7 @@ Window > Package Manager > + > Add package from git URL:
 https://github.com/AlexMah123/dotasset-unity.git?path=/Package
 ```
 
-Pin a version by adding a release tag to the URL, such as `#v0.11.0`, or `#<commit>`. Or copy `Package/` into your project as `Packages/com.alexmah.dotasset/`. It pulls in `com.unity.nuget.newtonsoft-json`.
+Pin a version by adding a release tag to the URL, such as `#v0.11.1`, or `#<commit>`. Or copy `Package/` into your project as `Packages/com.alexmah.dotasset/`. It pulls in `com.unity.nuget.newtonsoft-json`.
 
 **2. Get the wrapper**
 

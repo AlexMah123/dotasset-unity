@@ -1285,6 +1285,18 @@ class PackageFiles(unittest.TestCase):
         self.assertEqual(name, "DotAsset.Editor.UnityCli")
         self.assertEqual([os.path.basename(s) for s in compile_check.sources(folder)], ["UnityCliCommands.cs"])
 
+    def test_every_run_has_an_editmode_test(self):
+        """Every run is executed in process by an EditMode test, through RunDispatcher.Run or RunFixture's helpers."""
+        tests = os.path.join(ROOT, "tests", "editmode", "package")
+        called = set()
+        for name in os.listdir(tests):
+            if name.endswith(".cs"):
+                called |= set(re.findall(r'\b(?:RunDispatcher\.Run|Ok|Run|Export|Report)\("(\w+)"', read(os.path.join(tests, name))))
+        runs = set()
+        for group in ("Export", "Import", "Edit", "Migrate", "Audit"):
+            runs |= {f[:-len("Command.cs")] for f in os.listdir(os.path.join(PACKAGE, "Editor", group)) if f.endswith("Command.cs")}
+        self.assertEqual(sorted(runs - called), [])
+
     def test_versions_agree(self):
         pkg = json.loads(read(os.path.join(PACKAGE, "package.json")))
         cs = read(os.path.join(PACKAGE, "Editor", "Core", "DotAssetVersion.cs"))

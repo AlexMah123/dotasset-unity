@@ -1,0 +1,9 @@
+{
+    "name": "DotAsset.Tests.Runtime",
+    "rootNamespace": "DotAsset.Tests",
+    "references": [],
+    "autoReferenced": false,
+    "defineConstraints": [
+        "UNITY_INCLUDE_TESTS"
+    ]
+}

@@ -3,6 +3,7 @@
     "rootNamespace": "DotAsset.Tests",
     "references": [
         "DotAsset.Editor",
+        "DotAsset.Tests.Runtime",
         "UnityEngine.TestRunner",
         "UnityEditor.TestRunner"
     ],

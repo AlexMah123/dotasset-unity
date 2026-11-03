@@ -29,6 +29,8 @@ unity cmd asset write_text --path Assets/A.txt --contents "a"
 
 ## Exit codes
 
+Superseded: this table and the misspelled-parameter note above are from the beta.13 test of 2026-10-30. For `dotasset run`, retested 2026-11-02 on beta.15, see the exit codes in `AI-Guide.md` (2 for a bad CLI argument, 13 for an unknown command, 12 for no editor, 6 for a failed or timed-out run).
+
 | Case | Exit code |
 | :-- | :-: |
 | Command succeeded | 0 |

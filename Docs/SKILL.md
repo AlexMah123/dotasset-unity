@@ -32,19 +32,19 @@ python dotasset.py <RunName> "<AssetList>" --args "<-key=value ...>" --agent
 | Move, copy, delete assets with references kept | `MoveAsset`, `DuplicateAsset`, `DeleteAsset` |
 | Swap every use of one asset for another | `RemapReference` |
 | Fix Missing Script | `AuditMissingReference`, then `RemapScript` or `RemoveMissingScripts` |
-| Rename a serialized field | rename it in C#, then `RenameField` |
+| Rename a serialized field, Unity has not saved the assets yet | rename it in C#, then `RenameField` (rewrites the YAML key) |
 | `[SerializeReference]` data lost after a class rename | `AuditMissingReference`, then `RenameSerializeReferenceType` |
-| Renamed or moved a GameObject or bone, clips show "(Missing!)" | `RebindAnimation --args "-from=Body/Arm -to=Body/ArmL"` |
-| A shader renamed a property, materials lost their values | `RenameShaderProperty --args "-from=_Color -to=_BaseColor"` |
-| Renamed a serialized field | `[FormerlySerializedAs("old")]`, then `ResaveAsset --args "-dependson=<script>"` |
-| Take back a writing run | `UndoRun --args "-run=last"` (or the id from its `out:` journal line) |
+| Renamed or moved a GameObject or bone, clips show "(Missing!)" | `RebindAnimation --args "-from=Body/Arm -to=Body/ArmL -apply"` |
+| A shader renamed a property, materials lost their values | `RenameShaderProperty --args "-from=_Color -to=_BaseColor -apply"` |
+| Rename a serialized field and keep the data through Unity | `[FormerlySerializedAs("old")]`, then `ResaveAsset --args "-dependson=<script> -apply"` |
+| Take back a writing run | `UndoRun --args "-run=last -apply"` (or the id from its `out:` journal line) |
 | Find broken textures, materials, references | `AuditTexture`, `AuditMaterial`, `AuditMissingReference` |
 | Find unused assets | `AuditUnusedAsset`, then `DeleteAsset -spec=<fix spec>` |
 
 ## Workflow
 
 1. Export first. The export gives exact property names (`m_Mass`, not `mass`), hierarchy paths (`Player/Model/Hand.R`) and reference forms. Exports can be long, so grep the `out:` file before reading it.
-2. Write a spec JSON for Create and Edit runs. Targets live in the spec, so leave AssetList empty:
+2. Write a spec JSON for Create and Edit runs. Targets live in the spec, so leave AssetList empty. Edit runs take `Targets`:
 
 ```json
 { "Targets": [ { "AssetPath": "Assets/Prefabs/Player.prefab", "Ops": [
@@ -52,11 +52,17 @@ python dotasset.py <RunName> "<AssetList>" --args "<-key=value ...>" --agent
 ] } ] }
 ```
 
+`CreateAsset` takes `Assets` entries with a `Kind` and a `Path` instead, see `Docs/Import.md`:
+
+```json
+{ "Assets": [ { "Kind": "Folder", "Path": "Assets/Data" } ] }
+```
+
 3. Dry run, `--args '-spec="C:/temp/player.json"'`, then read the `plan:` lines: the first is the totals, the rest are examples (before and after values, files it would write).
 4. Apply with `--args '-spec="C:/temp/player.json" -apply'`. Edit and Migrate runs never write without `-apply`.
 5. Export again to confirm the change. Do not trust the exit code alone.
 
-Audits write `<report>.fix.json` for the matching fix run (`EditImporter`, `EditMaterial`, `RemoveMissingScripts`). Review it, dry run it, then apply it.
+Audits write `<report>.fix.json` for the matching fix run (`EditImporter`, `EditMaterial`, `RemoveMissingScripts`, `DeleteAsset`). Review it, dry run it, then apply it.
 
 ## Exit codes
 

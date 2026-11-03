@@ -35,7 +35,7 @@ The call manual for agents. Arguments, spec shapes, exit codes and JSON fields a
 | Fix animation clips after a GameObject or bone was renamed or moved | `RebindAnimation` | Migrate |
 | Keep material values after a shader renamed a property | `RenameShaderProperty` | Migrate |
 | Remove Missing Script components | `RemoveMissingScripts` | Migrate |
-| Rename a serialized field without losing data | add `[FormerlySerializedAs("old")]`, then `ResaveAsset -dependson=<script>` | Migrate |
+| Rename a serialized field without losing data | add `[FormerlySerializedAs("old")]`, then `ResaveAsset -dependson=<script> -apply` | Migrate |
 | Normalize YAML after a Unity or package upgrade | `ResaveAsset` | Migrate |
 | Take back an earlier writing run, every file it wrote, created, moved or deleted | `UndoRun -run=<id>` or `-run=last` | Migrate |
 | References to deleted assets, missing scripts, missing prefab sources | `AuditMissingReference` | Audit |
@@ -46,7 +46,7 @@ Before editing, export. The export shows the exact property names (`m_Mass`, not
 
 Every writing run (Import, and Edit or Migrate with `-apply`) keeps the files it touches, as they were, in a journal: `Library/DotAsset/Journal/<id>/journal.json`, printed as an `out:` line. `UndoRun --args "-run=<id> -apply"` puts them all back, and refuses as a whole when one of them changed after the run. Migrate runs are all or nothing across every target: when one target fails, the targets already written are restored and the run leaves no journal. A rollback that cannot finish (a scene or prefab among the paths open in the editor, a file that cannot be deleted) keeps the journal and prints a W line with the `UndoRun` command that finishes the rollback. `-atomic=false` turns that off. Edit and Import runs do the same with `-atomic`, without it the other targets stay written.
 
-Audit first, then fix with the spec the audit wrote: `AuditTexture` writes `<report>.fix.json` for `EditImporter`, `AuditMaterial` for `EditMaterial`, `AuditMissingReference` for `RemoveMissingScripts`. Review it, run once without `-apply`, then with it.
+Audit first, then fix with the spec the audit wrote: `AuditTexture` writes `<report>.fix.json` for `EditImporter`, `AuditMaterial` for `EditMaterial`, `AuditMissingReference` for `RemoveMissingScripts`, `AuditUnusedAsset` for `DeleteAsset`. Review it, run once without `-apply`, then with it.
 
 ## Call templates
 
@@ -180,7 +180,7 @@ Audit reports land in `Library/DotAsset/Audit/`, with `-report=` to choose the p
 | Renaming a C# field loses its data | Add `[FormerlySerializedAs("oldName")]`, then `ResaveAsset -dependson=Assets/Scripts/X.cs -apply`, then the attribute can go |
 | `MoveAsset` warns that a script mentions the path | GUIDs keep serialized references, not strings. Fix `Resources.Load` paths and hard-coded asset paths in code by hand |
 | `DeleteAsset` refuses | Something under `-scandir`, or a project setting, Build Settings, a Build Profile, Addressables or an AssetBundle name, still references it: the warnings list what. References from code are not seen. Fix those first, or add `-force`. A scene open with unsaved changes, or the prefab in Prefab Mode with unsaved changes, is refused even with `-force`: ask the user to save or discard first. `ResaveAsset` refuses those too |
-| Treating exit code 3 as failure | 3 means the audit worked and found something |
+| Treating exit code 3 as failure | 3 means the audit worked and found something. Through the Unity CLI an audit with issues fails the command (CLI exit 6), and the message carries `exit 3` and an `output` line per file written (the report and its fix spec), so read the message, not the CLI's code |
 | Exports and reports in version control | `Library/` is ignored by Unity's default `.gitignore`. Copy what you need to keep |
 | Several headless calls at once | They take turns: a later call prints `another DotAsset headless run has the project, waiting` and starts when the one before ends. For many steps in a row, `--launch` the editor or `--serve` a headless host once instead, queued runs skip Unity's start-up |
 | `a headless DotAsset run (<Run>, Unity pid N) outlived the wrapper that started it` | A wrapper killed hard (not through its own timeout) left its headless Unity running. The next call waits up to `--timeout` for it to finish, then starts. If it is still running then, the call exits 2 naming the pid: wait longer, or end that Unity process and retry. Once it has ended, the next call (a run, `--launch` or `--serve`) puts back the scenes the editor reopens, which that Unity emptied on exit |

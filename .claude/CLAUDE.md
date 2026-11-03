@@ -35,7 +35,7 @@ Keep the two apart: a verified fix ships as its own patch release instead of wai
 
 Release order: implement, `python tools/gen_meta.py` if a file was added, `python tools/compile_check.py`, unit tests, EditMode tests, bump the version, `Version.md` and docs, commit and push, check the CI run passed, then the smoke matrix, then the tag. The smoke matrix comes last because it is the slow part.
 
-Test before smoke: every change carries a Python unit test or an EditMode test that fails on the old code and passes on the new, and it passes before any smoke run. Move logic where a test can reach it if needed. The smoke step adds only what one process cannot show: both routes, the editor open, a real import, another program holding a file.
+Test before smoke: every change carries a Python unit test or an EditMode test that fails on the old code and passes on the new, and it passes before any smoke run. Move logic where a test can reach it if needed. Red first: run the new test on the parent commit and put the red result in the commit message. A reported issue whose test does not fail there is marked "not reproduced" and dropped, not investigated further (rule compliance and pure test additions are exempt). The smoke step adds only what one process cannot show: both routes, the editor open, a real import, another program holding a file.
 
 A release needs the smoke test to pass three times in a row on every tested Unity version, headless (most steps through a `--serve` host) and with the editor open (`--launch` before, `--quit` after), then an annotated `v<version>` tag whose message carries the matrix result (passes per project and route). Never edit the package or the smoke test while a pass runs.
 

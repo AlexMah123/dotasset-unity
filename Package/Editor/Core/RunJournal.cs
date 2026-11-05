@@ -11,7 +11,8 @@ using UnityEngine.SceneManagement;
 namespace DotAsset
 {
     // The files a writing run touched, kept as they were before the run, so the whole run can be rolled back (-atomic)
-    // or undone later (UndoRun). Lives in Library/DotAsset/Journal/<id>, the newest KeepJournals are kept.
+    // or undone later (UndoRun). Lives in Library/DotAsset/Journal/<id>, the newest KeepJournals are kept, and past
+    // them those with work left to undo (WorkLeft).
     // A file reaches the journal before it is written: through JournalHook for writes that go through the
     // AssetDatabase, through an explicit Keep for those that do not (text rewrites, reserialization, importers).
     // Each entry is also appended to journal.log once its copies are made. A run that dies before Close leaves only the
@@ -158,6 +159,8 @@ namespace DotAsset
         readonly string runName;
         readonly string caller;
         readonly List<Entry> entries = new List<Entry>();
+        // Set when an -atomic rollback left files it could not put back, written to journal.json so Prune keeps it.
+        bool rollbackIncomplete;
         readonly HashSet<string> kept = new HashSet<string>(StringComparer.Ordinal);
 
         public RunJournal(string runName)
@@ -514,6 +517,10 @@ namespace DotAsset
             {
                 json["Caller"] = caller;
             }
+            if (rollbackIncomplete)
+            {
+                json["RollbackIncomplete"] = true;
+            }
             Json.WriteFile(file, json);
             File.Delete(DotAssetPaths.Combine(Dir, LogName));
             lastClosed = Dir;
@@ -544,6 +551,7 @@ namespace DotAsset
             problems = Restore(Dir, entries, log);
             if (problems.Count > 0)
             {
+                rollbackIncomplete = true;
                 return TryClose(log);
             }
             try
@@ -949,9 +957,18 @@ namespace DotAsset
             return (json["Entries"] ?? new JArray()).Select(e => e.ToObject<Entry>()).ToList();
         }
 
+        // A journal with work left to undo, an interrupted run or a rollback that could not finish, is kept past the
+        // cap until UndoRun has undone it.
+        static bool WorkLeft(string dir)
+        {
+            JObject json = Load(DotAssetPaths.Combine(dir, FileName));
+            return json != null && json["UndoneBy"] == null
+                && ((bool?)json["Interrupted"] == true || (bool?)json["RollbackIncomplete"] == true);
+        }
+
         static void Prune()
         {
-            foreach (string old in Newest(Directory.GetDirectories(Root)).Skip(KeepJournals).ToList())
+            foreach (string old in Newest(Directory.GetDirectories(Root)).Skip(KeepJournals).Where(d => !WorkLeft(d)).ToList())
             {
                 try
                 {

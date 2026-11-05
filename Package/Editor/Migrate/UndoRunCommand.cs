@@ -37,7 +37,7 @@ namespace DotAsset
             JObject json = dir == null ? null : RunJournal.Load(DotAssetPaths.Combine(dir, RunJournal.FileName));
             if (json == null)
             {
-                ctx.Log.Error("no journal " + id + " in Library/DotAsset/Journal. Only the newest 30 writing runs are kept, rolled back -atomic runs keep none");
+                ctx.Log.Error("no journal " + id + " in Library/DotAsset/Journal. Only the newest 30 journals are kept (an undo keeps one too), plus those of interrupted runs and unfinished rollbacks until they are undone. A rolled back -atomic run keeps none");
                 return ExitCode.Refused;
             }
             string notLast = id == "last" ? RefusesLast(json, RunJournal.Caller) : null;

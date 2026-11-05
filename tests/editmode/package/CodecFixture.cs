@@ -34,5 +34,6 @@ namespace DotAsset.Tests
         public List<int> numbers = new List<int>();
         public CodecPair pair;
         public AnimationCurve curve = new AnimationCurve();
+        public char letter;
     }
 }

@@ -378,6 +378,12 @@ namespace DotAsset
                     }
                     else
                     {
+                        // A finite number past float's range would turn into infinity
+                        if (!double.IsInfinity(d) && Math.Abs(d) > float.MaxValue)
+                        {
+                            wc.Fail(prop, Show(value) + " is out of range for a float");
+                            return;
+                        }
                         prop.floatValue = (float)d;
                     }
                     return;
@@ -469,9 +475,9 @@ namespace DotAsset
                 case SerializedPropertyType.FixedBufferSize:
                 {
                     double d;
-                    if (!Json.TryDouble(value, out d) || d < 0)
+                    if (!Json.TryDouble(value, out d) || d < 0 || Math.Floor(d) != d || d > int.MaxValue)
                     {
-                        wc.Fail(prop, "expects a size, got " + Show(value));
+                        wc.Fail(prop, "expects a size, a whole number from 0 to " + int.MaxValue + ", got " + Show(value));
                         return;
                     }
                     prop.intValue = (int)d;
@@ -486,12 +492,12 @@ namespace DotAsset
                         return;
                     }
                     double d;
-                    if (Json.TryDouble(value, out d))
+                    if (s == null && Json.TryDouble(value, out d) && Math.Floor(d) == d && d >= char.MinValue && d <= char.MaxValue)
                     {
                         prop.intValue = (int)d;
                         return;
                     }
-                    wc.Fail(prop, "expects a one-character string, got " + Show(value));
+                    wc.Fail(prop, "expects a one-character string or a character code from 0 to 65535, got " + Show(value));
                     return;
                 }
                 case SerializedPropertyType.AnimationCurve:

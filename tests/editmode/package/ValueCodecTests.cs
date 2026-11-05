@@ -113,6 +113,26 @@ namespace DotAsset.Tests
         }
 
         [Test]
+        public void RefusesSizesFloatsAndCharsOutOfRange()
+        {
+            // N7: a size is a whole number an int holds, a float stays finite, a char fits in 16 bits
+            fixture.numbers = new List<int> { 1, 2, 3 };
+            so.Update();
+            Refused("numbers.Array.size", 2.5);
+            Refused("numbers.Array.size", 1e10);
+            Refused("ratio", 1e300);
+            Refused("letter", 70000);
+            Refused("letter", -1);
+            Refused("letter", 1.5);
+            Assert.AreEqual(3, fixture.numbers.Count);
+            Assert.AreEqual(0f, fixture.ratio);
+            Assert.AreEqual('\0', fixture.letter);
+            Write("letter", "A");
+            Write("letter", 66);
+            Assert.AreEqual('B', fixture.letter);
+        }
+
+        [Test]
         public void RefusesAStringCutOnExport()
         {
             fixture.label = new string('x', 50);

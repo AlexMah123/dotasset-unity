@@ -83,6 +83,35 @@ namespace DotAsset
             }
         }
 
+        string savePath;
+        string saveHash;
+
+        // Call right before a SaveAssetIfDirty: it returns nothing, and when another program holds the file Unity
+        // only logs an error and writes nothing. Remembers the file as it is for SaveFailed.
+        public void BeforeSave(string path)
+        {
+            savePath = path;
+            saveHash = RunJournal.Hash(path);
+        }
+
+        // Call right after that save, before the snapshot's Commit. True when Unity logged an error during the save
+        // and the file on disk is as it was: nothing was written, the target is failed and the snapshot puts the
+        // object back. A file that changed counts as written, the error as a warning.
+        public bool SaveFailed(string target)
+        {
+            if (!TargetFailed())
+            {
+                return false;
+            }
+            if (savePath != null && RunJournal.Hash(savePath) == saveHash)
+            {
+                FailTarget(target, "Unity did not write the file: " + TargetError);
+                return true;
+            }
+            WarnIfSavedWithErrors(target);
+            return false;
+        }
+
         // The first error logged since BeginTarget, the reason a failed target gives.
         public string TargetError
         {

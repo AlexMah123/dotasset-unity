@@ -176,10 +176,14 @@ namespace DotAsset
                     }
                     EditorUtility.SetDirty(mat);
                     RunJournal.Keep(path);
+                    ctx.BeforeSave(path);
                     AssetDatabase.SaveAssetIfDirty(mat);
+                    if (ctx.SaveFailed(path))
+                    {
+                        continue;
+                    }
                     snapshot.Commit();
                 }
-                ctx.WarnIfSavedWithErrors(path);
                 changed++;
             }
             ctx.Log.Info((ctx.DryRun ? "would rename " : "renamed ") + from + " to " + to + " in " + changed + " material(s)");

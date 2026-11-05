@@ -184,10 +184,14 @@ namespace DotAsset
                     }
                     EditorUtility.SetDirty(clip);
                     RunJournal.Keep(path);
+                    ctx.BeforeSave(path);
                     AssetDatabase.SaveAssetIfDirty(clip);
+                    if (ctx.SaveFailed(path))
+                    {
+                        continue;
+                    }
                     snapshot.Commit();
                 }
-                ctx.WarnIfSavedWithErrors(path);
                 changedClips++;
                 changedCurves += count;
             }

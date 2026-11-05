@@ -497,6 +497,7 @@ namespace DotAsset
             {
                 return false;
             }
+            RunJournal.Keep(path);
             AnimatorController controller = AnimatorController.CreateAnimatorControllerAtPath(path);
             if (controller == null)
             {
@@ -583,6 +584,7 @@ namespace DotAsset
                 {
                     return false;
                 }
+                RunJournal.Keep(path);
                 if (!EditorSceneManager.SaveScene(scene, path))
                 {
                     error = "Unity refused to save " + path;

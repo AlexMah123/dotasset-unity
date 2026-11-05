@@ -425,6 +425,14 @@ namespace DotAsset
                 {
                     return false;
                 }
+                // Kept and saved before the commit: if the journal cannot keep the file, the snapshots restore the
+                // objects and nothing unjournaled is left dirty in memory for the next Save Project.
+                foreach (Object o in assetObjects)
+                {
+                    EditorUtility.SetDirty(o);
+                }
+                RunJournal.Keep(path);
+                AssetDatabase.SaveAssetIfDirty(AssetDatabase.LoadMainAssetAtPath(path));
                 foreach (AssetSnapshot snapshot in snapshots)
                 {
                     snapshot.Commit();
@@ -437,12 +445,6 @@ namespace DotAsset
                     snapshot.Dispose();
                 }
             }
-            foreach (Object o in assetObjects)
-            {
-                EditorUtility.SetDirty(o);
-            }
-            RunJournal.Keep(path);
-            AssetDatabase.SaveAssetIfDirty(AssetDatabase.LoadMainAssetAtPath(path));
             return true;
         }
 

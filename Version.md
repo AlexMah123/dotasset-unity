@@ -6,6 +6,16 @@ Defined in `Package/Editor/Core/DotAssetVersion.cs` and `Package/package.json`, 
 
 Versions follow one rule. A patch (0.1.x) holds fixes, test upgrades and docs. A minor version (0.x.0) adds something new to call: a run, an op, a spec key, an argument or a wrapper option. While on 0.x, a change that breaks existing calls is also a minor version, marked breaking here. 1.0.0 comes when runs, specs and export JSON are promised to stay stable.
 
+### 0.11.4
+
+Fixes from the fourth review (2026-11-05), each with a test that failed on the code before it.
+
+- Saving an asset of a read-only package in the editor, with no run open, no longer throws inside Unity's save hook. The read-only backstop in `RunJournal.Keep` and `KeepMeta` applies during a run only, and every writing run still refuses such a file
+- When another program holds the file, `RemapReference` (an asset saved outside a prefab or scene, such as a material) and `EditImporter` (the `.meta`) fail that target with exit 1 and put the object back, as the other runs do since 0.11.3. `EditImporter` imports the asset again with the settings put back
+- The wrapper reads `-apply` the way the run does: `--apply` and `"-apply"` count as a run that could write (exit 4 when it is lost), and an `-apply` inside a quoted value does not
+- Docs: the Unity CLI notes are marked as tested on CLI beta.15 and list beta.16's new exit codes 14, 17 and 18, `dotasset_run` being marked destructive in MCP is explained, and the comparison table adds unity-cli-loop and IvanMurzak/Unity-MCP 1.7.0
+- CI runs the unit tests on Python 3.8, 3.9 and the newest 3.x
+
 ### 0.11.3
 
 Exit codes and stricter input, the rest of the 2026-11-03 review. Each fix has a test that failed on the code before it.

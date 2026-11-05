@@ -31,8 +31,9 @@ Exit codes, passed through from the run:
   2  refused: unknown run, bad argument, bad spec, editor in a state that cannot take tasks
   3  audit runs only: the run succeeded and the report lists issues
   4  unknown: the run may have written its targets but the wrapper lost sight of it (interrupted, timed out,
-     Unity exited mid-run). The last line names the task, "python dotasset.py --result <task>" reads the
-     editor's result once it lands
+     Unity exited mid-run). Only a run that could write and had started: an Import, or an Edit or Migrate
+     with -apply. Any other lost run is 1. The last line names the task, "python dotasset.py --result <task>"
+     reads the editor's result once it lands
 
 Python 3.8+, standard library only.
 """
@@ -95,6 +96,32 @@ def resolve_group(run_name):
     if run_name.startswith("Audit"):
         return "Audit"
     return "Migrate"
+
+
+class AnyCase(str):
+    # A run name compared without case, as the editor finds runs ("createasset" runs CreateAsset)
+    def endswith(self, suffix, *rest):
+        return self.lower().endswith(suffix.lower(), *rest)
+
+    def startswith(self, prefix, *rest):
+        return self.lower().startswith(prefix.lower(), *rest)
+
+
+def apply_given(extra):
+    """Whether -apply is on in the run's arguments: the last -apply wins, =false/0/no turns it off."""
+    found = re.findall(r'(?i)(?:^|\s)-apply(?:=("[^"]*"|\S*))?(?=\s|$)', extra or "")
+    if not found:
+        return False
+    return found[-1].strip('"').strip().lower() not in ("false", "0", "no")
+
+
+def could_write(run, extra):
+    """Whether a run with these arguments may write: an Import, or an Edit or Migrate given -apply.
+    The wrapper cannot see the run's real name, so a name that writes in either case counts."""
+    groups = {resolve_group(run or ""), resolve_group(AnyCase(run or ""))}
+    if "Import" in groups:
+        return True
+    return bool(groups & {"Edit", "Migrate"}) and apply_given(extra)
 
 
 # ---------------------------------------------------------------- project and editor discovery
@@ -492,18 +519,26 @@ def plan_line(entry):
                                 json.dumps(entry.get("Before")), json.dumps(entry.get("After")))
 
 
-def unknown_outcome(args, task_id, result_path):
-    """The run may have written its targets and the wrapper cannot tell. Names the task so it can be looked up."""
-    line = "outcome: unknown, task " + task_id
+def unknown_outcome(args, task_id, result_path, may_have_written=True):
+    """The wrapper lost sight of the run. 4 when it may have written its targets, 1 when it cannot have (a run that
+    never writes, a dry run, a run that never started). Names the task so it can be looked up either way."""
+    if may_have_written:
+        line = "outcome: unknown, task " + task_id
+    else:
+        line = "failed, task %s, a write is ruled out (no -apply, a run that never writes, or it never started)" % task_id
     if result_path:
         line += ", its result will land in %s (python dotasset.py --result %s)" % (result_path, task_id)
-    else:
+    elif may_have_written:
         line += ", check its targets"
     log(line)
+    code = EXIT_UNKNOWN if may_have_written else EXIT_FAILED
     if args.json:
-        print(json.dumps({"ExitCode": EXIT_UNKNOWN, "Outcome": "unknown", "Task": task_id, "ResultPath": result_path},
-                         indent=2))
-    return EXIT_UNKNOWN
+        report = {"ExitCode": code}
+        if may_have_written:
+            report["Outcome"] = "unknown"
+        report.update({"Task": task_id, "ResultPath": result_path})
+        print(json.dumps(report, indent=2))
+    return code
 
 
 def exit_code_of(result):
@@ -609,7 +644,7 @@ def run_queue(args, queue_root, run, assets, extra, alive):
             log("interrupted, task withdrawn before the editor took it")
             return EXIT_FAILED
         log("interrupted, but the editor already took the task and finishes it")
-        return unknown_outcome(args, task_id, done_path)
+        return unknown_outcome(args, task_id, done_path, could_write(run, extra))
 
 
 def wait_queue(args, queue_root, task_id, run, assets, extra, alive):
@@ -633,9 +668,8 @@ def wait_queue(args, queue_root, task_id, run, assets, extra, alive):
             if withdraw(queue_root, task_id):
                 log("error: timed out after %ds, the editor never picked the task up (state: %s). Task withdrawn" % (args.timeout, last_state))
                 return EXIT_FAILED
-            log("error: timed out after %ds, but the editor is still running the task and may still write its targets"
-                % args.timeout)
-            return unknown_outcome(args, task_id, done_path)
+            log("error: timed out after %ds, but the editor is still running the task" % args.timeout)
+            return unknown_outcome(args, task_id, done_path, could_write(run, extra))
 
         if now >= next_check:
             next_check = now + 1.0
@@ -657,8 +691,8 @@ def wait_queue(args, queue_root, task_id, run, assets, extra, alive):
                     log("the editor exited before taking the task, running headless instead")
                     return None
                 if os.path.exists(processing_path):
-                    log("error: the editor exited while running the task, a write may have reached disk")
-                    return unknown_outcome(args, task_id, None)
+                    log("error: the editor exited while running the task")
+                    return unknown_outcome(args, task_id, None, could_write(run, extra))
         time.sleep(0.2)
 
 
@@ -829,7 +863,7 @@ def run_batch_unity(args, project, queue_root, run, assets, extra, saved_scenes=
     except OSError:
         pass
     try:
-        return finish_batch(args, proc, run, task_id, batch_dir, result_path, unity_log, started)
+        return finish_batch(args, proc, run, extra, task_id, batch_dir, result_path, unity_log, started)
     finally:
         try:
             os.remove(running)
@@ -837,19 +871,28 @@ def run_batch_unity(args, project, queue_root, run, assets, extra, saved_scenes=
             pass
 
 
-def finish_batch(args, proc, run, task_id, batch_dir, result_path, unity_log, started):
+def run_started(unity_log):
+    # Cli.Run logs RUN_STARTED right before the run: without it in the log nothing of the run has happened
+    try:
+        with open(unity_log, encoding="utf-8", errors="replace") as f:
+            return RUN_STARTED in f.read()
+    except OSError:
+        return False
+
+
+def finish_batch(args, proc, run, extra, task_id, batch_dir, result_path, unity_log, started):
     try:
         code = proc.wait(timeout=args.timeout)
     except KeyboardInterrupt:
         kill_tree(proc)
-        log("interrupted, Unity was stopped. A target it was writing may be half saved, check the Unity log: " + unity_log)
-        return unknown_outcome(args, task_id, None)
+        log("interrupted, Unity was stopped, Unity log: " + unity_log)
+        return unknown_outcome(args, task_id, None, run_started(unity_log) and could_write(run, extra))
     except subprocess.TimeoutExpired:
         kill_tree(proc)
         log("error: Unity did not finish within %ds and was stopped" % args.timeout)
         if explain_unity_log(unity_log):
             return EXIT_FAILED
-        return unknown_outcome(args, task_id, None)
+        return unknown_outcome(args, task_id, None, run_started(unity_log) and could_write(run, extra))
     elapsed = time.time() - started
     if not os.path.exists(result_path):
         log("error: Unity exited with %s after %.0fs without a result for %s" % (code, elapsed, run))
@@ -857,7 +900,7 @@ def finish_batch(args, proc, run, task_id, batch_dir, result_path, unity_log, st
         # license) is a failure, anything else (a crash) may have come mid-run.
         if explain_unity_log(unity_log):
             return EXIT_FAILED
-        return unknown_outcome(args, task_id, None)
+        return unknown_outcome(args, task_id, None, run_started(unity_log) and could_write(run, extra))
     try:
         with open(result_path, encoding="utf-8") as f:
             result = json.load(f)

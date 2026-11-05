@@ -29,7 +29,7 @@ Entry assets in AssetList (folders expand), or `-scandir` (default `Assets`). `-
 
 3 is not a failure: the audit worked. CI can gate on it.
 
-The wrapper can also return 4, unknown: it lost track of a run that could still write. See [AI-Guide.md](AI-Guide.md#reading-results).
+An Audit run never writes, so a run the wrapper loses track of (timed out, interrupted) is 1, not 4. The wrapper still names its task, and `--result <task>` reads the report once the editor finishes it. See [AI-Guide.md](AI-Guide.md#reading-results).
 
 ## Report
 

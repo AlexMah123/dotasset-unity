@@ -192,7 +192,7 @@ An AI agent such as Claude can do most of this without DotAsset, by editing the 
 | 1 | Failed: a target could not be written (nothing of it was saved, a Migrate run rolls back the rest too), or Unity failed before the run started |
 | 2 | Refused: unknown run or argument, bad spec, misspelt key, or an editor that cannot take the task |
 | 3 | Audits only: the run succeeded and the report lists issues |
-| 4 | Unknown: the wrapper was interrupted, timed out or lost Unity while the run could still write. `--result <task>` reads the editor's result later |
+| 4 | Unknown: the wrapper was interrupted, timed out or lost Unity after a run that could write (an Import, or an Edit or Migrate with `-apply`) started. A run that cannot write is 1. `--result <task>` reads the editor's result later |
 
 `--json` prints the full result as well: every log line, the outputs, the failed targets. On code 4 the wrapper prints `outcome: unknown, task <id>`: check with `python dotasset.py --result <id>`, which returns the run's own code once the editor has finished it and 4 while it still runs, before retrying anything that writes.
 

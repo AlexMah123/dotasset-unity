@@ -208,6 +208,11 @@ if mode == "error_cleared_before_start":
 if mode == "hang":
     import time
     time.sleep(30)
+if mode == "hang_after_start":
+    import time
+    with open(log, "w") as f:
+        f.write("[DotAsset] run started: " + val("-dotassetRun") + "\n")
+    time.sleep(30)
 run = val("-dotassetRun")
 assets = base64.b64decode(val("-dotassetAssetsB64")).decode() if val("-dotassetAssetsB64") else ""
 extra = base64.b64decode(val("-dotassetArgsB64")).decode() if val("-dotassetArgsB64") else ""
@@ -309,10 +314,45 @@ class GroupRule(unittest.TestCase):
                 seen += 1
         self.assertGreaterEqual(seen, 25)
 
-    def test_csharp_rule_text_matches_python(self):
-        src = read(os.path.join(PACKAGE, "Editor", "Core", "ExitCodes.cs"))
-        for needle in ('EndsWith("Export"', 'EndsWith("Import"', 'StartsWith("Create"', 'StartsWith("Edit"', 'StartsWith("Audit"'):
-            self.assertIn(needle, src)
+    @staticmethod
+    def rule_steps(body, test, result):
+        # The rule as (endswith|startswith, text, group) in the order the checks run, read from an if/return chain
+        steps = []
+        for cond, group in re.findall(test, body, re.S):
+            for kind, text in re.findall(r'(?i)(endswith|startswith)\("(\w+)"', cond):
+                steps.append((kind.lower(), text, re.search(result, group).group(1)))
+        return steps
+
+    def test_csharp_rule_matches_python_in_order(self):
+        # F5: the same checks in the same order, not only the same strings somewhere in the file
+        cs = read(os.path.join(PACKAGE, "Editor", "Core", "ExitCodes.cs"))
+        cs = cs[cs.index("public static CommandGroup Resolve"):]
+        cs = cs[:cs.index("return CommandGroup.Migrate;", cs.index("With"))]
+        py = read(os.path.join(PACKAGE, "Scripts~", "dotasset.py"))
+        py = py[py.index("def resolve_group"):]
+        py = py[:py.index('return "Migrate"', py.index("startswith"))]
+        cs_steps = self.rule_steps(cs, r"if \((run[^\n]*)\)\s*\{\s*(return CommandGroup\.\w+;)", r"CommandGroup\.(\w+)")
+        py_steps = self.rule_steps(py, r"if (run[^\n]*):\s*(return \"\w+\")", r"\"(\w+)\"")
+        self.assertEqual(cs_steps, py_steps)
+        self.assertEqual(len(cs_steps), 5, cs_steps)
+        self.assertIn("StringComparison.Ordinal", cs, "case-sensitive, as Python's str methods are")
+
+    def test_sample_names_resolve_by_the_rule(self):
+        samples = {"EditExport": "Export", "CreateX": "Import", "AuditImport": "Import", "EditorTidy": "Edit",
+                   "AuditMaterial": "Audit", "Foo": "Migrate", "Createx": "Import", "Exportable": "Migrate"}
+        for name, group in samples.items():
+            self.assertEqual(ops.resolve_group(name), group, name)
+
+    def test_could_write_reads_the_group_and_apply(self):
+        # M2: only these may have written when the wrapper loses sight of the run
+        writes = [("CreateAsset", ""), ("createasset", ""), ("EditMaterial", "-apply"), ("editmaterial", "-APPLY=yes"),
+                  ("MoveAsset", "-from=a -apply=false -apply"), ("EditMaterial", '-apply="true"')]
+        safe = [("MaterialExport", "-apply"), ("AuditMaterial", "-apply"), ("EditMaterial", ""),
+                ("EditMaterial", "-apply=false"), ("MoveAsset", "-apply -apply=0"), ("EditMaterial", "-applyall")]
+        for run, extra in writes:
+            self.assertTrue(ops.could_write(run, extra), "%s %s" % (run, extra))
+        for run, extra in safe:
+            self.assertFalse(ops.could_write(run, extra), "%s %s" % (run, extra))
 
     def test_every_command_class_is_sealed_and_named(self):
         for dirpath, _, files in os.walk(os.path.join(PACKAGE, "Editor")):
@@ -646,15 +686,28 @@ class QueueRoute(Base):
         pending = os.path.join(self.project, ops.QUEUE_RELATIVE, ops.PENDING)
         self.assertEqual([f for f in os.listdir(pending) if f.endswith(".json")], [])
 
-    def test_timeout_after_claim_is_unknown_and_result_reads_it_later(self):
+    def test_timeout_after_claim_of_a_writing_run_is_unknown(self):
+        gate = threading.Event()
+        editor = FakeEditor(self.project, lambda t: (gate.wait(10), result(t["RunName"]))[1])
+        editor.start()
+        try:
+            code, out = self.call("EditMaterial", "--timeout", "1", "--json", "--args", "-apply")
+            self.assertEqual(code, 4, "the editor took the task, it may have written")
+            self.assertIn("outcome: unknown, task ", out)
+        finally:
+            gate.set()
+            editor.stop.set()
+
+    def test_timeout_after_claim_names_the_task_and_result_reads_it_later(self):
         gate = threading.Event()
         editor = FakeEditor(self.project, lambda t: (gate.wait(10), result(t["RunName"], code=3))[1])
         editor.start()
         try:
             code, out = self.call("AuditTexture", "--timeout", "1", "--json")
-            self.assertEqual(code, 4, "the editor took the task, its outcome is unknown")
-            task = re.search(r"outcome: unknown, task ([0-9a-f]{32})", out).group(1)
-            self.assertIn('"Task": "%s"' % task, out)
+            self.assertEqual(code, 1, "an Audit run cannot write, so a timeout is a failure, not an unknown")
+            self.assertNotIn('"Outcome": "unknown"', out)
+            task = re.search(r'"Task": "([0-9a-f]{32})"', out).group(1)
+            self.assertIn(task, out.split("{")[0], "the task is named in the log line too")
             code, out = self.call("--result", task)
             self.assertEqual(code, 4)
             self.assertIn("still running", out)
@@ -893,19 +946,46 @@ class BatchRoute(Base):
         self.assertNotIn("does not compile", out)
 
     def test_timeout_kills_unity(self):
-        os.environ["FAKE_UNITY_MODE"] = "hang"
+        os.environ["FAKE_UNITY_MODE"] = "hang_after_start"
         started = time.time()
-        code, out = self.call("PrefabExport", "Assets/A.prefab", "--unity", self.fake_unity, "--timeout", "2")
+        code, out = self.call("EditMaterial", "--unity", self.fake_unity, "--timeout", "2", "--args", "-apply")
         self.assertEqual(code, 4, "stopped mid-run, a target may have been written")
         self.assertLess(time.time() - started, 15)
         self.assertIn("did not finish", out)
         self.assertIn("outcome: unknown", out)
 
+    def test_timeout_of_a_run_that_cannot_write_is_failed(self):
+        # M2, N10: 4 means "may have written". An Export, a dry run, an Audit, or a run that never started cannot have
+        cases = [
+            ("hang_after_start", ["PrefabExport", "Assets/A.prefab"]),
+            ("hang_after_start", ["RenameShaderProperty", "--args", "-from=_A -to=_B"]),
+            ("hang_after_start", ["AuditMaterial"]),
+            ("hang", ["EditMaterial", "--args", "-apply"]),
+        ]
+        for mode, argv in cases:
+            os.environ["FAKE_UNITY_MODE"] = mode
+            code, out = self.call(*(argv + ["--unity", self.fake_unity, "--timeout", "2"]))
+            self.assertEqual(code, 1, "%s %s" % (mode, argv))
+            self.assertIn("did not finish", out)
+            self.assertNotIn("outcome: unknown", out, "%s %s" % (mode, argv))
+
+    def test_timeout_of_an_import_after_start_is_unknown(self):
+        # An Import run writes without -apply
+        os.environ["FAKE_UNITY_MODE"] = "hang_after_start"
+        code, out = self.call("CreateAsset", "--unity", self.fake_unity, "--timeout", "2")
+        self.assertEqual(code, 4)
+
     def test_crash_without_result_is_unknown(self):
-        os.environ["FAKE_UNITY_MODE"] = "crash"
-        code, out = self.call("PrefabExport", "Assets/A.prefab", "--unity", self.fake_unity, "--json")
+        os.environ["FAKE_UNITY_MODE"] = "error_after_start"
+        code, out = self.call("EditMaterial", "--unity", self.fake_unity, "--json", "--args", "-apply")
         self.assertEqual(code, 4)
         self.assertIn('"Outcome": "unknown"', out)
+
+    def test_crash_of_an_export_is_failed(self):
+        os.environ["FAKE_UNITY_MODE"] = "crash"
+        code, out = self.call("PrefabExport", "Assets/A.prefab", "--unity", self.fake_unity, "--json")
+        self.assertEqual(code, 1)
+        self.assertNotIn('"Outcome": "unknown"', out)
 
     def test_no_unity_found(self):
         code, out = self.call("PrefabExport", "Assets/A.prefab")

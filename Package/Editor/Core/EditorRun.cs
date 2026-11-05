@@ -20,7 +20,13 @@ namespace DotAsset
             }
             SceneSession.SavedOpenScenes.Clear();
             // A key given twice keeps the last value, so -apply here wins over an -apply=false in the arguments.
-            RunResult result = RunDispatcher.Run(runName, assets, apply ? (extraArgs ?? string.Empty) + " -apply" : extraArgs, !Application.isBatchMode);
+            // Only Edit and Migrate take -apply, any other run refuses it as an unknown argument.
+            DotAssetCommand cmd = CommandRegistry.Find(runName);
+            if (apply && cmd != null && Groups.IsDryRunByDefault(cmd.Group))
+            {
+                extraArgs = (extraArgs ?? string.Empty) + " -apply";
+            }
+            RunResult result = RunDispatcher.Run(runName, assets, extraArgs, !Application.isBatchMode);
             var settled = new TaskCompletionSource<RunResult>();
             if (!SceneSettle.Begin(result, settled.SetResult))
             {

@@ -84,5 +84,14 @@ namespace DotAsset.Tests
             Assert.AreNotEqual(0, apply.Result.ExitCode);
             StringAssert.StartsWith("exit " + apply.Result.ExitCode + ", " + apply.Result.Summary + "\n", EditorRun.Describe(apply.Result));
         }
+
+        [UnityTest]
+        public IEnumerator ConfirmOnARunThatTakesNoApplyIsIgnored()
+        {
+            // N5: an Export run takes no -apply, so confirm must not add one it refuses
+            Task<RunResult> run = EditorRun.RunAsync("CommandCatalogExport", null, string.Empty, true);
+            yield return Wait(run);
+            Assert.AreEqual(0, run.Result.ExitCode, EditorRun.Describe(run.Result));
+        }
     }
 }

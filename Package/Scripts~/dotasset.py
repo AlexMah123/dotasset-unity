@@ -1387,6 +1387,17 @@ def quit_editor(args, project):
     return EXIT_FAILED
 
 
+def seconds(text):
+    # A wait of 0 or less would give up before the run could start
+    try:
+        value = int(text)
+    except ValueError:
+        value = 0
+    if value < 1:
+        raise argparse.ArgumentTypeError("takes whole seconds, at least 1, not %s" % text)
+    return value
+
+
 def main(argv=None):
     # Asset names can hold characters a Windows console code page cannot print, never fail on those.
     for stream in (sys.stdout, sys.stderr):
@@ -1403,8 +1414,8 @@ def main(argv=None):
     p.add_argument("--unity", default=None, help="Unity editor executable for the headless route")
     p.add_argument("--caller", default=os.environ.get("DOTASSET_CALLER"),
                    help="who is calling, kept in the run's journal: UndoRun -run=last refuses another caller's run, --quit another caller's editor (default: DOTASSET_CALLER)")
-    p.add_argument("--timeout", type=int, default=600, help="seconds before giving up (default 600)")
-    p.add_argument("--startup-wait", type=int, default=300, help="seconds to wait for a starting editor's queue (default 300)")
+    p.add_argument("--timeout", type=seconds, default=600, help="seconds before giving up (default 600)")
+    p.add_argument("--startup-wait", type=seconds, default=300, help="seconds to wait for a starting editor's queue (default 300)")
     p.add_argument("--route", choices=["auto", "editor", "batch"], default="auto")
     p.add_argument("--graphics", action="store_true", help="headless route without -nographics")
     p.add_argument("--quiet", action="store_true", help="print only warnings, errors and the summary")

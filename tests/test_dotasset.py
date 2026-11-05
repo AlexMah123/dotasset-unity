@@ -19,7 +19,7 @@ import tempfile
 import threading
 import time
 import unittest
-from contextlib import redirect_stdout
+from contextlib import redirect_stderr, redirect_stdout
 from io import StringIO
 from unittest import mock
 
@@ -959,6 +959,16 @@ class BatchRoute(Base):
         code, out = self.call("MaterialExport", "--visible", "--unity", self.fake_unity)
         self.assertEqual(code, 2)
         self.assertIn("--visible only goes with --launch", out)
+
+    def test_timeouts_below_one_second_are_refused(self):
+        # L6: 0 or a negative wait would give up at once, or never, instead of after a sane time.
+        for option in ("--timeout", "--startup-wait"):
+            for value in ("0", "-5"):
+                err = StringIO()
+                with redirect_stderr(err), self.assertRaises(SystemExit) as raised:
+                    self.call("MaterialExport", option, value, "--unity", self.fake_unity)
+                self.assertEqual(raised.exception.code, 2, option + " " + value)
+                self.assertIn("at least 1", err.getvalue(), option + " " + value)
 
 
 class Status(Base):

@@ -121,6 +121,12 @@ namespace DotAsset
                 {
                     continue;
                 }
+                string readOnly = ReadOnly.Reason(path);
+                if (readOnly != null)
+                {
+                    ctx.FailTarget(path, readOnly);
+                    continue;
+                }
                 var all = new Dictionary<Object, Object>();
                 var unmapped = new HashSet<Object>();
                 var swaps = new Dictionary<string, GameObject>(StringComparer.OrdinalIgnoreCase);

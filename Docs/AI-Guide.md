@@ -159,7 +159,7 @@ Audit reports land in `Library/DotAsset/Audit/`, with `-report=` to choose the p
 | `-apply=false` or `-apply=no` | A switch takes `=true/1/yes` (on) or `=false/0/no` (off). Anything else is refused |
 | A quote left open in `--args` | Refused with exit 2, the run never guesses where the value ends |
 | A quote inside a quoted value | Write `\"`. Right before a space or the end of `--args` it closes the value instead, so `-scandir="Assets\Art\"` works while `-x="a \" b"` ends at `a \` and is refused as an unclosed quote. Keep a literal quote away from a following space |
-| Editing an asset in a package from the registry or git | Refused, those packages are read-only (Unity restores them). Embed the package (move it into `Packages/`) first |
+| Editing an asset in a package from the registry or git | Refused, those packages are read-only (Unity restores them): every Edit and Migrate run fails that target with exit 1 and a "read-only" reason, in the dry run too. Embed the package (move it into `Packages/`) first |
 | Editing a material inside a model | Refused, it comes from the importer. Extract it, or remap it with `EditImporter` |
 | Writing `m_GameObject`, `m_Children`, `m_PrefabInstance` and similar | Refused, Unity maintains them. Use the hierarchy ops |
 | `apply` without the dash in `--args` |  Refused with exit 2 as a stray argument, it does not act as `-apply` |

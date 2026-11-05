@@ -110,7 +110,7 @@ namespace DotAsset
                 {
                     continue;
                 }
-                string busy = AssetScan.OpenInEditor(path);
+                string busy = ReadOnly.Reason(path) ?? AssetScan.OpenInEditor(path);
                 if (busy != null)
                 {
                     // The file is rewritten on disk. A loaded copy would keep the old GUID and write it back on its next save.

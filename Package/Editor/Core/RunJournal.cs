@@ -84,12 +84,19 @@ namespace DotAsset
             return true;
         }
 
-        static void ThrowInDryRun(string path)
+        static void ThrowIfRefused(string path)
         {
             string target = BuildSceneOf(path ?? string.Empty) ?? path;
             if (RefusedInDryRun(target, "write"))
             {
                 throw new InvalidOperationException("a dry run writes nothing, " + target + " was not written");
+            }
+            // The backstop for a run that does not check ReadOnly itself: a write into a registry, git or tarball
+            // package cannot be kept, so it is not made.
+            string readOnly = ReadOnly.Reason(target);
+            if (readOnly != null)
+            {
+                throw new InvalidOperationException(readOnly);
             }
         }
 
@@ -187,11 +194,11 @@ namespace DotAsset
         }
 
         // Call before path is written, created, moved or deleted. Calling it again for the same path does nothing.
-        // During a dry run it throws instead, so the write that follows never happens: SaveAssetIfDirty does not pass
-        // through JournalHook on every Unity version, this call does.
+        // During a dry run, or for a file in a read-only package, it throws instead, so the write that follows never
+        // happens: SaveAssetIfDirty does not pass through JournalHook on every Unity version, this call does.
         public static void Keep(string path)
         {
-            ThrowInDryRun(path);
+            ThrowIfRefused(path);
             if (Current != null)
             {
                 Current.Add(path, false);
@@ -226,7 +233,7 @@ namespace DotAsset
         // Keep for a write that changes only the .meta (import settings): the asset file itself is not copied.
         public static void KeepMeta(string path)
         {
-            ThrowInDryRun(path);
+            ThrowIfRefused(path);
             if (Current != null)
             {
                 Current.Add(path, true);

@@ -62,10 +62,10 @@ namespace DotAsset
                     ctx.FailTarget(path, "nothing at that path");
                     continue;
                 }
-                string unsaved = OpenWork.UnsavedIn(path);
-                if (unsaved != null)
+                string refused = ReadOnly.Reason(path) ?? OpenWork.UnsavedIn(path);
+                if (refused != null)
                 {
-                    ctx.FailTarget(path, unsaved);
+                    ctx.FailTarget(path, refused);
                     continue;
                 }
                 targets.Add(path);

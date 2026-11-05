@@ -92,6 +92,12 @@ namespace DotAsset
                     ctx.FailTarget(path, "not a Material");
                     continue;
                 }
+                string readOnly = ReadOnly.Reason(path);
+                if (readOnly != null)
+                {
+                    ctx.FailTarget(path, readOnly);
+                    continue;
+                }
                 if (!string.IsNullOrEmpty(shaderName) && (mat.shader == null || mat.shader.name != shaderName))
                 {
                     continue;

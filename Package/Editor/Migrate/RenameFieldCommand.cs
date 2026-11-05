@@ -221,7 +221,7 @@ namespace DotAsset
                 {
                     continue;
                 }
-                string busy = AssetScan.OpenInEditor(path);
+                string busy = ReadOnly.Reason(path) ?? AssetScan.OpenInEditor(path);
                 if (busy != null)
                 {
                     ctx.FailTarget(path, busy);

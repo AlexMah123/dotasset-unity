@@ -88,10 +88,10 @@ namespace DotAsset
             // and the file disagreeing, and one side's changes lost.
             foreach (string p in paths.OrderBy(p => p, StringComparer.Ordinal).ToList())
             {
-                string unsaved = OpenWork.UnsavedIn(p);
-                if (unsaved != null)
+                string refused = ReadOnly.Reason(p) ?? OpenWork.UnsavedIn(p);
+                if (refused != null)
                 {
-                    ctx.FailTarget(p, unsaved);
+                    ctx.FailTarget(p, refused);
                     paths.Remove(p);
                 }
             }

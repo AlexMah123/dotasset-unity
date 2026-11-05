@@ -90,6 +90,12 @@ namespace DotAsset
                     ctx.FailTarget(path, "not an AnimationClip");
                     continue;
                 }
+                string readOnly = ReadOnly.Reason(path);
+                if (readOnly != null)
+                {
+                    ctx.FailTarget(path, readOnly);
+                    continue;
+                }
                 EditorCurveBinding[] floats = AnimationUtility.GetCurveBindings(clip);
                 EditorCurveBinding[] refs = AnimationUtility.GetObjectReferenceCurveBindings(clip);
                 var moved = new List<KeyValuePair<EditorCurveBinding, EditorCurveBinding>>();

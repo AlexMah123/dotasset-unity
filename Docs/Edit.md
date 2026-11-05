@@ -30,7 +30,7 @@ A dry run also returns its plan: `Plan` in the `--json` result and `plan:` lines
 
 A scene open in the editor is edited in place on one undo group and saved. Some of what a run adds is completed by Unity on a later frame (a new Light gets its baking state), which marks the scene changed again; the editor queue saves it again before it reports the run, so the scene is left clean and the next edit is not refused. If someone edits the scene in that short wait, their changes are left unsaved and the run reports it with a warning. If Unity reloads scripts in that wait, the run still reports its own result, with a warning to check the scene. `--open-scene` opens a scene for this without anyone at the machine.
 
-Failure: `<RunName> failed for <target>. Reason: <first error>`. Nothing of that target is saved, the other targets still run. Errors Unity itself logs while a target is written (a component that refuses to be removed, a script exception in `OnValidate`) also fail the target.
+Failure: `<RunName> failed for <target>. Reason: <first error>`. Nothing of that target is saved, the other targets still run. Errors Unity itself logs while a target is written (a component that refuses to be removed, a script exception in `OnValidate`) also fail the target. So does a save Unity could not write because another program holds the file: the target fails, the object is put back, and the file stays as it was.
 
 A target the open editor holds unsaved changes for (a material, controller or prefab edited in the Inspector before Save Project) is refused, dry runs included: saving it would write the user's changes out along with the run's. The file stays as it was and the changes stay in the editor; save or discard them, then run again.
 
@@ -182,7 +182,7 @@ A material inside a model (`.fbx`) is refused, it is rebuilt on every import. Ex
 
 `AssetPath` names one asset, `AssetPaths` many; folders expand to the textures beneath them when there is a `Texture` block, to every asset with a source-file importer otherwise (textures, models, audio and the like, not `.mat`, `.prefab`, `.asset` or scripts). Each asset is reimported once after all its changes. Models, audio and other importers have no typed block (and no `Summary` in `ImporterExport`), use `Properties`.
 
-`Texture` keys (the same keys `ImporterExport` prints in `Summary`, so a summary edits and feeds back as is):
+`Texture` keys (the same keys `ImporterExport` prints in `Summary`, so a summary edits and feeds back as is). A value from a list is a name in any case (`normalmap` works), never its number: `"7"` is refused, and a comma list only goes with flags:
 
 | Key | Values |
 | --- | --- |

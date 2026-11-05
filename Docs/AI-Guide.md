@@ -58,8 +58,8 @@ The wrapper is `dotasset.py` (in the package's `Scripts~/`, or copied to the pro
 | `--unity PATH` | editor executable for the headless route, default from `ProjectVersion.txt` through Unity Hub, or `DOTASSET_UNITY` |
 | `--route auto\|editor\|batch` | `editor` refuses when no editor has the project open, `batch` never uses the queue. Default `auto` |
 | `--caller NAME` | who is calling, default `DOTASSET_CALLER`. The run's journal keeps it, and `UndoRun -run=last` refuses a run another caller started. `--quit` refuses an editor or host another caller started |
-| `--timeout SEC` | give up after this long, default 600. A task the editor has not taken yet is withdrawn |
-| `--startup-wait SEC` | how long to wait for a starting editor's queue, default 300 |
+| `--timeout SEC` | give up after this long, whole seconds, at least 1, default 600. A task the editor has not taken yet is withdrawn |
+| `--startup-wait SEC` | how long to wait for a starting editor's queue, whole seconds, at least 1, default 300 |
 | `--graphics` | headless route without `-nographics` (GPU checks in `AuditMaterial` need it) |
 | `--quiet` | print only warnings, errors and the summary |
 | `--json` | also print the full result JSON |

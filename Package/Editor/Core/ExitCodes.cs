@@ -68,9 +68,11 @@ namespace DotAsset
         }
 
         // Whether a run with these arguments may have written: an Import, or an Edit or Migrate given -apply.
+        // The registry finds a run in any case, so the group is the found run's, not the typed name's.
         public static bool CouldWrite(string runName, string extra)
         {
-            CommandGroup group = Resolve(runName);
+            DotAssetCommand cmd = CommandRegistry.Find(runName);
+            CommandGroup group = cmd != null ? cmd.Group : Resolve(runName);
             if (group == CommandGroup.Export || group == CommandGroup.Audit)
             {
                 return false;

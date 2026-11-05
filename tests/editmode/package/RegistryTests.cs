@@ -133,5 +133,16 @@ namespace DotAsset.Tests
             }
             Assert.IsTrue(CommandRegistry.Find("CreateAsset").WritesWithoutApply);
         }
+
+        [Test]
+        public void CouldWriteGoesByTheRunTheRegistryFinds()
+        {
+            // L1: the registry finds runs in any case, so the "may have written" answer must too
+            Assert.IsTrue(Groups.CouldWrite("createasset", string.Empty), "createasset is CreateAsset, an Import run");
+            Assert.IsTrue(Groups.CouldWrite("EDITMATERIAL", "-apply"));
+            Assert.IsFalse(Groups.CouldWrite("materialexport", "-apply"), "materialexport is MaterialExport, it never writes");
+            Assert.IsFalse(Groups.CouldWrite("auditmaterial", "-apply"));
+            Assert.IsFalse(Groups.CouldWrite("EditMaterial", string.Empty), "a dry run");
+        }
     }
 }

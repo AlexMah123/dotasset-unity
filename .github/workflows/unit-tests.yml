@@ -8,9 +8,14 @@ on:
 jobs:
   unittest:
     runs-on: windows-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # The oldest the wrapper supports, the one used locally, and the newest.
+        python: ["3.8", "3.9", "3.x"]
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.9"
+          python-version: ${{ matrix.python }}
       - run: python -m unittest discover -s tests

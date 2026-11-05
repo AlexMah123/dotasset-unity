@@ -25,11 +25,11 @@ unity cmd asset write_text --path Assets/A.txt --contents "a"
 
 - Parameters are `--name value`. `name=value` is rejected with `INVALID_COMMAND_ARGS`.
 - A misspelled parameter name (for example `--content` for `--contents`) can come back as "Command Not Found" with exit code 6, not as an argument error.
-- `unity list --json` prints every command and its parameters (about 144 KB).
+- `unity list --json` printed every command and its parameters (about 144 KB) in beta.13. It was removed in beta.15. Beta.16 has `--format json`, which prints the result without the envelope (release notes, not tested).
 
 ## Exit codes
 
-Superseded: this table and the misspelled-parameter note above are from the beta.13 test of 2026-10-30. For `dotasset run`, retested 2026-11-02 on beta.15, see the exit codes in `AI-Guide.md` (2 for a bad CLI argument, 13 for an unknown command, 12 for no editor, 6 for a failed or timed-out run).
+Superseded: this table and the misspelled-parameter note above are from the beta.13 test of 2026-10-30. For `dotasset run`, retested 2026-11-02 on beta.15, see the exit codes in `AI-Guide.md` (2 for a bad CLI argument, 13 for an unknown command, 12 for no editor, 6 for a failed or timed-out run). The beta.16 release notes (2026-11-03, not tested) move a timeout to 14 and add 17 (unavailable) and 18 (awaiting input).
 
 | Case | Exit code |
 | :-- | :-: |

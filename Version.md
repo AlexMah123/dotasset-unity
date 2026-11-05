@@ -6,6 +6,19 @@ Defined in `Package/Editor/Core/DotAssetVersion.cs` and `Package/package.json`, 
 
 Versions follow one rule. A patch (0.1.x) holds fixes, test upgrades and docs. A minor version (0.x.0) adds something new to call: a run, an op, a spec key, an argument or a wrapper option. While on 0.x, a change that breaks existing calls is also a minor version, marked breaking here. 1.0.0 comes when runs, specs and export JSON are promised to stay stable.
 
+### 0.11.2
+
+Fixes from the 2026-11-03 review, each with a test that failed on the code before it.
+
+- Every writing run refuses a file in a read-only package (registry or git), in the dry run too. `DeleteAsset`, `RemapReference`, `RebindAnimation`, `RenameShaderProperty`, `ResaveAsset`, `RenameField`, `RemapScript` and `RenameSerializeReferenceType` now fail that target with exit 1 and a "read-only" reason, as the other runs did. `RunJournal.Keep` refuses such a file as a backstop
+- A path with a `.` or `..` segment, or starting `assets/` or `packages/` in the wrong case, is refused with exit 2 instead of being written past the journal, so `UndoRun` could not put it back
+- `CreateAsset` checks every entry's `Kind` and `Path` before creating anything, so a bad later entry no longer leaves the earlier ones created. It now journals an `AnimatorController` and a new scene before writing them, as every other kind
+- `-overwrite` (`RenameShaderProperty`) and `-buildonly` (`AuditUnused`) are switches, so `=false` turns them off instead of on
+- `RemapReference` keeps and saves a non-prefab, non-scene file before it commits the change, as `EditAsset` does
+- The 30-journal cap no longer prunes the journal of an interrupted run, or of an `-atomic` rollback that could not put every file back, until `UndoRun` has undone it. Such a rollback marks its journal `RollbackIncomplete`
+- Not reproduced, no change: `RemapReference` on a model's `.meta` not being undone, and `UndoRun` leaving a moved folder's `.meta` behind
+- Tests: EditMode tests for the atomic rollback through the dispatcher, a model remap and its undo, the path refusals, the `CreateAsset` pre-check and the journal cap. A unit test checks that every `Args.Has` key is a switch
+
 ### 0.11.1
 
 - A headless Unity whose wrapper was killed no longer leaves the editor opening an Untitled scene. `Queue/batch/running.json` keeps the scene setup the wrapper saved, and once that Unity has ended the next call (a run, `--launch` or `--serve`) puts it back, but only over a setup that lists no scene, so one an editor saved since then is kept. Found when the 0.11.0 smoke matrix failed after a hand check had killed a wrapper

@@ -156,7 +156,8 @@ Audit reports land in `Library/DotAsset/Audit/`, with `-report=` to choose the p
 | Calling the wrapper right after opening the editor | The wrapper sees the locked project, prints `waiting up to 300s` and waits for the queue heartbeat. Let it wait |
 | The task waits forever while the editor is open | The queue only runs when the editor is `ready`: not compiling, importing, in play mode, or showing a modal dialog. `dotasset.py --status` shows the state. On macOS an editor in the background can be throttled by App Nap; bring it forward or disable App Nap for Unity |
 | Edit run returns 0 but nothing changed | It was a dry run. Add `-apply` |
-| `-apply=false` or `-apply=no` | A switch takes `=true/1/yes` (on) or `=false/0/no` (off). Anything else is refused |
+| `-apply=false` or `-apply=no` | A switch (`-apply`, `-overwrite`, `-buildonly` and the others) takes `=true/1/yes` (on) or `=false/0/no` (off). Anything else is refused |
+| A path with `..`, `./` or `assets/` in lower case | Refused with exit 2 before anything is written, the journal keeps paths exactly as `Assets/...` and could not undo it. Give the plain path |
 | A quote left open in `--args` | Refused with exit 2, the run never guesses where the value ends |
 | A quote inside a quoted value | Write `\"`. Right before a space or the end of `--args` it closes the value instead, so `-scandir="Assets\Art\"` works while `-x="a \" b"` ends at `a \` and is refused as an unclosed quote. Keep a literal quote away from a following space |
 | Editing an asset in a package from the registry or git | Refused, those packages are read-only (Unity restores them): every Edit and Migrate run fails that target with exit 1 and a "read-only" reason, in the dry run too. Embed the package (move it into `Packages/`) first |

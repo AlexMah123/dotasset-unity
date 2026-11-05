@@ -62,7 +62,7 @@ Entries run in order, so a later entry can use what an earlier one created. Each
 | `AnimatorController` | `Ops` ([controller ops](Edit.md#editanimatorcontroller)) |
 | `Scene` | `Setup`: `Empty` (default) or `Default` (camera and light), `Ops` (hierarchy ops, `Parent` omitted means a scene root), `AddToBuild` (appends it to the Build Settings scene list, `UndoRun` takes it out again) |
 
-Paths must be under `Assets/`. Unknown keys are refused with exit 2 before anything is created, so a misspelt `Propeties` cannot be dropped silently.
+Paths must be under `Assets/`. Every entry's `Kind`, `Path` and keys are checked before anything is created, and a mistake in any entry is refused with exit 2, so a misspelt `Propeties` cannot be dropped silently and a bad third entry leaves the first two uncreated. A path with a `.` or `..` segment, or starting `assets/` in the wrong case, is refused too.
 
 ## Exit codes
 

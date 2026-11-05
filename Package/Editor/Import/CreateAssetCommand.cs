@@ -25,6 +25,8 @@ namespace DotAsset
     // Docs/Import.md
     public sealed class CreateAssetCommand : DotAssetCommand
     {
+        static readonly string[] Kinds = { "Folder", "ScriptableObject", "Material", "Prefab", "PrefabVariant", "AnimatorController", "Scene" };
+
         public override string Summary
         {
             get { return "Creates folders, ScriptableObjects, materials, prefabs, variants, controllers and scenes from a spec"; }
@@ -54,12 +56,29 @@ namespace DotAsset
             }
             for (int i = 0; i < entries.Count; i++)
             {
-                if (!Spec.CheckKeys(ctx, entries[i], "Assets[" + i + "]", AllowedKeys(Json.Str(entries[i], "Kind"))))
+                // A bad Kind, Path or op is refused here, before any asset of the spec exists.
+                string kind = Json.Str(entries[i], "Kind");
+                if (Array.IndexOf(Kinds, kind) < 0)
+                {
+                    ctx.Log.Error("Assets[" + i + "]: \"Kind\" is " + string.Join(", ", Kinds) + ", got " + (kind ?? "nothing"));
+                    return ExitCode.Refused;
+                }
+                string entryPath = DotAssetPaths.Normalize(Json.Str(entries[i], "Path"));
+                if (string.IsNullOrEmpty(entryPath) || !(entryPath.StartsWith("Assets/") || entryPath == "Assets"))
+                {
+                    ctx.Log.Error("Assets[" + i + "]: \"Path\" must be under Assets/, got " + (entryPath ?? "nothing"));
+                    return ExitCode.Refused;
+                }
+                string unsafePath = DotAssetPaths.Unsafe(entryPath);
+                if (unsafePath != null)
+                {
+                    ctx.Log.Error("Assets[" + i + "]: " + unsafePath);
+                    return ExitCode.Refused;
+                }
+                if (!Spec.CheckKeys(ctx, entries[i], "Assets[" + i + "]", AllowedKeys(kind)))
                 {
                     return ExitCode.Refused;
                 }
-                // A typo in an op is refused here, before any asset of the spec exists.
-                string kind = Json.Str(entries[i], "Kind");
                 var ops = Json.Get(entries[i], "Ops") as JArray;
                 if (Json.Get(entries[i], "Ops") != null && ops == null)
                 {
@@ -97,11 +116,6 @@ namespace DotAsset
                 string kind = Json.Str(entry, "Kind");
                 string path = DotAssetPaths.Normalize(Json.Str(entry, "Path"));
                 ctx.Progress(i, entries.Count, path);
-                if (string.IsNullOrEmpty(path) || !(path.StartsWith("Assets/") || path == "Assets"))
-                {
-                    ctx.FailTarget(path ?? "Assets[" + i + "]", "\"Path\" must be under Assets/");
-                    continue;
-                }
                 if (kind == "Folder" ? AssetDatabase.IsValidFolder(path) : AssetDatabase.GetMainAssetTypeAtPath(path) != null)
                 {
                     ctx.Log.Warn(path + " already exists, skipped");
@@ -136,8 +150,9 @@ namespace DotAsset
                         ok = CreateScene(ctx, entry, path, out error);
                         break;
                     default:
+                        // Refused before the loop.
                         ok = false;
-                        error = "\"Kind\" is Folder, ScriptableObject, Material, Prefab, PrefabVariant, AnimatorController or Scene, got " + (kind ?? "nothing");
+                        error = "unknown Kind " + kind;
                         break;
                 }
                 if (!ok)

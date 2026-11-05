@@ -150,7 +150,7 @@ Run it without `-apply` first. The dry run does everything a real run does, chec
 ```
 $ python dotasset.py EditPrefab --args '-spec="C:/temp/player.edit.json"'
 [dotasset] route: batchmode (C:/Program Files/Unity/Hub/Editor/6000.6.7f1/Editor/Unity.exe)
-DotAsset 0.11.2, Unity 6000.6.7f1, batchmode
+DotAsset 0.11.3, Unity 6000.6.7f1, batchmode
 dry run, nothing is written. Add -apply to write.
 Assets/Prefabs/Player.prefab: 2 op(s) would apply
 [dotasset] EditPrefab dry run passed, 0 warning(s), 0 error(s), 0.4s

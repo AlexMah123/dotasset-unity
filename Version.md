@@ -6,6 +6,21 @@ Defined in `Package/Editor/Core/DotAssetVersion.cs` and `Package/package.json`, 
 
 Versions follow one rule. A patch (0.1.x) holds fixes, test upgrades and docs. A minor version (0.x.0) adds something new to call: a run, an op, a spec key, an argument or a wrapper option. While on 0.x, a change that breaks existing calls is also a minor version, marked breaking here. 1.0.0 comes when runs, specs and export JSON are promised to stay stable.
 
+### 0.11.3
+
+Exit codes and stricter input, the rest of the 2026-11-03 review. Each fix has a test that failed on the code before it.
+
+- The wrapper returns 4 (outcome unknown) only for a lost run that could have written: an Import run, or an Edit or Migrate run with `-apply`, that had started. Any other lost run (an Export, an Audit, a dry run, a run that never started) is 1, and the message and JSON still name the task. `--result` keeps 4
+- `--timeout` and `--startup-wait` refuse 0 and negative values with exit 2, instead of giving up at once
+- The group of a run named in another case (`createasset`) is the registered command's group, so the editor's write check treats it as the Import run it is
+- Through the Unity CLI, `--confirm true` adds `-apply` only to an Edit or Migrate run. An Export run with it no longer fails on an unknown argument
+- Enum values in specs are member names only, in any case. A number (`"7"`) or a comma list (`"In, Out"`) for an enum that is not `[Flags]` is refused (EditImporter, EditMaterial, EditAnimatorController, hierarchy ops, curves). Writing a serialized enum property still takes a name, a display name or an integer, as before
+- A curve key given as `In`, `Out`, `InWeight` or `OutWeight` must be a number, and `PreWrap`, `PostWrap` and a gradient's `Mode` must be a name that parses, instead of quietly falling back to a default
+- An array size must be a whole number up to 2147483647, a float a value inside float range (or Infinity), a character a one-character string or a code from 0 to 65535. Before, they were truncated or wrapped
+- When another program holds a file and Unity cannot save it, `EditMaterial`, `EditAsset`, `EditAnimatorController`, `RebindAnimation` and `RenameShaderProperty` fail that target with exit 1 and put the object back. Before, the run reported the file written, with only a warning
+- Not planned: through the Unity CLI an Audit that finds issues is still CLI exit 6, with "exit 3" and the outputs in the message, as documented in AI-Guide. Changing it would break CLI callers
+- Tests: EditMode tests for each fix, unit tests for the wrapper's exit 4 rule, the wait values and the order of the group rule in C#
+
 ### 0.11.2
 
 Fixes from the 2026-11-03 review, each with a test that failed on the code before it.

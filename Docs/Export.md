@@ -80,7 +80,7 @@ The same format in every export and every edit, so an exported value can be writ
 | Bounds | `{"Center": [x, y, z], "Extents": [x, y, z]}` |
 | BoundsInt | `{"Position": [..], "Size": [..]}` |
 | LayerMask | the mask integer. Writes also take `["Default", "Water"]`, `"Everything"`, `"Nothing"` |
-| AnimationCurve | `{"Keys": [{"Time", "Value", "In", "Out"}], "PreWrap", "PostWrap"}`; weighted keys add `WeightedMode`, `InWeight`, `OutWeight` |
+| AnimationCurve | `{"Keys": [{"Time", "Value", "In", "Out"}], "PreWrap", "PostWrap"}`; weighted keys add `WeightedMode`, `InWeight`, `OutWeight`. On a write every key given must parse (numbers for the tangents and weights, member names for the modes), a bad one refuses the value |
 | Gradient | `{"Mode": "Blend", "Colors": [[t, r, g, b]], "Alphas": [[t, a]]}` |
 | Hash128 | 32-digit hex string |
 | struct, `[Serializable]` class | an object of its fields. A write patches only the fields given |

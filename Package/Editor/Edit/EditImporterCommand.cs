@@ -370,7 +370,7 @@ namespace DotAsset
                 if (Json.Has(block, "Format"))
                 {
                     TextureImporterFormat format;
-                    if (!Enum.TryParse(Json.Str(block, "Format"), true, out format))
+                    if (!EnumNames.TryParse(Json.Str(block, "Format"), out format))
                     {
                         return kv.Key + ".Format: '" + Json.Str(block, "Format") + "' is not a TextureImporterFormat";
                     }
@@ -379,7 +379,7 @@ namespace DotAsset
                 if (Json.Has(block, "Compression"))
                 {
                     TextureImporterCompression c;
-                    if (!Enum.TryParse(Json.Str(block, "Compression"), true, out c))
+                    if (!EnumNames.TryParse(Json.Str(block, "Compression"), out c))
                     {
                         return kv.Key + ".Compression: '" + Json.Str(block, "Compression") + "' is not one of " + string.Join(", ", Enum.GetNames(typeof(TextureImporterCompression)));
                     }
@@ -417,7 +417,7 @@ namespace DotAsset
         {
             T value;
             string text = v.Type == JTokenType.String ? (string)v : null;
-            if (text == null || !Enum.TryParse(text, true, out value))
+            if (text == null || !EnumNames.TryParse(text, out value))
             {
                 return "'" + v + "' is not one of " + string.Join(", ", Enum.GetNames(typeof(T)));
             }

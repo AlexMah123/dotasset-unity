@@ -1106,44 +1106,85 @@ namespace DotAsset
                     return false;
                 }
                 double inT, outT;
-                Json.TryDouble(Json.Get(k, "In"), out inT);
-                Json.TryDouble(Json.Get(k, "Out"), out outT);
+                if (!OptionalNumber(k, "In", out inT, out error) || !OptionalNumber(k, "Out", out outT, out error))
+                {
+                    return false;
+                }
                 var frame = new Keyframe((float)t, (float)v, (float)inT, (float)outT);
                 string weighted = Json.Str(k, "WeightedMode");
                 if (weighted != null)
                 {
                     WeightedMode mode;
-                    if (!Enum.TryParse(weighted, true, out mode))
+                    if (!EnumNames.TryParse(weighted, out mode))
                     {
                         error = "WeightedMode is None, In, Out or Both, got " + weighted;
                         return false;
                     }
                     frame.weightedMode = mode;
                     double iw, ow;
-                    if (Json.TryDouble(Json.Get(k, "InWeight"), out iw))
+                    if (!OptionalNumber(k, "InWeight", out iw, out error) || !OptionalNumber(k, "OutWeight", out ow, out error))
+                    {
+                        return false;
+                    }
+                    if (Json.Get(k, "InWeight") != null)
                     {
                         frame.inWeight = (float)iw;
                     }
-                    if (Json.TryDouble(Json.Get(k, "OutWeight"), out ow))
+                    if (Json.Get(k, "OutWeight") != null)
                     {
                         frame.outWeight = (float)ow;
                     }
                 }
                 frames.Add(frame);
             }
-            curve = new AnimationCurve(frames.ToArray());
-            WrapMode wrap;
-            string pre = Json.Str(value, "PreWrap");
-            string post = Json.Str(value, "PostWrap");
-            if (pre != null && Enum.TryParse(pre, true, out wrap))
+            WrapMode pre = WrapMode.ClampForever, post = WrapMode.ClampForever;
+            if (!OptionalEnum(value, "PreWrap", ref pre, out error) || !OptionalEnum(value, "PostWrap", ref post, out error))
             {
-                curve.preWrapMode = wrap;
+                return false;
             }
-            if (post != null && Enum.TryParse(post, true, out wrap))
+            curve = new AnimationCurve(frames.ToArray());
+            if (Json.Get(value, "PreWrap") != null)
             {
-                curve.postWrapMode = wrap;
+                curve.preWrapMode = pre;
+            }
+            if (Json.Get(value, "PostWrap") != null)
+            {
+                curve.postWrapMode = post;
             }
             return true;
+        }
+
+        // A key that may be left out, but when given must be a number. Left out it is 0.
+        static bool OptionalNumber(JToken owner, string key, out double d, out string error)
+        {
+            d = 0;
+            error = null;
+            JToken v = Json.Get(owner, key);
+            if (v == null || Json.TryDouble(v, out d))
+            {
+                return true;
+            }
+            error = "curve key " + key + " expects a number, got " + Show(v);
+            return false;
+        }
+
+        // A key that may be left out, but when given must name a member of T.
+        static bool OptionalEnum<T>(JToken owner, string key, ref T value, out string error) where T : struct
+        {
+            error = null;
+            JToken v = Json.Get(owner, key);
+            if (v == null)
+            {
+                return true;
+            }
+            T parsed;
+            if (v.Type == JTokenType.String && EnumNames.TryParse((string)v, out parsed))
+            {
+                value = parsed;
+                return true;
+            }
+            error = key + " is one of " + EnumNames.List(typeof(T)) + ", got " + Show(v);
+            return false;
         }
 
         static bool TryGradient(JToken value, out Gradient gradient, out string error)
@@ -1179,11 +1220,14 @@ namespace DotAsset
                 }
                 ak.Add(new GradientAlphaKey(f[1], f[0]));
             }
+            GradientMode mode = GradientMode.Blend;
+            if (!OptionalEnum(value, "Mode", ref mode, out error))
+            {
+                return false;
+            }
             gradient = new Gradient();
             gradient.SetKeys(ck.ToArray(), ak.ToArray());
-            string modeText = Json.Str(value, "Mode");
-            GradientMode mode;
-            if (modeText != null && Enum.TryParse(modeText, true, out mode))
+            if (Json.Get(value, "Mode") != null)
             {
                 gradient.mode = mode;
             }

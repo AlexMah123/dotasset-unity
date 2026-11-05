@@ -97,6 +97,22 @@ namespace DotAsset.Tests
             Assert.AreEqual("NormalMap", (string)Export("ImporterExport", png)["Summary"]["TextureType"]);
         }
 
+        [Test]
+        public void EditImporterRefusesAnEnumGivenAsANumberOrAList()
+        {
+            // N8: Enum.TryParse takes "7" and "Compressed, CompressedHQ", neither names a TextureImporterCompression
+            string png = Folder + "/Rock.png";
+            WritePng(png);
+            foreach (string value in new[] { "7", "Compressed, CompressedHQ" })
+            {
+                string spec = Spec(@"{'Targets': [{'AssetPath': '" + png + @"', 'Texture': {'Platforms': {'Standalone': {'Compression': '" + value + @"'}}}}]}");
+                RunResult r = Run("EditImporter", spec);
+                Assert.AreNotEqual(0, r.ExitCode, value + " was taken: " + string.Join("\n", r.Lines.ToArray()));
+                StringAssert.Contains("Compression", string.Join("\n", r.Lines.ToArray()), value);
+            }
+            Ok("EditImporter", Spec(@"{'Targets': [{'AssetPath': '" + png + @"', 'Texture': {'Platforms': {'Standalone': {'Compression': 'compressedhq'}}}}]}"));
+        }
+
         static string[] Parameters()
         {
             return Export("AnimatorControllerExport", Door)["Parameters"].Select(p => (string)p["Name"]).ToArray();

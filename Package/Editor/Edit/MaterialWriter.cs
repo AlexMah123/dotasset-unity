@@ -172,7 +172,7 @@ namespace DotAsset
             {
                 MaterialGlobalIlluminationFlags gi;
                 string text = Json.Str(block, "GlobalIlluminationFlags");
-                if (!Enum.TryParse(text, true, out gi))
+                if (!EnumNames.TryParse(text, out gi))
                 {
                     errors.Add("GlobalIlluminationFlags: '" + text + "' is not one of " + string.Join(", ", Enum.GetNames(typeof(MaterialGlobalIlluminationFlags))));
                     return false;

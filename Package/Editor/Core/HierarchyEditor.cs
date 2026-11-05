@@ -680,7 +680,7 @@ namespace DotAsset
             foreach (JToken n in names)
             {
                 StaticEditorFlags f;
-                if (!Enum.TryParse((string)n, true, out f))
+                if (!EnumNames.TryParse((string)n, out f))
                 {
                     error = "'" + n + "' is not a StaticEditorFlags name. Names: " + string.Join(", ", Enum.GetNames(typeof(StaticEditorFlags)));
                     return false;

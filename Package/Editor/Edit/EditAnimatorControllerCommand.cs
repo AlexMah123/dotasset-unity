@@ -441,7 +441,7 @@ namespace DotAsset
                     return;
                 }
                 AnimatorControllerParameterType type;
-                if (!Enum.TryParse(Json.Str(op, "Type", "Float"), true, out type))
+                if (!EnumNames.TryParse(Json.Str(op, "Type", "Float"), out type))
                 {
                     Fail("Type is Float, Int, Bool or Trigger");
                     return;
@@ -741,7 +741,7 @@ namespace DotAsset
                 if (Json.Has(op, "Blending"))
                 {
                     AnimatorLayerBlendingMode mode;
-                    if (!Enum.TryParse(Json.Str(op, "Blending"), true, out mode))
+                    if (!EnumNames.TryParse(Json.Str(op, "Blending"), out mode))
                     {
                         Fail("Blending is Override or Additive");
                         return;
@@ -1088,7 +1088,7 @@ namespace DotAsset
                     return false;
                 }
                 BlendTreeType type;
-                if (!Enum.TryParse(Json.Str(block, "BlendType", "Simple1D"), true, out type))
+                if (!EnumNames.TryParse(Json.Str(block, "BlendType", "Simple1D"), out type))
                 {
                     Fail("BlendType is one of " + string.Join(", ", Enum.GetNames(typeof(BlendTreeType))));
                     return false;
@@ -1376,7 +1376,7 @@ namespace DotAsset
                     if (Json.Has(op, "Interruption"))
                     {
                         TransitionInterruptionSource source;
-                        if (!Enum.TryParse(Json.Str(op, "Interruption"), true, out source))
+                        if (!EnumNames.TryParse(Json.Str(op, "Interruption"), out source))
                         {
                             Fail("Interruption is one of " + string.Join(", ", Enum.GetNames(typeof(TransitionInterruptionSource))));
                             return;
@@ -1411,7 +1411,7 @@ namespace DotAsset
                         }
                         AnimatorConditionMode mode;
                         string modeText = Json.Str(c, "Mode", p.type == AnimatorControllerParameterType.Bool || p.type == AnimatorControllerParameterType.Trigger ? "If" : "Greater");
-                        if (!Enum.TryParse(modeText, true, out mode))
+                        if (!EnumNames.TryParse(modeText, out mode))
                         {
                             Fail("condition Mode is one of " + string.Join(", ", Enum.GetNames(typeof(AnimatorConditionMode))));
                             return;

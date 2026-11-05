@@ -132,6 +132,43 @@ namespace DotAsset.Tests
             Assert.AreEqual('B', fixture.letter);
         }
 
+        static bool Curve(string json, out string error)
+        {
+            AnimationCurve curve;
+            return ValueCodec.TryCurve(JToken.Parse(json.Replace('\'', '"')), out curve, out error);
+        }
+
+        [Test]
+        public void RefusesCurveAndGradientKeysThatDoNotParse()
+        {
+            // F2: a key that is there but does not parse is an error, as a bad WeightedMode already was
+            string error;
+            Assert.IsTrue(Curve("{'Keys': [{'Time': 0, 'Value': 1, 'In': 0.5}], 'PreWrap': 'Loop'}", out error), error);
+            Assert.IsFalse(Curve("{'Keys': [{'Time': 0, 'Value': 1}], 'PreWrap': 'Loopp'}", out error), "PreWrap Loopp");
+            Assert.IsFalse(Curve("{'Keys': [{'Time': 0, 'Value': 1}], 'PostWrap': 'Pingpong!'}", out error), "PostWrap");
+            Assert.IsFalse(Curve("{'Keys': [{'Time': 0, 'Value': 1, 'In': 'abc'}]}", out error), "In abc");
+            Assert.IsFalse(Curve("{'Keys': [{'Time': 0, 'Value': 1, 'WeightedMode': 'Both', 'InWeight': 'x'}]}", out error), "InWeight x");
+            var keys = new JObject { ["Colors"] = JArray.Parse("[[0, 1, 0, 0]]"), ["Alphas"] = JArray.Parse("[[0, 1]]") };
+            var blend = (JObject)keys.DeepClone();
+            blend["Mode"] = "Fixed";
+            Write("shade", blend);
+            Assert.AreEqual(GradientMode.Fixed, fixture.shade.mode);
+            var typo = (JObject)keys.DeepClone();
+            typo["Mode"] = "Blendd";
+            Refused("shade", typo);
+        }
+
+        [Test]
+        public void EnumsTakeNamesOnly()
+        {
+            // N8: Enum.TryParse also takes "7" and "In, Out", which name no member
+            string error;
+            Assert.IsFalse(Curve("{'Keys': [{'Time': 0, 'Value': 1, 'WeightedMode': '7'}]}", out error), "WeightedMode 7");
+            Assert.IsFalse(Curve("{'Keys': [{'Time': 0, 'Value': 1, 'WeightedMode': 'In, Out'}]}", out error), "WeightedMode In, Out");
+            Assert.IsFalse(Curve("{'Keys': [{'Time': 0, 'Value': 1}], 'PreWrap': '2'}", out error), "PreWrap 2");
+            Assert.IsTrue(Curve("{'Keys': [{'Time': 0, 'Value': 1, 'WeightedMode': 'both'}]}", out error), "names ignore case, as before");
+        }
+
         [Test]
         public void RefusesAStringCutOnExport()
         {

@@ -146,7 +146,7 @@ Exports land in `Library/DotAsset/Export/<AssetPath>_<YYYYMMDD-HHMMSS>.json` and
 grep -n '"Path": "Player/Model' Library/DotAsset/Export/Assets/Prefabs/Player.prefab_*.json
 ```
 
-Audit reports land in `Library/DotAsset/Audit/`, with `-report=` to choose the path. Run logs: `Library/DotAsset/Logs/`, and `Window > DotAsset` lists them in the editor.
+Audit reports land in `Library/DotAsset/Audit/`, with `-report=` to choose the path. It writes over a file already there, so give a new path outside `Assets/`, `Packages/` and `ProjectSettings/`. Run logs: `Library/DotAsset/Logs/`, and `Window > DotAsset` lists them in the editor.
 
 ## Pitfalls
 
@@ -157,7 +157,7 @@ Audit reports land in `Library/DotAsset/Audit/`, with `-report=` to choose the p
 | The task waits forever while the editor is open | The queue only runs when the editor is `ready`: not compiling, importing, in play mode, or showing a modal dialog. `dotasset.py --status` shows the state. On macOS an editor in the background can be throttled by App Nap; bring it forward or disable App Nap for Unity |
 | Edit run returns 0 but nothing changed | It was a dry run. Add `-apply` |
 | `-apply=false` or `-apply=no` | A switch (`-apply`, `-overwrite`, `-buildonly` and the others) takes `=true/1/yes` (on) or `=false/0/no` (off). Anything else is refused |
-| A path with `..`, `./` or `assets/` in lower case | Refused with exit 2 before anything is written, the journal keeps paths exactly as `Assets/...` and could not undo it. Give the plain path |
+| A path with `..`, `./` or `assets/` in lower case | Refused before anything is written, the journal keeps paths exactly as `Assets/...` and could not undo it. Give the plain path. In 0.11.4 only the AssetList and `CreateAsset` refuse it with exit 2. From `-from`, `-to` or a spec it passes the dry run and fails at `-apply` with exit 1, still before any write |
 | A quote left open in `--args` | Refused with exit 2, the run never guesses where the value ends |
 | A quote inside a quoted value | Write `\"`. Right before a space or the end of `--args` it closes the value instead, so `-scandir="Assets\Art\"` works while `-x="a \" b"` ends at `a \` and is refused as an unclosed quote. Keep a literal quote away from a following space |
 | Editing an asset in a package from the registry or git | Refused, those packages are read-only (Unity restores them): every Edit and Migrate run fails that target with exit 1 and a "read-only" reason, in the dry run too. Embed the package (move it into `Packages/`) first |
@@ -181,6 +181,7 @@ Audit reports land in `Library/DotAsset/Audit/`, with `-report=` to choose the p
 | Renaming a C# field loses its data | Add `[FormerlySerializedAs("oldName")]`, then `ResaveAsset -dependson=Assets/Scripts/X.cs -apply`, then the attribute can go |
 | `MoveAsset` warns that a script mentions the path | GUIDs keep serialized references, not strings. Fix `Resources.Load` paths and hard-coded asset paths in code by hand |
 | `DeleteAsset` refuses | Something under `-scandir`, or a project setting, Build Settings, a Build Profile, Addressables or an AssetBundle name, still references it: the warnings list what. References from code are not seen. Fix those first, or add `-force`. A scene open with unsaved changes, or the prefab in Prefab Mode with unsaved changes, is refused even with `-force`: ask the user to save or discard first. `ResaveAsset` refuses those too |
+| `DeleteAsset` with the editor open | In 0.11.4 the users check reads the saved files: an asset that only an unsaved change uses (an open scene, Prefab Mode) counts as unused. Ask the user to save first. `-scandir` defaults to `Assets`, so name an embedded or local package that may use the targets: `-scandir=Assets,Packages/<name>` |
 | Treating exit code 3 as failure | 3 means the audit worked and found something. Through the Unity CLI an audit with issues fails the command (CLI exit 6), and the message carries `exit 3` and an `output` line per file written (the report and its fix spec), so read the message, not the CLI's code |
 | Exports and reports in version control | `Library/` is ignored by Unity's default `.gitignore`. Copy what you need to keep |
 | Several headless calls at once | They take turns: a later call prints `another DotAsset headless run has the project, waiting` and starts when the one before ends. For many steps in a row, `--launch` the editor or `--serve` a headless host once instead, queued runs skip Unity's start-up |

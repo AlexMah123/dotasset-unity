@@ -150,7 +150,7 @@ Run it without `-apply` first. The dry run does everything a real run does, chec
 ```
 $ python dotasset.py EditPrefab --args '-spec="C:/temp/player.edit.json"'
 [dotasset] route: batchmode (C:/Program Files/Unity/Hub/Editor/6000.6.7f1/Editor/Unity.exe)
-DotAsset 0.11.3, Unity 6000.6.7f1, batchmode
+DotAsset 0.11.4, Unity 6000.6.7f1, batchmode
 dry run, nothing is written. Add -apply to write.
 Assets/Prefabs/Player.prefab: 2 op(s) would apply
 [dotasset] EditPrefab dry run passed, 0 warning(s), 0 error(s), 0.4s
@@ -235,13 +235,16 @@ Commands are plain classes: derive from `DotAssetCommand`, name the class `<RunN
 | Tool | Checked | Editor closed | Writes | Best for |
 | :-- | :-- | :-: | :-- | :-- |
 | **DotAsset** | | ✓ (headless) | Fixed runs: dry run by default, all or nothing per asset, journaled so `UndoRun` takes a run back, unknown keys refused, never over unsaved work in the editor | Reference-aware migrations (remap references and scripts, moves, deletes that check users), audits with fix specs, repeatable asset edits, in CI or by an agent |
-| [Unity CLI](https://unity.com/blog/meet-the-unity-cli) with `com.unity.pipeline` (Unity 6+) | Tested 2026-10-30 (beta.13), docs 2026-11-01 (beta.14), DotAsset's adapter tested 2026-11-02 (beta.15), release notes 2026-11-05 (beta.16) | Headless `unity cmd` | About 150 editor commands, `batch` of up to 200 ops on one undo (rollback covers Undo, not asset files; dry run validates only), `eval` for any C#, custom `[CliCommand]`s, `unity mcp` for agents (`--tools` and `--exclude-tools` pick which tools it lists since beta.14) | Editor installs, builds, tests, Project Auditor, general editor work |
+| [Unity CLI](https://unity.com/blog/meet-the-unity-cli) with `com.unity.pipeline` (Unity 6+) | Tested 2026-10-30 (beta.13), docs 2026-11-01 (beta.14), DotAsset's adapter tested 2026-11-02 (beta.15), release notes and Pipeline 0.9 safety docs 2026-11-05 (beta.16) | Partial: `unity cmd` talks to a running Unity with the Pipeline, an editor or a batch instance | About 200 editor commands (217 listed in beta.15). Destructive and overwriting commands take `confirm` and `dry_run` (a preview), asset writes are not undone by Ctrl+Z. `batch` of up to 200 ops on one undo (rollback covers Undo, not asset files; its dry run validates only), `eval` for any C#, custom `[CliCommand]`s, `unity mcp` for agents (`--tools` and `--exclude-tools` pick which tools it lists since beta.14) | Editor installs, builds, tests, Project Auditor, general editor work |
 | [IvanMurzak/Unity-MCP](https://github.com/IvanMurzak/Unity-MCP) | Docs 2026-11-05 (1.7.0) | Batch mode (`-batchmode -nographics` with `-UNITY_MCP_KEEP_CONNECTED=true`) | Editor tools, including Prefab Mode open and save, asset move and delete (no reference checks documented), and since 1.7.0 queries and changes through `rql-query` and `rql-mutate` | Agent work in an open editor, or a batch-mode Unity in CI |
-| [CoplayDev/unity-mcp](https://github.com/CoplayDev/unity-mcp) | Docs 2026-11-01 (v10.3.0) | ✗ | Editor tools: assets, scenes, scripts, tests | Interactive work in an open editor |
-| [AnkleBreaker unity-mcp-plugin](https://github.com/AnkleBreaker-Studio/unity-mcp-plugin) | Docs 2026-11-01 (2.41.4) | ✗ | 260+ editor tools, named undo groups for writes that register Undo (not filesystem changes) | Interactive work in an open editor |
+| [CoplayDev/unity-mcp](https://github.com/CoplayDev/unity-mcp) | Docs and source 2026-11-05 (v10.3.0) | ✗ | 50 editor tools: assets (create, duplicate, move, rename, delete), prefabs, materials, ScriptableObjects, textures, scenes, scripts, builds, packages, tests, `execute_code`, `batch_execute`. No dry run or rollback documented | Interactive work in an open editor |
+| [AnkleBreaker unity-mcp-plugin](https://github.com/AnkleBreaker-Studio/unity-mcp-plugin) | Docs 2026-11-05 (2.41.4) | ✗ | 338 editor routes, named undo groups for writes that register Undo (not filesystem changes) | Interactive work in an open editor |
+| [Unity AI Assistant](https://docs.unity3d.com/Packages/com.unity.ai.assistant@2.21/changelog/CHANGELOG.html) | Changelog 2026-11-05 (2.21.0-pre.2) | – | Agent changes in the editor. Git-backed checkpoints restore project files to an earlier point, listing the files before the restore (since 2.11), the nearest thing to `UndoRun` | Asking for changes inside the editor, with a checkpoint to go back to |
 | [unity-cli-loop](https://github.com/hatayama/unity-cli-loop) | Docs 2026-11-05 (v3.21.3) | ✗ | Compile, run tests, read logs, run dynamic C#, screenshots (Unity 2022.3+), no asset migrations | An agent's edit, compile and test loop in an open editor |
 | [UniCli](https://github.com/yucchiy/UniCli) | Docs 2026-10 | ✗ | 80+ editor commands (GameObjects, scenes, prefabs, materials, builds, tests, packages, `Eval`), refuses dirty scenes by default | Driving the whole editor from a terminal: compile, test, build, inspect |
 | YAML parsers (e.g. [unityparser](https://pypi.org/project/unityparser)) | Docs 2026-10 | ✓ (no Unity at all) | Raw YAML, no validation, no reimport | Reading or patching files without Unity |
+
+✗ means not documented as of the date under Checked, not tested and found absent. – means not checked.
 
 Scene and prefab editing, headless runs and agent access are now common. What DotAsset adds is narrower: asset changes that run without anyone at the editor, show a dry run first, keep a journal that `UndoRun` takes back, work headless, and repoint references, including a Missing Script repointed by its old script GUID. Editor tools such as [Find Reference 2](https://assetstore.unity.com/packages/tools/utilities/find-reference-2-59092) (finding references and unused assets) and [GUID Fixer & Meta File Modifier](https://assetstore.unity.com/packages/tools/utilities/guid-fixer-meta-file-modifier-230484) (fixing missing references by GUID) cover parts of this by hand inside the editor. The Unity CLI and Pipeline package are still in beta. The Unity CLI and `unity mcp` were also tested on a real editor: see [Docs/Unity-CLI-and-MCP.md](Docs/Unity-CLI-and-MCP.md).
 
@@ -314,6 +317,21 @@ Every write is read back through an export. An exit code alone never counts as a
 The texture, Missing Script, `RebindAnimation`, `RemapScript`, `RenameField` and `[SerializeReference]` steps write files to disk. Headless, the host restarts so Unity reads them. With the editor open, the smoke helper refreshes the editor and waits until the new scripts have compiled.
 
 With the editor open, the smoke test opens `Smoke.unity` in your editor, runs `EditScene` on it dry and with `-apply` (one undo group), and then reopens the scenes you had. Still to be confirmed: `RemoveMissingScripts` on a scene open in the editor. Please open issues with the Console output.
+
+### Known issues in 0.11.4
+
+Found by the review of 2026-11-05, fixes planned for 0.11.5. Only the `-report` case touches a file outside the journal, so `UndoRun` takes back anything the others wrote.
+
+| Issue | Until then |
+| :-- | :-- |
+| With the editor open, `DeleteAsset` reads users from the saved files. An asset that only an unsaved change uses (in an open scene or in Prefab Mode) counts as unused and is deleted | Save open scenes and Prefab Mode before a delete |
+| An audit's `-report=<path>` writes over any file at that path and deletes the `<name>.fix.json` next to it, without a journal | Leave the default path, or give a new path outside `Assets/`, `Packages/` and `ProjectSettings/` |
+| A path with a `.` or `..` segment in `-from`, `-to` or a spec passes the dry run, then fails at `-apply` with exit 1 instead of 2. Nothing is written | Give the plain `Assets/...` path |
+| `UndoRun -atomic=false` that stops partway (a file held by another program) cannot be run again: the files it already restored count as changed | Leave `-atomic` at its default for `UndoRun`. A failed undo then puts every file back and can be run again |
+| `DeleteAsset -spec` ignores unknown keys. A misspelt `Assets` key deletes nothing and exits 0 | Check the key, or pass the paths as the AssetList |
+| `MoveAsset` refuses a rename that changes only the case (`Red.mat` to `RED.mat`) as "already exists" | Two moves in one spec, through a temporary name |
+| A failed `EditPrefab` or `EditScene` that saved nothing still prints an `undo with:` line | Nothing was written, so skip that line |
+| `-scandir` defaults to `Assets`, which leaves out embedded and local packages | Name them: `-scandir=Assets,Packages/com.example.tools` |
 
 ## Contributors
 

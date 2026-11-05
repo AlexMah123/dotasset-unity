@@ -38,7 +38,7 @@ Fixes from the 2026-11-03 review, each with a test that failed on the code befor
 - Every writing run refuses a file in a read-only package (registry or git), in the dry run too. `DeleteAsset`, `RemapReference`, `RebindAnimation`, `RenameShaderProperty`, `ResaveAsset`, `RenameField`, `RemapScript` and `RenameSerializeReferenceType` now fail that target with exit 1 and a "read-only" reason, as the other runs did. `RunJournal.Keep` refuses such a file as a backstop
 - A path with a `.` or `..` segment, or starting `assets/` or `packages/` in the wrong case, is refused with exit 2 instead of being written past the journal, so `UndoRun` could not put it back
 - `CreateAsset` checks every entry's `Kind` and `Path` before creating anything, so a bad later entry no longer leaves the earlier ones created. It now journals an `AnimatorController` and a new scene before writing them, as every other kind
-- `-overwrite` (`RenameShaderProperty`) and `-buildonly` (`AuditUnused`) are switches, so `=false` turns them off instead of on
+- `-overwrite` (`RenameShaderProperty`) and `-buildonly` (`AuditUnusedAsset`) are switches, so `=false` turns them off instead of on
 - `RemapReference` keeps and saves a non-prefab, non-scene file before it commits the change, as `EditAsset` does
 - The 30-journal cap no longer prunes the journal of an interrupted run, or of an `-atomic` rollback that could not put every file back, until `UndoRun` has undone it. Such a rollback marks its journal `RollbackIncomplete`
 - Not reproduced, no change: `RemapReference` on a model's `.meta` not being undone, and `UndoRun` leaving a moved folder's `.meta` behind

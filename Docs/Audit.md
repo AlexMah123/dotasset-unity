@@ -16,7 +16,7 @@ python dotasset.py AuditTexture --args "-scandir=Assets"
 python dotasset.py AuditMaterial "Assets/Materials/Characters"
 ```
 
-Entry assets in AssetList (folders expand), or `-scandir` (default `Assets`). `-report=<path>` picks the report path, default `Library/DotAsset/Audit/<RunName>_<timestamp>.json`. The newest 20 default reports of each audit are kept, older ones are deleted with their fix specs. A report written to `-report` is never deleted.
+Entry assets in AssetList (folders expand), or `-scandir` (default `Assets`). `-report=<path>` picks the report path, default `Library/DotAsset/Audit/<RunName>_<timestamp>.json`. The newest 20 default reports of each audit are kept, older ones are deleted with their fix specs. A report written to `-report` is never deleted. In 0.11.4 `-report` writes over any file already at that path and deletes the `<name>.fix.json` next to it (an old fix spec there would look current), without a journal: give a new path outside `Assets/`, `Packages/` and `ProjectSettings/`.
 
 ## Exit codes
 
@@ -29,7 +29,7 @@ Entry assets in AssetList (folders expand), or `-scandir` (default `Assets`). `-
 
 3 is not a failure: the audit worked. CI can gate on it.
 
-An Audit run never writes, so a run the wrapper loses track of (timed out, interrupted) is 1, not 4. The wrapper still names its task, and `--result <task>` reads the report once the editor finishes it. See [AI-Guide.md](AI-Guide.md#reading-results).
+An Audit run writes only its report and fix spec, never an asset, so a run the wrapper loses track of (timed out, interrupted) is 1, not 4. The wrapper still names its task, and `--result <task>` reads the report once the editor finishes it. See [AI-Guide.md](AI-Guide.md#reading-results).
 
 ## Report
 

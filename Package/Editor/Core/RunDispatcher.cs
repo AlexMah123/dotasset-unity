@@ -202,6 +202,12 @@ namespace DotAsset
                 ctx.Log.Error(cmd.Name + " takes no AssetList, its targets come from " + (cmd.Arguments.Contains("spec") ? "the spec" : "its arguments") + ". Got: " + string.Join(", ", ctx.Assets));
                 return ExitCode.Refused;
             }
+            string unsafePath = ctx.Assets.Select(DotAssetPaths.Unsafe).FirstOrDefault(u => u != null);
+            if (unsafePath != null)
+            {
+                ctx.Log.Error(unsafePath);
+                return ExitCode.Refused;
+            }
 
             if (ctx.Args.UnclosedQuote)
             {

@@ -268,6 +268,12 @@ namespace DotAsset
             {
                 path = path.Substring(0, path.Length - 5);
             }
+            // Refused, not skipped: a write the journal cannot keep must not happen. Runs check this while planning.
+            string unsafePath = DotAssetPaths.Unsafe(path);
+            if (unsafePath != null)
+            {
+                throw new InvalidOperationException(unsafePath);
+            }
             if (!path.StartsWith("Assets/", StringComparison.Ordinal) && !path.StartsWith("Packages/", StringComparison.Ordinal))
             {
                 return;

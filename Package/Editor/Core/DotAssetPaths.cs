@@ -49,6 +49,29 @@ namespace DotAsset
             return string.IsNullOrEmpty(path) ? path : path.Replace('\\', '/');
         }
 
+        // Why a project path cannot be journaled as given, or null. A "." or ".." segment names another file than the
+        // one the run checked, and "assets/" is not the "Assets/" the journal keeps, though Windows opens it.
+        public static string Unsafe(string path)
+        {
+            if (string.IsNullOrEmpty(path))
+            {
+                return null;
+            }
+            string[] parts = Normalize(path).Split('/');
+            if (parts.Any(p => p == "." || p == ".."))
+            {
+                return path + " has a \".\" or \"..\" segment, give the path without one";
+            }
+            foreach (string root in new[] { "Assets", "Packages" })
+            {
+                if (parts[0] != root && string.Equals(parts[0], root, StringComparison.OrdinalIgnoreCase))
+                {
+                    return path + " starts with " + parts[0] + "/, write it " + root + "/";
+                }
+            }
+            return null;
+        }
+
         public static string Combine(string a, string b)
         {
             return Normalize(Path.Combine(a, b));

@@ -175,11 +175,18 @@ namespace DotAsset
                     ctx.PlanFile("reimport", path, tex != null ? "Texture settings" : null);
                     return true;
                 }
-                snapshot.Commit();
                 EditorUtility.SetDirty(importer);
                 RunJournal.KeepMeta(importer.assetPath);
+                ctx.BeforeSave(importer.assetPath + ".meta");
                 importer.SaveAndReimport();
-                ctx.WarnIfSavedWithErrors(path);
+                if (ctx.SaveFailed(path))
+                {
+                    // The import may have used the settings the .meta did not get: they are put back and imported again.
+                    snapshot.Dispose();
+                    AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+                    return false;
+                }
+                snapshot.Commit();
                 ctx.Log.Info("reimported " + path);
                 return true;
             }

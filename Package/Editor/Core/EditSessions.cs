@@ -461,6 +461,7 @@ namespace DotAsset
         readonly HideFlags hideFlags;
         readonly bool wasDirty;
         bool committed;
+        bool disposed;
 
         public AssetSnapshot(Object target)
         {
@@ -493,8 +494,14 @@ namespace DotAsset
             committed = true;
         }
 
+        // Safe to call twice: an early Dispose puts the object back before a reimport, the using block's does nothing.
         public void Dispose()
         {
+            if (disposed)
+            {
+                return;
+            }
+            disposed = true;
             if (!committed && target != null)
             {
                 if (saved != null)

@@ -432,7 +432,12 @@ namespace DotAsset
                     EditorUtility.SetDirty(o);
                 }
                 RunJournal.Keep(path);
+                ctx.BeforeSave(path);
                 AssetDatabase.SaveAssetIfDirty(AssetDatabase.LoadMainAssetAtPath(path));
+                if (!ctx.Saved(out error))
+                {
+                    return false;
+                }
                 foreach (AssetSnapshot snapshot in snapshots)
                 {
                     snapshot.Commit();

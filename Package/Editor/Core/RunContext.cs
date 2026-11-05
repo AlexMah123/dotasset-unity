@@ -99,17 +99,27 @@ namespace DotAsset
         // object back. A file that changed counts as written, the error as a warning.
         public bool SaveFailed(string target)
         {
-            if (!TargetFailed())
+            string error;
+            if (!Saved(out error))
             {
-                return false;
-            }
-            if (savePath != null && RunJournal.Hash(savePath) == saveHash)
-            {
-                FailTarget(target, "Unity did not write the file: " + TargetError);
+                FailTarget(target, error);
                 return true;
             }
             WarnIfSavedWithErrors(target);
             return false;
+        }
+
+        // The same check for a caller that fails the target itself: false, with the reason, when Unity logged an error
+        // during the save and the file on disk is as it was.
+        public bool Saved(out string error)
+        {
+            error = null;
+            if (TargetFailed() && savePath != null && RunJournal.Hash(savePath) == saveHash)
+            {
+                error = "Unity did not write the file: " + TargetError;
+                return false;
+            }
+            return true;
         }
 
         // The first error logged since BeginTarget, the reason a failed target gives.

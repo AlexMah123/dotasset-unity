@@ -93,7 +93,12 @@ namespace DotAsset
                 throw new InvalidOperationException("a dry run writes nothing, " + target + " was not written");
             }
             // The backstop for a run that does not check ReadOnly itself: a write into a registry, git or tarball
-            // package cannot be kept, so it is not made.
+            // package cannot be kept, so it is not made. Only during a run: a save the user makes outside one passes
+            // through JournalHook too, and Unity filters those itself.
+            if (Current == null)
+            {
+                return;
+            }
             string readOnly = ReadOnly.Reason(target);
             if (readOnly != null)
             {
@@ -197,8 +202,8 @@ namespace DotAsset
         }
 
         // Call before path is written, created, moved or deleted. Calling it again for the same path does nothing.
-        // During a dry run, or for a file in a read-only package, it throws instead, so the write that follows never
-        // happens: SaveAssetIfDirty does not pass through JournalHook on every Unity version, this call does.
+        // During a dry run, or during a run for a file in a read-only package, it throws instead, so the write that
+        // follows never happens: SaveAssetIfDirty does not pass through JournalHook on every Unity version, this call does.
         public static void Keep(string path)
         {
             ThrowIfRefused(path);
@@ -1031,6 +1036,7 @@ namespace DotAsset
 
     // Every AssetDatabase write during a writing run passes through here first, so the journal keeps the file as it was.
     // During a dry run the same writes are refused: saves dropped, moves and deletes failed, creates removed afterwards.
+    // Outside a run every call here does nothing, so the user's own saves are left to Unity.
     public sealed class JournalHook : AssetModificationProcessor
     {
         static string[] OnWillSaveAssets(string[] paths)

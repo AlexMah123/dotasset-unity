@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using System.Reflection;
 using NUnit.Framework;
 
 namespace DotAsset.Tests
@@ -68,6 +69,19 @@ namespace DotAsset.Tests
         public void RenameFieldRefusesAPackageFile()
         {
             AssertRefused(Run("RenameField", "-script=" + VolumeGuid + " -from=m_Enabled -to=m_DotAssetEnabled -scandir=" + Templates), Standard);
+        }
+
+        [Test]
+        public void SaveHookOutsideARunLeavesPackageAssetsToUnity()
+        {
+            // S1: the backstop is for runs. A save the user makes, with no run open, is Unity's to filter
+            Assert.IsNull(RunJournal.Current, "no run may be open for this test");
+            MethodInfo hook = typeof(JournalHook).GetMethod("OnWillSaveAssets", BindingFlags.NonPublic | BindingFlags.Static);
+            string[] kept = null;
+            Assert.DoesNotThrow(() => kept = (string[])hook.Invoke(null, new object[] { new[] { Gold } }));
+            CollectionAssert.Contains(kept, Gold);
+            Assert.DoesNotThrow(() => RunJournal.Keep(Gold), "Keep outside a run");
+            Assert.DoesNotThrow(() => RunJournal.KeepMeta(Gold), "KeepMeta outside a run");
         }
 
         [Test]

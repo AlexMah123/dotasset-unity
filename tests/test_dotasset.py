@@ -354,6 +354,15 @@ class GroupRule(unittest.TestCase):
         for run, extra in safe:
             self.assertFalse(ops.could_write(run, extra), "%s %s" % (run, extra))
 
+    def test_could_write_tokenizes_like_runargs(self):
+        # T1: RunArgs strips the quotes and every leading dash, so all of these turn -apply on or leave it off
+        on = ["--apply", "---apply", '"-apply"', "-spec=x.json --apply", '-spec="a b.json" -APPLY', '"--apply=yes"']
+        off = ["--apply=false", '-spec="a -apply b"', '-spec="-apply"', '"-apply" "-apply=no"']
+        for extra in on:
+            self.assertTrue(ops.could_write("MoveAsset", extra), extra)
+        for extra in off:
+            self.assertFalse(ops.could_write("MoveAsset", extra), extra)
+
     def test_every_command_class_is_sealed_and_named(self):
         for dirpath, _, files in os.walk(os.path.join(PACKAGE, "Editor")):
             for name in files:

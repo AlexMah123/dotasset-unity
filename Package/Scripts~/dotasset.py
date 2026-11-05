@@ -107,12 +107,46 @@ class AnyCase(str):
         return self.lower().startswith(prefix.lower(), *rest)
 
 
+def tokenize_args(raw):
+    """RunArgs.Tokenize: splits on whitespace outside double quotes and removes the quotes. A backslash before a
+    quote keeps the quote, except where that quote ends a value inside quotes (Windows folders end in \\)."""
+    tokens, current, in_quotes, any_char = [], [], False, False
+    i = 0
+    while i < len(raw):
+        c = raw[i]
+        quote_ends_value = i + 2 >= len(raw) or raw[i + 2].isspace()
+        if c == "\\" and i + 1 < len(raw) and raw[i + 1] == '"' and not (in_quotes and quote_ends_value):
+            current.append('"')
+            any_char = True
+            i += 2
+            continue
+        if c == '"':
+            in_quotes = not in_quotes
+            any_char = True
+        elif not in_quotes and c.isspace():
+            if any_char:
+                tokens.append("".join(current))
+                current, any_char = [], False
+        else:
+            current.append(c)
+            any_char = True
+        i += 1
+    if any_char:
+        tokens.append("".join(current))
+    return tokens
+
+
 def apply_given(extra):
-    """Whether -apply is on in the run's arguments: the last -apply wins, =false/0/no turns it off."""
-    found = re.findall(r'(?i)(?:^|\s)-apply(?:=("[^"]*"|\S*))?(?=\s|$)', extra or "")
-    if not found:
-        return False
-    return found[-1].strip('"').strip().lower() not in ("false", "0", "no")
+    """Whether -apply is on in the run's arguments, read as RunArgs reads them: any number of leading dashes, any
+    case, the last one wins, =false/0/no turns it off."""
+    value = False
+    for token in tokenize_args(extra or ""):
+        if not token.startswith("-"):
+            continue
+        key, eq, rest = token.lstrip("-").partition("=")
+        if key.lower() == "apply":
+            value = not eq or rest.strip().lower() not in ("false", "0", "no")
+    return value
 
 
 def could_write(run, extra):

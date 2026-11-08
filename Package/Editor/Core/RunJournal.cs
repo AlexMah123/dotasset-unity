@@ -647,9 +647,9 @@ namespace DotAsset
                     Keep(e.Path);
                     if (!e.Existed)
                     {
-                        if ((File.Exists(abs) || Directory.Exists(abs)) && !AssetDatabase.DeleteAsset(e.Path))
+                        // The .meta goes only with its file. A file another program holds keeps its GUID for a retry.
+                        if ((File.Exists(abs) || Directory.Exists(abs)) && !AssetDatabase.DeleteAsset(e.Path) && FileUtil.DeleteFileOrDirectory(abs))
                         {
-                            FileUtil.DeleteFileOrDirectory(abs);
                             FileUtil.DeleteFileOrDirectory(abs + ".meta");
                         }
                         if (File.Exists(abs) || Directory.Exists(abs))
@@ -734,8 +734,9 @@ namespace DotAsset
         }
 
         // True when restoring the file entry would copy only the bytes already there: the run kept it but never wrote
-        // it, as when that write failed on a read-only file. Restore skips it, a read-only copy would refuse the copy.
-        static bool AlreadyBack(string dir, Entry e)
+        // it, as when that write failed on a read-only file, or an undo that stopped partway already put it back. Restore
+        // skips it, a read-only copy would refuse the copy.
+        internal static bool AlreadyBack(string dir, Entry e)
         {
             if (!e.Existed || e.Folder || BuildSceneOf(e.Path) != null)
             {

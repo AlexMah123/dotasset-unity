@@ -61,6 +61,66 @@ namespace DotAsset.Tests
             Assert.AreEqual(2, RunDispatcher.Run("UndoRun", new string[0], run, false).ExitCode, "a second undo is refused");
         }
 
+        static string RunOf(RunResult r)
+        {
+            string journal = r.Outputs.Select(o => o.Replace('\\', '/')).FirstOrDefault(o => o.EndsWith("/journal.json"));
+            Assert.IsNotNull(journal, "the run printed no journal\n" + string.Join("\n", r.Lines.ToArray()));
+            return "-run=" + Path.GetFileName(Path.GetDirectoryName(journal)) + " -apply";
+        }
+
+        [Test]
+        public void PartialUndoOfAWriteCanBeRetried()
+        {
+            // R5-4: with -atomic=false a failed undo keeps the paths it already put back. A retry takes them as back,
+            // not as changed after the run. The restore goes newest first, so Undo2.mat is back before Undo.mat fails.
+            const string Mat2 = Folder + "/Undo2.mat";
+            AssetDatabase.CreateAsset(new Material(Shader.Find("Unlit/Color")), Mat2);
+            string before = RunJournal.Hash(Mat), before2 = RunJournal.Hash(Mat2);
+            File.WriteAllText(spec, "{\"Targets\": [{\"AssetPath\": \"" + Mat + "\", \"RenderQueue\": 2480}, {\"AssetPath\": \"" + Mat2 + "\", \"RenderQueue\": 2480}]}");
+            RunResult edit = RunDispatcher.Run("EditMaterial", new string[0], "-spec=\"" + spec + "\" -apply", false);
+            Assert.AreEqual(0, edit.ExitCode, string.Join("\n", edit.Lines.ToArray()));
+            string run = RunOf(edit);
+
+            UnityEngine.TestTools.LogAssert.ignoreFailingMessages = true;
+            RunResult partial;
+            using (new FileStream(DotAssetPaths.Absolute(Mat), FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                partial = RunDispatcher.Run("UndoRun", new string[0], run + " -atomic=false", false);
+            }
+            Assert.AreEqual(1, partial.ExitCode, string.Join("\n", partial.Lines.ToArray()));
+            Assert.AreEqual(before2, RunJournal.Hash(Mat2), "Undo2.mat was not put back before Undo.mat stopped the undo");
+
+            RunResult retried = RunDispatcher.Run("UndoRun", new string[0], run, false);
+            Assert.AreEqual(0, retried.ExitCode, string.Join("\n", retried.Lines.ToArray()));
+            Assert.AreEqual(before, RunJournal.Hash(Mat));
+            Assert.AreEqual(before2, RunJournal.Hash(Mat2));
+        }
+
+        [Test]
+        public void PartialUndoOfACreateCanBeRetried()
+        {
+            // R5-4: a created path the failed undo already deleted is back too.
+            const string A = Folder + "/NewA.mat", B = Folder + "/NewB.mat";
+            File.WriteAllText(spec, "{\"Assets\": [{\"Kind\": \"Material\", \"Path\": \"" + A + "\", \"Shader\": \"Unlit/Color\"}, {\"Kind\": \"Material\", \"Path\": \"" + B + "\", \"Shader\": \"Unlit/Color\"}]}");
+            RunResult create = RunDispatcher.Run("CreateAsset", new string[0], "-spec=\"" + spec + "\" -apply", false);
+            Assert.AreEqual(0, create.ExitCode, string.Join("\n", create.Lines.ToArray()));
+            string run = RunOf(create);
+
+            UnityEngine.TestTools.LogAssert.ignoreFailingMessages = true;
+            RunResult partial;
+            using (new FileStream(DotAssetPaths.Absolute(A), FileMode.Open, FileAccess.Read, FileShare.Read))
+            {
+                partial = RunDispatcher.Run("UndoRun", new string[0], run + " -atomic=false", false);
+            }
+            Assert.AreEqual(1, partial.ExitCode, string.Join("\n", partial.Lines.ToArray()));
+            Assert.IsFalse(File.Exists(DotAssetPaths.Absolute(B)), "NewB.mat was not deleted before NewA.mat stopped the undo");
+
+            RunResult retried = RunDispatcher.Run("UndoRun", new string[0], run, false);
+            Assert.AreEqual(0, retried.ExitCode, string.Join("\n", retried.Lines.ToArray()));
+            Assert.IsFalse(File.Exists(DotAssetPaths.Absolute(A)));
+            Assert.IsFalse(File.Exists(DotAssetPaths.Absolute(B)));
+        }
+
         [Test]
         public void UndoRefusesAPathItCannotRead()
         {

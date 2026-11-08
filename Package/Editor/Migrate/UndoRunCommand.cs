@@ -61,11 +61,12 @@ namespace DotAsset
                 ctx.Log.Warn("run " + json["Id"] + " stopped before it finished. The undo cannot see edits made outside Unity between the crash and the next Unity start, nor how far the last path it logged was written");
             }
 
-            // Every path must still be as the run left it, and free to write.
+            // Every path must still be as the run left it, or already back as before it, and free to write. An undo that
+            // stopped partway with -atomic=false keeps the paths it put back, so a retry restores only the rest.
             var journaled = new HashSet<string>(entries.Select(e => e.Path), System.StringComparer.Ordinal);
             foreach (RunJournal.Entry e in entries)
             {
-                string reason = Changed(e, journaled, runName) ?? RunJournal.Blocked(e.Path, true, e.MetaOnly) ??OpenWork.UnsavedIn(e.Path);
+                string reason = Changed(dir, e, journaled, runName) ?? RunJournal.Blocked(e.Path, true, e.MetaOnly) ?? OpenWork.UnsavedIn(e.Path);
                 if (reason != null)
                 {
                     ctx.FailTarget(e.Path == RunJournal.BuildSceneList ? "Build Settings scene list" : e.Path, reason);
@@ -135,8 +136,9 @@ namespace DotAsset
 
         // Why the path is no longer as the run left it, or null. A path unreadable at either end never passes. A folder
         // journaled before 0.10.1 has the bare hash "folder": it passes only when everything in it belongs to the run,
-        // since each of those has its own entry and hash check.
-        static string Changed(RunJournal.Entry e, HashSet<string> journaled, string runName)
+        // since each of those has its own entry and hash check. A file back at its journaled bytes, or a path the run
+        // created that is gone again, passes too: there is nothing left to undo there.
+        static string Changed(string dir, RunJournal.Entry e, HashSet<string> journaled, string runName)
         {
             string now = RunJournal.Hash(e.Path);
             string after = e.After ?? string.Empty;
@@ -144,6 +146,10 @@ namespace DotAsset
             {
                 return "could not be read (" + (now.StartsWith(RunJournal.Unreadable, System.StringComparison.Ordinal) ? now : after)
                     + "), the undo cannot tell whether it changed";
+            }
+            if ((!e.Existed && now == "absent") || RunJournal.AlreadyBack(dir, e))
+            {
+                return null;
             }
             if (after == RunJournal.LegacyFolder && now.StartsWith(RunJournal.LegacyFolder + " ", System.StringComparison.Ordinal))
             {

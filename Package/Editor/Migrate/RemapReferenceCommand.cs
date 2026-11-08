@@ -394,9 +394,19 @@ namespace DotAsset
                     {
                         return false;
                     }
+                    // The remap lives in the .meta. When Unity could not write it (another program holds it), the
+                    // snapshot puts the importer back and the model is imported again with what the .meta still holds.
+                    RunJournal.KeepMeta(path);
+                    ctx.BeforeSave(path + ".meta");
+                    importer.SaveAndReimport();
+                    if (!ctx.Saved(out error))
+                    {
+                        snapshot.Dispose();
+                        AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
+                        return false;
+                    }
                     snapshot.Commit();
                 }
-                importer.SaveAndReimport();
                 return true;
             }
 

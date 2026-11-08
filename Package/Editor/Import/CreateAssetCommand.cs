@@ -126,34 +126,44 @@ namespace DotAsset
                 createdFolders.Clear();
                 string error = null;
                 bool ok;
-                switch (kind)
+                try
                 {
-                    case "Folder":
-                        ok = EnsureFolder(path, out error);
-                        break;
-                    case "ScriptableObject":
-                        ok = CreateScriptableObject(ctx, entry, path, out error);
-                        break;
-                    case "Material":
-                        ok = CreateMaterial(ctx, entry, path, out error);
-                        break;
-                    case "Prefab":
-                        ok = CreatePrefab(ctx, entry, path, out error);
-                        break;
-                    case "PrefabVariant":
-                        ok = CreateVariant(ctx, entry, path, out error);
-                        break;
-                    case "AnimatorController":
-                        ok = CreateController(ctx, entry, path, out error);
-                        break;
-                    case "Scene":
-                        ok = CreateScene(ctx, entry, path, out error);
-                        break;
-                    default:
-                        // Refused before the loop.
-                        ok = false;
-                        error = "unknown Kind " + kind;
-                        break;
+                    switch (kind)
+                    {
+                        case "Folder":
+                            ok = EnsureFolder(path, out error);
+                            break;
+                        case "ScriptableObject":
+                            ok = CreateScriptableObject(ctx, entry, path, out error);
+                            break;
+                        case "Material":
+                            ok = CreateMaterial(ctx, entry, path, out error);
+                            break;
+                        case "Prefab":
+                            ok = CreatePrefab(ctx, entry, path, out error);
+                            break;
+                        case "PrefabVariant":
+                            ok = CreateVariant(ctx, entry, path, out error);
+                            break;
+                        case "AnimatorController":
+                            ok = CreateController(ctx, entry, path, out error);
+                            break;
+                        case "Scene":
+                            ok = CreateScene(ctx, entry, path, out error);
+                            break;
+                        default:
+                            // Refused before the loop.
+                            ok = false;
+                            error = "unknown Kind " + kind;
+                            break;
+                    }
+                }
+                catch (UnityException e)
+                {
+                    // AssetDatabase.CreateAsset throws when Unity cannot write the file, e.g. one another program holds
+                    // at the path before Unity imported it. That entry fails, the others still run.
+                    ok = false;
+                    error = "Unity could not create it: " + e.Message;
                 }
                 if (!ok)
                 {

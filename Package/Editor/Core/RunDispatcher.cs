@@ -348,6 +348,12 @@ namespace DotAsset
                             + journal.Id + " -apply\"");
                     }
                 }
+                else if (code == ExitCode.Failed && journal.NothingWritten())
+                {
+                    // Every save failed before it reached disk, an undo would have nothing to put back.
+                    journal.Discard();
+                    ctx.Log.Info("nothing was written, no journal kept");
+                }
                 else
                 {
                     string closed = journal.TryClose(ctx.Log);

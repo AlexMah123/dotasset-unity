@@ -58,6 +58,25 @@ namespace DotAsset.Tests
         }
 
         [Test]
+        public void ARunThatSavedNothingOffersNoUndo()
+        {
+            // R5-7: the run kept the prefab, the save failed, nothing changed on disk, so there is nothing to undo.
+            LogAssert.ignoreFailingMessages = true;
+            string spec = Spec(@"{'Targets': [{'AssetPath': '" + Crate + @"', 'Ops': [{'Op': 'AddGameObject', 'Parent': 'Crate', 'Name': 'Lid'}]}]}");
+            byte[] before = File.ReadAllBytes(Absolute(Crate));
+            RunResult r;
+            using (new FileStream(Absolute(Crate), FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite))
+            {
+                r = Run("EditPrefab", spec + " -apply");
+            }
+            string lines = string.Join("\n", r.Lines.ToArray());
+            Assert.AreEqual(1, r.ExitCode, lines);
+            CollectionAssert.AreEqual(before, File.ReadAllBytes(Absolute(Crate)), "the prefab changed after all");
+            Assert.IsFalse(lines.Contains("undo with"), lines);
+            Assert.IsFalse(r.Outputs.Any(o => o.EndsWith("journal.json")), "a journal with nothing to undo was kept\n" + lines);
+        }
+
+        [Test]
         public void EditImporterFailsAMetaUnityCouldNotWrite()
         {
             // S2: the importer's settings go to the .meta, so a held .meta is a save Unity could not write.

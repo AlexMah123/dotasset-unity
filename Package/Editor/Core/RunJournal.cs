@@ -570,6 +570,31 @@ namespace DotAsset
             return null;
         }
 
+        // True when no path of the run changed: each file it kept still has the bytes of its backup, and each path it
+        // would have created is still absent. The scene list every journal keeps first counts when it is as it was, as
+        // at Close. A folder or one scene's Build Settings entry never counts as unchanged here.
+        public bool NothingWritten()
+        {
+            return entries.All(e => SceneListUnchanged(Dir, e.Path, e.Backup, Hash(e.Path))
+                || (e.Existed ? AlreadyBack(Dir, e) : !e.Folder && BuildSceneOf(e.Path) == null && Hash(e.Path) == "absent"));
+        }
+
+        // Drops the journal of a run that wrote nothing, there is nothing to undo.
+        public void Discard()
+        {
+            try
+            {
+                if (Directory.Exists(Dir))
+                {
+                    DeleteDir(Dir);
+                }
+            }
+            catch (Exception)
+            {
+                // A journal left behind is pruned later.
+            }
+        }
+
         // A backup keeps the read-only attribute of the file it copies, which Directory.Delete refuses.
         static void DeleteDir(string dir)
         {
@@ -758,7 +783,8 @@ namespace DotAsset
                 {
                     return false;
                 }
-                return File.ReadAllBytes(a).SequenceEqual(File.ReadAllBytes(b));
+                // Read through AddFile, which shares the file: one another program still holds for writing reads too.
+                return FileSha(a) == FileSha(b);
             }
             catch (Exception)
             {
@@ -853,6 +879,16 @@ namespace DotAsset
                 AddFile(sha, root + ".meta");
                 sha.TransformFinalBlock(new byte[0], 0, 0);
                 return LegacyFolder + " " + Hex(sha.Hash);
+            }
+        }
+
+        static string FileSha(string abs)
+        {
+            using (var sha = SHA1.Create())
+            {
+                AddFile(sha, abs);
+                sha.TransformFinalBlock(new byte[0], 0, 0);
+                return Hex(sha.Hash);
             }
         }
 

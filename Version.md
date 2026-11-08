@@ -6,6 +6,23 @@ Defined in `Package/Editor/Core/DotAssetVersion.cs` and `Package/package.json`, 
 
 Versions follow one rule. A patch (0.1.x) holds fixes, test upgrades and docs. A minor version (0.x.0) adds something new to call: a run, an op, a spec key, an argument or a wrapper option. While on 0.x, a change that breaks existing calls is also a minor version, marked breaking here. 1.0.0 comes when runs, specs and export JSON are promised to stay stable.
 
+### 0.11.5
+
+Fixes from the fifth review (2026-11-05), each with a test that failed on its parent commit. This closes the "Known issues in 0.11.4" list.
+
+- With the editor open, `DeleteAsset` no longer deletes an asset whose only user is an open scene or the Prefab Mode prefab with unsaved changes. The target fails with exit 1, also with `-force`, and the reason names the scene or prefab. `AuditUnusedAsset` counts such an asset as used
+- An Audit's `-report=<path>` is checked with the arguments, so the dry run refuses it too (exit 2): a path inside `Assets/`, `Packages/` or `ProjectSettings/`, a file there that is not a DotAsset report, or a `<stem>.fix.json` next to it that this report does not name. Running the same `-report` again still replaces its own report and fix spec
+- A path with a `.` or `..` segment, or a root in the wrong case (`assets/`), in `-from`, `-to` or a spec is refused with exit 2 in the dry run too. Before, the dry run passed and `-apply` failed with exit 1
+- `UndoRun -atomic=false` that a held file stopped partway can be run again and restores the rest. A file the run created keeps its `.meta` until the file itself is gone
+- `DeleteAsset -spec` refuses an unknown key with exit 2, as every other spec run does, so a misspelt `Asets` no longer reads as "nothing to delete"
+- `MoveAsset` refuses a rename that changes only the case (`Red.mat` to `RED.mat`) with a reason that says so and gives the way through: two moves in one spec via a temporary name
+- A failed run that wrote nothing keeps no journal, logs "nothing was written, no journal kept" and prints no `undo with:` line
+- Without `-scandir`, `DeleteAsset`'s users check reads `Assets` and every embedded or local package, so a package of the project's own that uses an asset keeps it from being deleted. Registry, git and tarball packages are left out. A `-scandir` you give replaces that default, as before
+- When another program holds the file, `RemapReference` on a model (its `.meta`) fails the model with exit 1 and puts the importer back, and `CreateAsset` fails that entry instead of ending the run on an unhandled exception. `RemoveMissingScripts` and `DuplicateAsset` were checked the same way and were already right, the checks stay as tests
+- Tests: a unit test lists every file write, move and delete in the package with its count, so a new unjournaled write fails until it is added with its reason. A unit test checks that every run reading `-spec` refuses unknown keys. `test_versions_agree` also checks the README's install pin and sample line. The smoke test's leak check covers `ProjectSettings/` and `Packages/`, "delete refuses project-named" runs with the editor open too, on a Build Settings scene of its own, and a new editor step runs `RemoveMissingScripts` on an open scene
+- The release matrix logs the commit and a clean tree at its start and end, and fails if either changed
+- Not planned: through the wrapper, `-apply=maybe` and `-apply=` count as runs that could write (exit 4 when lost) though the run refuses them, which errs on the safe side. EditMode tests stay on one Unity version, the smoke test covers all four. Testing the Unity CLI adapter on a second version is planned for 0.12.0
+
 ### 0.11.4
 
 Fixes from the fourth review (2026-11-05), each with a test that failed on the code before it.

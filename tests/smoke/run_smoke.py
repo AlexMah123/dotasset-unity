@@ -1272,8 +1272,8 @@ def project_named(base):
 
 def check_project_named(base, tmp):
     # DeleteAsset must refuse what the project names outside any asset, wherever -scandir points: a Build Settings
-    # scene, what GraphicsSettings references, and (editor closed) an AssetBundle-tagged material. Dry runs only.
-    # "unused assets" checks the audit keeps the material.
+    # scene (the project's first and one of the step's own), what GraphicsSettings references, and (editor closed) an
+    # AssetBundle-tagged material. Dry runs only. "unused assets" checks the audit keeps the material.
     targets = project_named(base)
     if not editor_open(base):
         seed = spec("bundled", {"Assets": [{"Kind": "Material", "Path": BUNDLED, "Properties": {}}]}, tmp)
@@ -1290,17 +1290,29 @@ def check_project_named(base, tmp):
         if problem:
             return problem
         targets.append(BUNDLED)
-    if not targets:
-        return "skip: no Build Settings scene or GraphicsSettings asset here, the AssetBundle case needs the editor closed"
-    for p in targets:
+    # A Build Settings scene of the step's own, so it runs with the editor open too, where a project may name nothing
+    # else and the AssetBundle case needs a restart. Nothing in the folder uses a scene, the list is the only reason.
+    # The CreateAsset run is undone afterwards, which takes the scene out of the list again.
+    scene = ROOT + "/NamedBuild.unity"
+    seed = spec("named_scene", {"Assets": [{"Kind": "Scene", "Path": scene, "AddToBuild": True}]}, tmp)
+    r, res = call(base, ["CreateAsset", "--args", '-spec="%s"' % seed])
+    run_id = journal_of(res)
+    if r.returncode != 0 or not run_id:
+        return "CreateAsset of a build scene exit %s, journal %s" % (r.returncode, run_id)
+    problem = None
+    for p in targets + [scene]:
         r, res = call(base, ["DeleteAsset", p, "--args", "-scandir=" + ROOT])
         if "nothing at that path" in r.stdout and on_disk(base, p):
             # Its script is not compiled here, as for template URP assets without the URP package: no asset to test.
             continue
         # The reason must be the reference, not an unsaved open scene.
         if r.returncode != 1 or res.get("Plan") or not on_disk(base, p) or "reference(s) remain" not in r.stdout:
-            return "DeleteAsset of %s, which the project names, exit %s, planned %s" % (p, r.returncode, res.get("Plan"))
-    return None
+            problem = "DeleteAsset of %s, which the project names, exit %s, planned %s" % (p, r.returncode, res.get("Plan"))
+            break
+    undone = expect(base, "UndoRun of the build scene", ["UndoRun", "--args", "-run=%s -apply" % run_id], 0)
+    if not problem and not undone and on_disk(base, scene):
+        undone = "after UndoRun %s is still on disk" % scene
+    return problem or undone
 
 
 def check_unused_asset(base, tmp):

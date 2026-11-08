@@ -129,6 +129,13 @@ namespace DotAsset
             // Project settings, Build Profiles, Addressables and AssetBundles, read through the loaded objects so binary
             // serialization works too.
             roots.UnionWith(ProjectRoots.Named().Keys);
+            // What unsaved work open in the editor uses is used, though no file on disk shows it yet.
+            var unsaved = OpenWork.UnsavedUses();
+            if (unsaved.Count > 0)
+            {
+                ctx.Log.Info(string.Join(", ", unsaved.Values.Distinct().ToArray()) + " open with unsaved changes, what it uses counts as used");
+                roots.UnionWith(unsaved.Keys);
+            }
             ctx.Log.Info(roots.Count + " root asset(s), following their dependencies");
             var used = new HashSet<string>(AssetDatabase.GetDependencies(roots.ToArray(), true), StringComparer.Ordinal);
 

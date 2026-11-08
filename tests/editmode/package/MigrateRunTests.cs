@@ -59,6 +59,54 @@ namespace DotAsset.Tests
             Assert.IsTrue(File.Exists(DotAssetPaths.Absolute(unused)));
         }
 
+        // Smoke.unity open beside the active scene, with Green.mat on its crate's renderer and not saved: the only use of
+        // Green.mat, and one the files on disk do not show.
+        void WithGreenInAnUnsavedScene(string green, System.Action check)
+        {
+            Material material = NewMaterial(green);
+            var open = UnityEditor.SceneManagement.EditorSceneManager.OpenScene(Scene, UnityEditor.SceneManagement.OpenSceneMode.Additive);
+            try
+            {
+                open.GetRootGameObjects().Select(g => g.GetComponentInChildren<MeshRenderer>()).First(m => m != null).sharedMaterial = material;
+                UnityEditor.SceneManagement.EditorSceneManager.MarkSceneDirty(open);
+                check();
+            }
+            finally
+            {
+                UnityEditor.SceneManagement.EditorSceneManager.CloseScene(open, true);
+            }
+        }
+
+        // R5-1: an asset that unsaved work open in the editor uses is kept, -force or not, and the run names the scene
+        [Test]
+        public void DeleteAssetKeepsWhatAnUnsavedOpenSceneUses()
+        {
+            string green = Folder + "/Green.mat";
+            WithGreenInAnUnsavedScene(green, () =>
+            {
+                foreach (string force in new[] { "", " -force" })
+                {
+                    RunResult r = Run("DeleteAsset", "-scandir=" + Folder + " -permanent -apply" + force, green);
+                    string lines = string.Join("\n", r.Lines.ToArray());
+                    Assert.AreEqual(1, r.ExitCode, "DeleteAsset" + force + "\n" + lines);
+                    StringAssert.Contains(Scene, lines);
+                    Assert.IsTrue(File.Exists(DotAssetPaths.Absolute(green)), "deleted by DeleteAsset" + force);
+                }
+            });
+        }
+
+        // R5-1: AuditUnusedAsset counts that use too, so its fix spec does not list the asset
+        [Test]
+        public void AuditUnusedAssetCountsAnUnsavedOpenScene()
+        {
+            string green = Folder + "/Green.mat";
+            WithGreenInAnUnsavedScene(green, () =>
+            {
+                JObject report = Report("AuditUnusedAsset", AnyIssues, "-scandir=" + Folder);
+                Assert.IsFalse(HasIssue(report, "U1", green), report.ToString());
+            });
+        }
+
         [Test]
         public void DuplicateAssetCopiesWithANewGuid()
         {

@@ -325,6 +325,41 @@ namespace DotAsset
             }
             return null;
         }
+
+        // What unsaved work open in the editor uses, which the files on disk do not show yet: every asset a loaded
+        // scene with unsaved changes or a changed Prefab Mode stage reaches, mapped to that scene or prefab.
+        public static System.Collections.Generic.Dictionary<string, string> UnsavedUses()
+        {
+            var uses = new System.Collections.Generic.Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            for (int i = 0; i < SceneManager.sceneCount; i++)
+            {
+                Scene scene = SceneManager.GetSceneAt(i);
+                if (scene.isLoaded && scene.isDirty)
+                {
+                    AddUses(scene.GetRootGameObjects(), string.IsNullOrEmpty(scene.path) ? "an untitled scene" : scene.path, uses);
+                }
+            }
+            PrefabStage stage = PrefabStageUtility.GetCurrentPrefabStage();
+            if (stage != null && stage.scene.isDirty)
+            {
+                AddUses(new Object[] { stage.prefabContentsRoot }, stage.assetPath + " (Prefab Mode)", uses);
+            }
+            return uses;
+        }
+
+        static void AddUses(Object[] roots, string holder, System.Collections.Generic.Dictionary<string, string> uses)
+        {
+            foreach (Object o in EditorUtility.CollectDependencies(roots))
+            {
+                // Built-in resources have paths too ("Resources/unity_builtin_extra"), but are no project asset.
+                string path = o == null ? null : AssetDatabase.GetAssetPath(o);
+                bool asset = path != null && (path.StartsWith("Assets/", StringComparison.Ordinal) || path.StartsWith("Packages/", StringComparison.Ordinal));
+                if (asset && !uses.ContainsKey(path))
+                {
+                    uses.Add(path, holder);
+                }
+            }
+        }
     }
 
     // Assets in a package from the registry, git or a tarball are immutable, a write cannot reach disk.

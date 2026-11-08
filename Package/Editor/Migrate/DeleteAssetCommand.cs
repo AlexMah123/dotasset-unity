@@ -98,9 +98,13 @@ namespace DotAsset
                 list.Add(named.Value);
             }
             bool force = ctx.Args.Has("force");
+            // Unsaved work open in the editor uses what the files on disk do not show yet. A target it uses stays,
+            // -force or not, the same as unsaved work in the target itself.
+            var unsaved = OpenWork.UnsavedUses();
+            Func<string, string> heldBy = t => (AssetDatabase.IsValidFolder(t) ? AssetScan.All(new[] { t }) : new List<string> { t }).FirstOrDefault(unsaved.ContainsKey);
             // A referencer that is itself deleted does not count, but only if it really goes: a target refused for
             // its own referencers keeps its references alive, so the set shrinks until it is stable.
-            var going = new List<string>(targets);
+            var going = targets.Where(t => heldBy(t) == null).ToList();
             if (!force)
             {
                 bool shrunk = true;
@@ -121,6 +125,12 @@ namespace DotAsset
             {
                 // A folder counts as referenced when anything outside it uses anything inside it.
                 List<string> inside = AssetDatabase.IsValidFolder(path) ? AssetScan.All(new[] { path }) : new List<string> { path };
+                string held = inside.FirstOrDefault(unsaved.ContainsKey);
+                if (held != null)
+                {
+                    ctx.FailTarget(path, held + " is used by " + unsaved[held] + ", open in the editor with unsaved changes. Save or discard them first, -force does not override this");
+                    continue;
+                }
                 var users = Users(index, path, force ? targets : going);
                 foreach (var u in users.Take(20))
                 {

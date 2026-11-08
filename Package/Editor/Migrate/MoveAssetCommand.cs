@@ -252,6 +252,10 @@ namespace DotAsset
             }
             foreach (var pair in pairs)
             {
+                if (!Spec.SafePaths(ctx, specKey, new[] { pair.Key, pair.Value }))
+                {
+                    return false;
+                }
                 foreach (string end in new[] { pair.Key, pair.Value })
                 {
                     if (!end.StartsWith("Assets/", StringComparison.Ordinal) && !end.StartsWith("Packages/", StringComparison.Ordinal))

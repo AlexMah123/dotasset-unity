@@ -41,6 +41,10 @@ namespace DotAsset
                     ctx.Log.Error("-spec needs {\"Assets\": [\"Assets/...\", ...]}");
                     return ExitCode.Refused;
                 }
+                if (!Spec.SafePaths(ctx, "Assets", list.Select(t => (string)t)))
+                {
+                    return ExitCode.Refused;
+                }
                 given.AddRange(list.Select(t => (string)t));
                 if (given.Count == 0)
                 {

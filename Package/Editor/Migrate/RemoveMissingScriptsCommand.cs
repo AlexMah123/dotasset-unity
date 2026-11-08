@@ -52,6 +52,10 @@ namespace DotAsset
                     ctx.Log.Error("\"Files\" is an array of asset path strings");
                     return ExitCode.Refused;
                 }
+                if (!Spec.SafePaths(ctx, "Files", files.Select(f => (string)f)))
+                {
+                    return ExitCode.Refused;
+                }
                 entries.AddRange(files.Select(f => (string)f));
                 if (entries.Count == 0)
                 {

@@ -208,7 +208,40 @@ namespace DotAsset
                 ctx.Log.Error("the spec has no \"" + key + "\" array");
                 return null;
             }
+            for (int i = 0; i < targets.Count; i++)
+            {
+                foreach (string pathKey in PathKeys)
+                {
+                    JToken value = Json.Get(targets[i], pathKey);
+                    IEnumerable<JToken> values = value as JArray ?? (IEnumerable<JToken>)new[] { value };
+                    var paths = values.Where(v => v != null && v.Type == JTokenType.String).Select(v => (string)v);
+                    if (!SafePaths(ctx, key + "[" + i + "]." + pathKey, paths))
+                    {
+                        return null;
+                    }
+                }
+            }
             return targets;
+        }
+
+        // Target keys that hold an asset path, in any spec run.
+        static readonly string[] PathKeys = { "AssetPath", "AssetPaths", "Path", "From", "To" };
+
+        // Paths a run will read or write, checked while its arguments are read so the dry run refuses a "." or ".."
+        // segment or a wrong-case root with exit 2 too. Without it the journal finds the path only at -apply. False
+        // after logging the first bad one.
+        public static bool SafePaths(RunContext ctx, string label, IEnumerable<string> paths)
+        {
+            foreach (string path in paths)
+            {
+                string reason = DotAssetPaths.Unsafe(path);
+                if (reason != null)
+                {
+                    ctx.Log.Error(label + ": " + reason);
+                    return false;
+                }
+            }
+            return true;
         }
 
         // Spec keys a target may carry. Anything else is refused, a misspelt key must not be silently ignored.

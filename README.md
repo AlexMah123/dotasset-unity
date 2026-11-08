@@ -312,26 +312,11 @@ Every write is read back through an export. An exit code alone never counts as a
 | Audit | Each audit gets a seeded issue to find: a reference to a deleted material (R1), a Missing Script written into a prefab (R2), a keyword the shader does not declare (M5), a texture named like a normal map but not imported as one (T1), and an orphan prefab with its material (U1) next to materials a `Resources` and an `Editor` folder keep. The audit's own fix spec, run dry and then with `-apply`, must clear it, and `RemoveMissingScripts` must leave the prefab's other components alone |
 | Read only | A full set of exports over the edited assets changes no byte on disk |
 | Unsaved work | With the editor open, a material, a controller and a prefab are given unsaved changes. Every run that writes refuses them, the files stay byte-identical, and the changes are still there to save afterwards. The changes are made by small helper runs the smoke test installs as `Packages/com.alexmah.dotasset.smoke` in the test project, compiled at the next Unity start |
-| Your project | The run fails if anything in `Assets/` outside `Assets/DotAssetSmoke` changed, or if it leaves a Unity log behind. It stops at the first failure (`--keep-going` runs the rest, `--only "edit asset,delete"` runs just the named steps after `create`) and removes its folder however the run ends, Ctrl+C included |
+| Your project | The run fails if anything in `Assets/` outside `Assets/DotAssetSmoke`, in `ProjectSettings/` or in `Packages/` changed (its own helper package and `packages-lock.json` aside), or if it leaves a Unity log behind. It stops at the first failure (`--keep-going` runs the rest, `--only "edit asset,delete"` runs just the named steps after `create`) and removes its folder however the run ends, Ctrl+C included |
 
 The texture, Missing Script, `RebindAnimation`, `RemapScript`, `RenameField` and `[SerializeReference]` steps write files to disk. Headless, the host restarts so Unity reads them. With the editor open, the smoke helper refreshes the editor and waits until the new scripts have compiled.
 
 With the editor open, the smoke test opens `Smoke.unity` in your editor, runs `EditScene` on it dry and with `-apply` (one undo group), and then reopens the scenes you had. It does the same with `RemoveMissingScripts` on an open scene that holds a Missing Script, and checks the scene's other components stay. Please open issues with the Console output.
-
-### Known issues in 0.11.4
-
-Found by the review of 2026-11-05, fixes planned for 0.11.5. Only the `-report` case touches a file outside the journal, so `UndoRun` takes back anything the others wrote.
-
-| Issue | Until then |
-| :-- | :-- |
-| With the editor open, `DeleteAsset` reads users from the saved files. An asset that only an unsaved change uses (in an open scene or in Prefab Mode) counts as unused and is deleted | Save open scenes and Prefab Mode before a delete |
-| An audit's `-report=<path>` writes over any file at that path and deletes the `<name>.fix.json` next to it, without a journal | Leave the default path, or give a new path outside `Assets/`, `Packages/` and `ProjectSettings/` |
-| A path with a `.` or `..` segment in `-from`, `-to` or a spec passes the dry run, then fails at `-apply` with exit 1 instead of 2. Nothing is written | Give the plain `Assets/...` path |
-| `UndoRun -atomic=false` that stops partway (a file held by another program) cannot be run again: the files it already restored count as changed | Leave `-atomic` at its default for `UndoRun`. A failed undo then puts every file back and can be run again |
-| `DeleteAsset -spec` ignores unknown keys. A misspelt `Assets` key deletes nothing and exits 0 | Check the key, or pass the paths as the AssetList |
-| `MoveAsset` refuses a rename that changes only the case (`Red.mat` to `RED.mat`) as "already exists" | Two moves in one spec, through a temporary name |
-| A failed `EditPrefab` or `EditScene` that saved nothing still prints an `undo with:` line | Nothing was written, so skip that line |
-| `-scandir` defaults to `Assets`, which leaves out embedded and local packages | Name them: `-scandir=Assets,Packages/com.example.tools` |
 
 ## Contributors
 

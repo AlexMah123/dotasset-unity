@@ -1481,5 +1481,52 @@ class PackageFiles(unittest.TestCase):
                     json.loads("{" + body + "}")  # a fragment such as "ArrayOps": [...]
 
 
+class SmokeLeakCheck(unittest.TestCase):
+    """The smoke test's check that a run wrote nothing outside its own folder."""
+
+    @classmethod
+    def setUpClass(cls):
+        spec = importlib.util.spec_from_file_location("run_smoke", os.path.join(ROOT, "tests", "smoke", "run_smoke.py"))
+        cls.smoke = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(cls.smoke)
+
+    def setUp(self):
+        self.project = make_project(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, self.project, True)
+        for rel, text in (("Assets/Keep.mat", "a"), ("ProjectSettings/TagManager.asset", "tags"),
+                          ("Packages/manifest.json", "{}"), ("Packages/packages-lock.json", "{}"),
+                          ("Packages/com.alexmah.dotasset.smoke/Helper.cs", "class A {}"),
+                          ("Assets/DotAssetSmoke/Red.mat", "red")):
+            self.write(rel, text)
+        self.before = self.smoke.outside_state(self.project)
+
+    def write(self, rel, text):
+        path = os.path.join(self.project, *rel.split("/"))
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w") as f:
+            f.write(text)
+
+    def changes(self):
+        return self.smoke.outside_changes(self.before, self.smoke.outside_state(self.project))
+
+    def test_a_changed_project_setting_is_a_leak(self):
+        # R5-12: the check walked Assets/ only.
+        self.write("ProjectSettings/TagManager.asset", "tags and more")
+        self.assertIn("changed ProjectSettings/TagManager.asset", self.changes())
+
+    def test_a_new_file_in_packages_is_a_leak(self):
+        self.write("Packages/com.example.tools/New.mat", "x")
+        self.assertIn("added Packages/com.example.tools/New.mat", self.changes())
+
+    def test_the_smoke_folder_helper_and_lock_file_are_not(self):
+        self.write("Assets/DotAssetSmoke/Red.mat", "blue")
+        self.write("Packages/com.alexmah.dotasset.smoke/Helper.cs.meta", "guid")
+        self.write("Packages/packages-lock.json", '{"dependencies": {}}')
+        # Unity writing a setting again with the same bytes is not a change.
+        time.sleep(0.05)
+        self.write("ProjectSettings/TagManager.asset", "tags")
+        self.assertEqual("", self.changes())
+
+
 if __name__ == "__main__":
     unittest.main()

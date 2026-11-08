@@ -15,6 +15,7 @@ failed. Steps that write files to disk restart the host, or with the editor open
 helper and wait for the scripts to compile.
 """
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -2135,9 +2136,10 @@ def run(args, tmp):
                 failed += 1
                 print(indent(problem))
 
-    # The package promises to write only its targets. Anything else under Assets/ that changed is a leak.
+    # The package promises to write only its targets. Anything else under Assets/, ProjectSettings/ or Packages/ that
+    # changed is a leak.
     leaks = outside_changes(outside_before, outside_state(args.project))
-    print("%-4s %-28s" % ("FAIL" if leaks else "ok", "nothing else in Assets/"), flush=True)
+    print("%-4s %-28s" % ("FAIL" if leaks else "ok", "nothing else in the project"), flush=True)
     if leaks:
         failed += 1
         print(indent(leaks))
@@ -2296,25 +2298,33 @@ def run_step(base, tmp, argv, expected):
     return "exit %s, expected %s\n%s" % (r.returncode, "0 or 3" if expected is None else expected, (r.stdout + r.stderr).strip())
 
 
+SMOKE_PACKAGE = "Packages/com.alexmah.dotasset.smoke"  # install_helper's embedded package, Unity adds its .meta files
+OUTSIDE_SKIP = {SMOKE_PACKAGE, "Packages/packages-lock.json"}  # the lock file is Unity's to rewrite
+
+
 def outside_state(project):
-    """Size and modification time of every file under Assets/ except the smoke folder. Cheap enough for a big
-    project, and any write that leaks out of the smoke folder changes one of them."""
-    top = os.path.join(project, "Assets")
-    smoke = os.path.normcase(os.path.join(project, *ROOT.split("/")))
+    """Every file the run must not touch: under Assets/ except the smoke folder by size and modification time, cheap
+    enough for a big project, and under ProjectSettings/ and Packages/ by content, since Unity rewrites some of those
+    with the same bytes. Any write that leaks out of the smoke folder changes one of them."""
+    skip = {os.path.normcase(os.path.join(project, *p.split("/"))) for p in OUTSIDE_SKIP | {ROOT, ROOT + ".meta"}}
     state = {}
-    for folder, dirs, names in os.walk(top):
-        if os.path.normcase(folder) == smoke:
-            dirs[:] = []
-            continue
-        for n in names:
-            path = os.path.join(folder, n)
-            if os.path.normcase(path) == smoke + ".meta":
-                continue
-            try:
-                st = os.stat(path)
-            except OSError:
-                continue
-            state[os.path.relpath(path, project).replace("\\", "/")] = (st.st_size, st.st_mtime_ns)
+    for top, by_content in (("Assets", False), ("ProjectSettings", True), ("Packages", True)):
+        for folder, dirs, names in os.walk(os.path.join(project, top)):
+            dirs[:] = [d for d in dirs if os.path.normcase(os.path.join(folder, d)) not in skip]
+            for n in names:
+                path = os.path.join(folder, n)
+                if os.path.normcase(path) in skip:
+                    continue
+                try:
+                    if by_content:
+                        with open(path, "rb") as f:
+                            value = hashlib.sha1(f.read()).hexdigest()
+                    else:
+                        st = os.stat(path)
+                        value = (st.st_size, st.st_mtime_ns)
+                except OSError:
+                    continue
+                state[os.path.relpath(path, project).replace("\\", "/")] = value
     return state
 
 

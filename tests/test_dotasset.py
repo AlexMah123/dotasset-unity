@@ -1396,6 +1396,20 @@ class PackageFiles(unittest.TestCase):
             runs |= {f[:-len("Command.cs")] for f in os.listdir(os.path.join(PACKAGE, "Editor", group)) if f.endswith("Command.cs")}
         self.assertEqual(sorted(runs - called), [])
 
+    def test_every_spec_reader_refuses_unknown_keys(self):
+        """R5-5: a misspelt top-level spec key is refused, never read as an empty list. A run that loads -spec itself
+        checks its keys with Json.UnknownKeys, the others go through Spec.LoadTargets or Spec.Targets."""
+        readers = []
+        for dirpath, _, files in os.walk(os.path.join(PACKAGE, "Editor")):
+            for name in files:
+                if name.endswith(".cs"):
+                    text = read(os.path.join(dirpath, name))
+                    if re.search(r"\bSpec\.Load\(", text):
+                        readers.append(name)
+                        self.assertTrue(re.search(r"Json\.UnknownKeys\(spec\b|Spec\.Targets\(", text),
+                                        name + " loads -spec without checking its top-level keys")
+        self.assertIn("RemoveMissingScriptsCommand.cs", readers)
+
     def test_versions_agree(self):
         pkg = json.loads(read(os.path.join(PACKAGE, "package.json")))
         cs = read(os.path.join(PACKAGE, "Editor", "Core", "DotAssetVersion.cs"))

@@ -35,6 +35,13 @@ namespace DotAsset
                 {
                     return ExitCode.Refused;
                 }
+                // AuditUnusedAsset's fix spec: {"Assets": [...]}. A misspelt key must not read as "nothing to delete".
+                string strays = Json.UnknownKeys(spec, "Assets");
+                if (strays != null)
+                {
+                    ctx.Log.Error("spec: " + strays);
+                    return ExitCode.Refused;
+                }
                 var list = spec["Assets"] as JArray;
                 if (list == null || list.Any(t => t.Type != JTokenType.String))
                 {

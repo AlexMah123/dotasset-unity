@@ -47,6 +47,18 @@ namespace DotAsset.Tests
             Assert.IsTrue(File.Exists(DotAssetPaths.Absolute(Red)), "the refused delete deleted Red.mat");
         }
 
+        // R5-5: a misspelt key is refused like in every other spec run, not read as "nothing to delete"
+        [Test]
+        public void DeleteAssetRefusesAMisspeltSpecKey()
+        {
+            string unused = Folder + "/Unused.mat";
+            NewMaterial(unused);
+            RunResult r = Run("DeleteAsset", "-scandir=" + Folder + " -permanent -apply " + Spec(@"{'Assets': [], 'Asets': ['" + unused + @"']}"));
+            Assert.AreEqual(2, r.ExitCode, string.Join("\n", r.Lines.ToArray()));
+            StringAssert.Contains("Asets", string.Join("\n", r.Lines.ToArray()));
+            Assert.IsTrue(File.Exists(DotAssetPaths.Absolute(unused)));
+        }
+
         [Test]
         public void DuplicateAssetCopiesWithANewGuid()
         {

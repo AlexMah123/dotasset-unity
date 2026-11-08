@@ -1447,6 +1447,10 @@ class PackageFiles(unittest.TestCase):
         cs = read(os.path.join(PACKAGE, "Editor", "Core", "DotAssetVersion.cs"))
         self.assertIn('Version = "%s"' % pkg["version"], cs)
         self.assertIn("### " + pkg["version"], read(os.path.join(ROOT, "Version.md")))
+        # R5-8: the README's install pin and sample output slipped twice, at 0.11.1 and 0.11.4.
+        readme = read(os.path.join(ROOT, "README.md"))
+        self.assertIn("`#v%s`" % pkg["version"], readme, "README install pin")
+        self.assertIn("DotAsset %s, Unity" % pkg["version"], readme, "README sample output")
 
     def test_no_char_contains(self):
         """string.Contains(char) is missing from .NET Framework 4.8."""

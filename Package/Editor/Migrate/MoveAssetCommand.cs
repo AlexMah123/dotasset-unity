@@ -52,6 +52,13 @@ namespace DotAsset
                     ctx.FailTarget(label, "nothing at " + from);
                     continue;
                 }
+                // Unity and a file system that ignores case take both names for the same asset.
+                if (from != to && string.Equals(from, to, StringComparison.OrdinalIgnoreCase))
+                {
+                    ctx.FailTarget(label, "a rename that changes only the case cannot be one move, Unity takes both names for the same asset. "
+                        + "Use two moves in one spec, through a temporary name: " + from + " to a temporary name, then that to " + to);
+                    continue;
+                }
                 if (plan.Exists(to))
                 {
                     ctx.FailTarget(label, to + " already exists");

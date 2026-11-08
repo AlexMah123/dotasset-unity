@@ -45,7 +45,7 @@ python dotasset.py MoveAsset --args '-spec="C:/temp/moves.json" -apply'
 { "Moves": [ { "From": "Assets/Art/Old", "To": "Assets/Art/Characters" }, { "From": "Assets/A.mat", "To": "Assets/Materials/A.mat" } ] }
 ```
 
-Missing parent folders are created, and removed again when the move fails. `To` must not exist, and a folder cannot move into itself. Moves run in spec order, each one sees the project as the previous one left it, so a chain (`A` to `B`, then `B` to `C`) works and a swap needs a temporary name. So does a rename that changes only the case (`Red.mat` to `RED.mat`), which is refused as "already exists" in 0.11.4: move it to `Red_tmp.mat` and then to `RED.mat` in one spec. Each move goes through `AssetDatabase.MoveAsset`, which keeps the GUID and the `.meta`. The run warns for every `.cs` under `Assets` that contains the old path, or, under a `Resources` folder, the old `Resources.Load` path.
+Missing parent folders are created, and removed again when the move fails. `To` must not exist, and a folder cannot move into itself. Moves run in spec order, each one sees the project as the previous one left it, so a chain (`A` to `B`, then `B` to `C`) works and a swap needs a temporary name. So does a rename that changes only the case (`Red.mat` to `RED.mat`): one move is refused (exit 1) with a reason that says so, since Unity takes both names for the same asset. Move it to `Red_tmp.mat` and then to `RED.mat` in one spec. Each move goes through `AssetDatabase.MoveAsset`, which keeps the GUID and the `.meta`. The run warns for every `.cs` under `Assets` that contains the old path, or, under a `Resources` folder, the old `Resources.Load` path.
 
 ## DuplicateAsset
 

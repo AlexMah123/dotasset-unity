@@ -87,6 +87,22 @@ namespace DotAsset.Tests
             Assert.IsTrue(File.Exists(Absolute(Red)), "Red.mat is gone");
         }
 
+        // R5-6: a rename that changes only the case cannot be one move on a file system that ignores case. It is refused
+        // with that reason and the two-move workaround, not as "already exists", and Red.mat keeps its name.
+        [Test]
+        public void ACaseOnlyRenameSaysHowToDoIt()
+        {
+            foreach (string apply in new[] { string.Empty, " -apply" })
+            {
+                RunResult r = Run("MoveAsset", "-from=" + Red + " -to=" + Folder + "/RED.mat" + apply);
+                string log = string.Join("\n", r.Lines.ToArray());
+                Assert.AreEqual(1, r.ExitCode, log);
+                Assert.IsTrue(log.Contains("only the case") && log.Contains("temporary name"), log);
+                Assert.IsFalse(log.Contains("already exists"), log);
+                Assert.IsTrue(Directory.GetFiles(Absolute(Folder), "*.mat").Any(f => Path.GetFileName(f) == "Red.mat"), "Red.mat was renamed");
+            }
+        }
+
         [Test]
         public void ABadKindOrPathLaterInTheSpecCreatesNothing()
         {

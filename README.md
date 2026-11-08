@@ -316,7 +316,7 @@ Every write is read back through an export. An exit code alone never counts as a
 
 The texture, Missing Script, `RebindAnimation`, `RemapScript`, `RenameField` and `[SerializeReference]` steps write files to disk. Headless, the host restarts so Unity reads them. With the editor open, the smoke helper refreshes the editor and waits until the new scripts have compiled.
 
-With the editor open, the smoke test opens `Smoke.unity` in your editor, runs `EditScene` on it dry and with `-apply` (one undo group), and then reopens the scenes you had. Still to be confirmed: `RemoveMissingScripts` on a scene open in the editor. Please open issues with the Console output.
+With the editor open, the smoke test opens `Smoke.unity` in your editor, runs `EditScene` on it dry and with `-apply` (one undo group), and then reopens the scenes you had. It does the same with `RemoveMissingScripts` on an open scene that holds a Missing Script, and checks the scene's other components stay. Please open issues with the Console output.
 
 ### Known issues in 0.11.4
 

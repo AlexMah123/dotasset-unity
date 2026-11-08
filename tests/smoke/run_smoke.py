@@ -195,31 +195,40 @@ def check_resave(base, tmp):
 GHOST_GUID = "d07a55e7d07a55e7d07a55e7d07a55e7"
 
 
+def plant_ghost(path, name):
+    """Writes a component whose script GUID no script has onto the GameObject called name in a prefab or scene file.
+    Returns a problem or None. Unity only reads the edited file when it starts or refreshes, call fresh_host after."""
+    with open(path, encoding="utf-8", newline="") as f:
+        text = f.read()
+    nl = "\r\n" if "\r\n" in text else "\n"
+    docs = re.split(r"(?m)^(?=--- !u!)", text)
+    anchor = "m_Component:" + nl
+    for i, doc in enumerate(docs):
+        if doc.startswith("--- !u!1 &") and re.search(r"(?m)^  m_Name: %s\s*$" % re.escape(name), doc) and anchor in doc:
+            go_id = re.match(r"--- !u!1 &(-?\d+)", doc).group(1)
+            docs[i] = doc.replace(anchor, anchor + "  - component: {fileID: 7373737373}" + nl, 1)
+            break
+    else:
+        return "%s has no GameObject %s with an m_Component list to add the component to" % (os.path.basename(path), name)
+    text = "".join(docs) + nl.join([
+        "--- !u!114 &7373737373", "MonoBehaviour:", "  m_ObjectHideFlags: 0", "  m_CorrespondingSourceObject: {fileID: 0}",
+        "  m_PrefabInstance: {fileID: 0}", "  m_PrefabAsset: {fileID: 0}", "  m_GameObject: {fileID: %s}" % go_id,
+        "  m_Enabled: 1", "  m_EditorHideFlags: 0", "  m_Script: {fileID: 11500000, guid: %s, type: 3}" % GHOST_GUID,
+        "  m_Name: ", "  m_EditorClassIdentifier: ", ""])
+    with open(path, "w", encoding="utf-8", newline="") as f:
+        f.write(text)
+    return None
+
+
 def check_missing_script(base, tmp):
-    # Seed an R2: a component whose script GUID no script has, written into a prefab's YAML. Unity only reads the
-    # edited file when it starts or refreshes, so fresh_host restarts the host or refreshes the editor.
+    # Seed an R2: a component whose script GUID no script has, written into a prefab's YAML.
     ghost = ROOT + "/Ghost.prefab"
     seed = spec("seed_r2", {"Assets": [{"Kind": "Prefab", "Path": ghost, "Root": "Ghost", "Components": ["BoxCollider"]}]}, tmp)
     problem = expect(base, "CreateAsset Ghost.prefab", ["CreateAsset", "--args", '-spec="%s"' % seed], 0)
     if problem:
         return problem
     path = os.path.join(project_of(base), *ghost.split("/"))
-    with open(path, encoding="utf-8", newline="") as f:
-        text = f.read()
-    nl = "\r\n" if "\r\n" in text else "\n"
-    root_id = re.search(r"--- !u!1 &(-?\d+)", text).group(1)
-    anchor = "m_Component:" + nl
-    if anchor not in text:
-        return "Ghost.prefab has no m_Component list to add the component to"
-    text = text.replace(anchor, anchor + "  - component: {fileID: 7373737373}" + nl, 1)
-    text += nl.join([
-        "--- !u!114 &7373737373", "MonoBehaviour:", "  m_ObjectHideFlags: 0", "  m_CorrespondingSourceObject: {fileID: 0}",
-        "  m_PrefabInstance: {fileID: 0}", "  m_PrefabAsset: {fileID: 0}", "  m_GameObject: {fileID: %s}" % root_id,
-        "  m_Enabled: 1", "  m_EditorHideFlags: 0", "  m_Script: {fileID: 11500000, guid: %s, type: 3}" % GHOST_GUID,
-        "  m_Name: ", "  m_EditorClassIdentifier: ", ""])
-    with open(path, "w", encoding="utf-8", newline="") as f:
-        f.write(text)
-    problem = fresh_host(base)
+    problem = plant_ghost(path, "Ghost") or fresh_host(base)
     if problem:
         return problem
     code, report, fix = audit(base, "AuditMissingReference", ROOT)
@@ -438,6 +447,48 @@ def check_open_scene_edit(base, tmp):
         if restore:
             open_scenes(base, previous, force=True)
             problem = (problem + "\n" if problem else "") + "the edit left the open scene dirty, restoring your scenes needed --force:\n" + restore
+    elif not problem:
+        problem = "the editor had no saved scene open, %s stays open until cleanup deletes it" % scene
+    return problem
+
+
+def check_open_scene_missing_script(base, tmp):
+    # RemoveMissingScripts on a scene open in the editor. The dry run leaves the file as it was, -apply saves it
+    # without the Missing Script and keeps the BoxCollider, and neither leaves the scene dirty, which the plain
+    # (unforced) restore of your scenes would refuse.
+    if not editor_open(base):
+        return "skip: needs the editor open, the scene is opened in it"
+    scene = ROOT + "/Haunted.unity"
+    seed = spec("haunted", {"Assets": [{"Kind": "Scene", "Path": scene}]}, tmp)
+    box = spec("haunted_box", {"Targets": [{"AssetPath": scene, "Ops": [
+        {"Op": "AddGameObject", "Name": "Haunted", "Components": ["BoxCollider"]}]}]}, tmp)
+    problem = (expect(base, "CreateAsset Haunted.unity", ["CreateAsset", "--args", '-spec="%s"' % seed], 0)
+               or expect(base, "EditScene adds Haunted", ["EditScene", "--args", '-spec="%s" -apply' % box], 0))
+    if problem:
+        return problem
+    path = os.path.join(project_of(base), *scene.split("/"))
+    problem = plant_ghost(path, "Haunted") or fresh_host(base)
+    if problem:
+        return problem
+    problem, previous = open_scenes(base, [scene])
+    if problem:
+        return problem
+    try:
+        problem = expect(base, "RemoveMissingScripts dry run on the open scene", ["RemoveMissingScripts", scene], 0)
+        if not problem and GHOST_GUID not in open(path, encoding="utf-8").read():
+            problem = "the RemoveMissingScripts dry run on the open scene wrote the file"
+        problem = problem or expect(base, "RemoveMissingScripts -apply on the open scene", ["RemoveMissingScripts", scene, "--args", "-apply"], 0)
+        if not problem and GHOST_GUID in open(path, encoding="utf-8").read():
+            problem = "RemoveMissingScripts left the Missing Script in the open scene's file"
+        if not problem and component(export_of("SceneExport", base, scene), "Haunted", "BoxCollider") is None:
+            problem = "RemoveMissingScripts took the BoxCollider along in the open scene"
+    except Exception as e:
+        problem = "%s: %s" % (type(e).__name__, e)
+    if previous:
+        restore, _ = open_scenes(base, previous)
+        if restore:
+            open_scenes(base, previous, force=True)
+            problem = (problem + "\n" if problem else "") + "the run left the open scene dirty, restoring your scenes needed --force:\n" + restore
     elif not problem:
         problem = "the editor had no saved scene open, %s stays open until cleanup deletes it" % scene
     return problem
@@ -2215,6 +2266,7 @@ def steps_of(specs):
         ("export round trip", check_round_trip, None),
         ("edit scene dry and apply", check_edit_scene, None),
         ("edit the open scene", check_open_scene_edit, None),
+        ("missing script, open scene", check_open_scene_missing_script, None),
         ("settle: edit, reload", check_settle, None),
         ("edit material dry and apply", check_edit_material, None),
         ("unity cli: list, run, batch", check_unity_cli, None),

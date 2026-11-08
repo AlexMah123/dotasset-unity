@@ -47,6 +47,31 @@ namespace DotAsset.Tests
             Assert.IsTrue(File.Exists(DotAssetPaths.Absolute(Red)), "the refused delete deleted Red.mat");
         }
 
+        // R5-9: with no -scandir, a material in an embedded package that uses the texture counts as a user, so the
+        // delete is refused and names it. Embedded and local packages are project files a delete can break.
+        [Test]
+        public void DeleteAssetSeesAUserInAnEmbeddedPackage()
+        {
+            string png = Folder + "/Held.png";
+            WritePng(png);
+            const string holder = "Packages/com.alexmah.dotasset.tests/DotAssetHolder.mat";
+            var mat = new Material(Shader.Find("Unlit/Texture"));
+            mat.mainTexture = AssetDatabase.LoadAssetAtPath<Texture2D>(png);
+            AssetDatabase.CreateAsset(mat, holder);
+            try
+            {
+                RunResult r = Run("DeleteAsset", "-permanent -apply", png);
+                string lines = string.Join("\n", r.Lines.ToArray());
+                Assert.AreEqual(1, r.ExitCode, lines);
+                StringAssert.Contains(holder, lines);
+                Assert.IsTrue(File.Exists(DotAssetPaths.Absolute(png)), "the texture was deleted");
+            }
+            finally
+            {
+                AssetDatabase.DeleteAsset(holder);
+            }
+        }
+
         // R5-5: a misspelt key is refused like in every other spec run, not read as "nothing to delete"
         [Test]
         public void DeleteAssetRefusesAMisspeltSpecKey()

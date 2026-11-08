@@ -84,8 +84,13 @@ namespace DotAsset
             // "Assets/Old,Assets/Old/A.mat": the folder takes A.mat with it, a second delete would fail after the first.
             targets = targets.Distinct(StringComparer.OrdinalIgnoreCase).ToList();
             targets = targets.Where(t => !targets.Any(o => o != t && t.StartsWith(o + "/", StringComparison.OrdinalIgnoreCase))).ToList();
-            ctx.Log.Info("indexing references under " + string.Join(", ", AssetScan.Roots(ctx.Args)));
-            var index = AssetScan.Referencers(AssetScan.Roots(ctx.Args), ctx);
+            // Without -scandir the users check also reads embedded and local packages: a material there can use a
+            // texture under Assets/, and deleting the texture would break it.
+            var roots = ctx.Args.GetList("scandir").Count == 0
+                ? new[] { "Assets" }.Concat(AssetScan.WritablePackages()).ToList()
+                : AssetScan.Roots(ctx.Args);
+            ctx.Log.Info("indexing references under " + string.Join(", ", roots.ToArray()));
+            var index = AssetScan.Referencers(roots, ctx);
             // The project's own references count wherever -scandir points: their referencer is a setting, not an asset.
             foreach (var named in ProjectRoots.Named())
             {

@@ -59,7 +59,7 @@ python dotasset.py DeleteAsset "Assets/Old/Unused.mat,Assets/Old/Props" --args "
 
 | Argument | Effect |
 | --- | --- |
-| `-scandir=<dirs>` | where to look for referencers, default `Assets` |
+| `-scandir=<dirs>` | where to look for referencers, default `Assets` and every embedded or local package |
 | `-force` | delete even when referenced |
 | `-permanent` | delete outright instead of moving to the OS trash |
 | `-spec=<file>` | `{"Assets": [...]}`, the fix spec of `AuditUnusedAsset`, in place of or beside AssetList |
@@ -68,7 +68,7 @@ A folder counts as referenced when something outside it uses something inside it
 
 Wherever `-scandir` points, an asset the project names outside any asset is refused too: what project settings reference (the render pipeline and its global settings, preloaded assets, config objects such as Input System settings), enabled Build Settings scenes, Build Profiles and the scenes they list (Unity 6), Addressables entries and AssetBundle-tagged assets. The warning names the setting. An asset in a `Resources` or `StreamingAssets` folder is deleted with a warning: code may load it by name, which no reference shows.
 
-Not seen: references from code (`Resources.Load`, `AssetDatabase.LoadAssetAtPath`, string paths), references from assets outside `-scandir`. The default `Assets` leaves out packages. When an embedded or local package of yours may use the targets, name it too: `-scandir=Assets,Packages/com.example.tools`. Narrow `-scandir` below `Assets` only when you know nothing outside the folder uses the targets.
+Not seen: references from code (`Resources.Load`, `AssetDatabase.LoadAssetAtPath`, string paths), references from assets outside `-scandir`. Without `-scandir` the check reads `Assets` and every embedded or local package (the log line `indexing references under` names them), packages from the registry, git or a tarball are left out. A `-scandir` you give replaces that default, so name the packages too when you narrow it: `-scandir=Assets/Art,Packages/com.example.tools`. Narrow it only when you know nothing outside those folders uses the targets.
 
 A scene open in the editor with unsaved changes, the prefab open in Prefab Mode with unsaved changes, or any asset with unsaved changes in the editor (a material edited in the Inspector) is never deleted, also when it sits in a folder being deleted and with `-force`: the target fails with the reason. The same goes for an asset that such an open scene or Prefab Mode prefab uses, though no saved file references it yet: the reason names the scene or prefab. Save or discard the changes, then delete. `ResaveAsset` refuses such a target the same way and resaves the rest.
 

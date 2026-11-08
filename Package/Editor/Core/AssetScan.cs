@@ -32,6 +32,28 @@ namespace DotAsset
             return roots;
         }
 
+        // "Packages/<name>" of every embedded or local package. Their assets are the project's own work and can use an
+        // asset under Assets/, a package from the registry, git or a tarball is left out.
+        public static List<string> WritablePackages()
+        {
+            var roots = new HashSet<string>(StringComparer.Ordinal);
+            foreach (string path in AssetDatabase.GetAllAssetPaths())
+            {
+                if (!path.StartsWith("Packages/", StringComparison.Ordinal))
+                {
+                    continue;
+                }
+                int slash = path.IndexOf('/', "Packages/".Length);
+                roots.Add(slash < 0 ? path : path.Substring(0, slash));
+            }
+            return roots.Where(r =>
+            {
+                var info = UnityEditor.PackageManager.PackageInfo.FindForAssetPath(r);
+                return info != null && (info.source == UnityEditor.PackageManager.PackageSource.Embedded
+                    || info.source == UnityEditor.PackageManager.PackageSource.Local);
+            }).OrderBy(r => r, StringComparer.Ordinal).ToList();
+        }
+
         public static bool Under(string path, IEnumerable<string> roots)
         {
             foreach (string root in roots)

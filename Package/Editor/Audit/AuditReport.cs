@@ -85,7 +85,7 @@ namespace DotAsset
 
             if (FixSpec != null && FixSpec.Properties().Any(p => p.Value is JArray && ((JArray)p.Value).Count > 0))
             {
-                string fixPath = Path.ChangeExtension(reportPath, null) + ".fix.json";
+                string fixPath = FixPath(reportPath);
                 Json.WriteFile(fixPath, FixSpec);
                 json["FixSpec"] = DotAssetPaths.ToProjectRelative(fixPath);
                 json["FixRun"] = FixRun;
@@ -94,7 +94,7 @@ namespace DotAsset
             else
             {
                 // A fix spec left from an earlier run at the same -report path would look current.
-                string stale = Path.ChangeExtension(reportPath, null) + ".fix.json";
+                string stale = FixPath(reportPath);
                 try
                 {
                     if (File.Exists(stale))
@@ -124,6 +124,77 @@ namespace DotAsset
             }
             ctx.Log.Info("checked " + Checked + ", " + issues.Count + " issue(s)");
             return issues.Count > 0 ? ExitCode.IssuesFound : ExitCode.Success;
+        }
+
+        static string FixPath(string reportPath)
+        {
+            return Path.ChangeExtension(reportPath, null) + ".fix.json";
+        }
+
+        // Why an audit cannot write its report at -report, or null. An audit does not write the project, so a path
+        // under Assets/, Packages/ or ProjectSettings/ is refused. Nor does it replace a file DotAsset did not write:
+        // a file there that is not a report, or a <stem>.fix.json that the report at that path does not name.
+        // Checked with the arguments, so the dry run refuses too.
+        public static string PathRefusal(string explicitPath)
+        {
+            if (string.IsNullOrEmpty(explicitPath))
+            {
+                return null;
+            }
+            string report;
+            try
+            {
+                report = FullPath(explicitPath);
+            }
+            catch (Exception e) when (e is ArgumentException || e is NotSupportedException || e is IOException)
+            {
+                return "-report=" + explicitPath + " is not a usable path: " + e.Message;
+            }
+            string relative = DotAssetPaths.ToProjectRelative(report);
+            foreach (string root in new[] { "Assets", "Packages", "ProjectSettings" })
+            {
+                if (string.Equals(relative, root, StringComparison.OrdinalIgnoreCase) || relative.StartsWith(root + "/", StringComparison.OrdinalIgnoreCase))
+                {
+                    return "-report=" + explicitPath + " is inside " + root + "/, an audit does not write the project. Leave -report out "
+                        + "(reports go to Library/DotAsset/Audit) or give a path outside Assets/, Packages/ and ProjectSettings/";
+                }
+            }
+            JObject existing = null;
+            string error;
+            if (File.Exists(report) && !(Json.TryReadFile(report, out existing, out error) && IsReport(existing)))
+            {
+                return "-report=" + explicitPath + " is a file that is not a DotAsset report, the audit does not write over it. Give another path";
+            }
+            string fix = FixPath(report);
+            if (File.Exists(fix))
+            {
+                JValue named = existing == null ? null : existing["FixSpec"] as JValue;
+                bool ours;
+                try
+                {
+                    ours = named != null && named.Type == JTokenType.String && string.Equals(FullPath((string)named), fix, StringComparison.OrdinalIgnoreCase);
+                }
+                catch (Exception e) when (e is ArgumentException || e is NotSupportedException || e is IOException)
+                {
+                    ours = false;
+                }
+                if (!ours)
+                {
+                    return fix + " is not the fix spec of a DotAsset report at -report=" + explicitPath
+                        + ", the audit would replace or delete it. Move it or give another path";
+                }
+            }
+            return null;
+        }
+
+        static string FullPath(string path)
+        {
+            return DotAssetPaths.Normalize(Path.GetFullPath(DotAssetPaths.Absolute(path)));
+        }
+
+        static bool IsReport(JObject json)
+        {
+            return json["ReportType"] is JValue && json["ExporterVersion"] is JValue && json["Issues"] is JArray;
         }
     }
 }

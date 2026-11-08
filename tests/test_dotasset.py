@@ -1410,6 +1410,38 @@ class PackageFiles(unittest.TestCase):
                                         name + " loads -spec without checking its top-level keys")
         self.assertIn("RemoveMissingScriptsCommand.cs", readers)
 
+    # Every place the package writes, moves or deletes a file outside the AssetDatabase, with the count of call sites.
+    # Writes to the project go through RunJournal.Keep and DotAssetPaths.ReplaceText. A new call site must be added
+    # here with its reason, so no unjournaled write slips in unnoticed (R5-2).
+    FILE_WRITES = {
+        "Core/RunJournal.cs": (23, "the journal: backups, restores, its own records"),
+        "Core/TaskQueue.cs": (14, "queue tasks, results and the heartbeat under Library/DotAsset"),
+        "Core/DotAssetPaths.cs": (6, "ReplaceText (temp file then replace) and pruning old exports and reports"),
+        "Audit/AuditReport.cs": (3, "the report and its own fix spec, -report checked by PathRefusal"),
+        "Core/Cli.cs": (2, "the -resultFile of a command-line run"),
+        "Import/CreateAssetCommand.cs": (2, "a temp spec for the AnimatorController ops, deleted after"),
+        "UI/DotAssetWindow.cs": (2, "Library/DotAsset and the wrapper copy the window offers"),
+        "Core/RunDispatcher.cs": (2, "the run log under Library/DotAsset/Logs"),
+        "Export/ExportHelper.cs": (1, "the export file"),
+        "Migrate/UndoRunCommand.cs": (1, "the journal after a partial undo"),
+    }
+
+    def test_file_writes_stay_in_known_places(self):
+        pattern = re.compile(r"File\.(WriteAll\w*|Delete|Move|Copy|Replace|Create\w*|AppendAll\w*|SetAttributes|Open\w*)\("
+                             r"|Directory\.(Delete|Move|CreateDirectory)\(|new (FileStream|StreamWriter)\(|Json\.WriteFile\("
+                             r"|FileUtil\.\w+\(")
+        found = {}
+        editor = os.path.join(PACKAGE, "Editor")
+        for dirpath, _, files in os.walk(editor):
+            for name in files:
+                if name.endswith(".cs"):
+                    path = os.path.join(dirpath, name)
+                    code = "\n".join(line.split("//")[0] for line in read(path).splitlines())
+                    n = len(pattern.findall(code))
+                    if n:
+                        found[os.path.relpath(path, editor).replace(os.sep, "/")] = n
+        self.assertEqual(found, {k: v[0] for k, v in self.FILE_WRITES.items()})
+
     def test_versions_agree(self):
         pkg = json.loads(read(os.path.join(PACKAGE, "package.json")))
         cs = read(os.path.join(PACKAGE, "Editor", "Core", "DotAssetVersion.cs"))

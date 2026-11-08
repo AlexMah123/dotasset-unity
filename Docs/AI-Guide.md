@@ -146,7 +146,7 @@ Exports land in `Library/DotAsset/Export/<AssetPath>_<YYYYMMDD-HHMMSS>.json` and
 grep -n '"Path": "Player/Model' Library/DotAsset/Export/Assets/Prefabs/Player.prefab_*.json
 ```
 
-Audit reports land in `Library/DotAsset/Audit/`, with `-report=` to choose the path. It writes over a file already there, so give a new path outside `Assets/`, `Packages/` and `ProjectSettings/`. Run logs: `Library/DotAsset/Logs/`, and `Window > DotAsset` lists them in the editor.
+Audit reports land in `Library/DotAsset/Audit/`, with `-report=` to choose the path, outside `Assets/`, `Packages/` and `ProjectSettings/`. It replaces only its own earlier report and fix spec there, any other file at that path is refused with exit 2. Run logs: `Library/DotAsset/Logs/`, and `Window > DotAsset` lists them in the editor.
 
 ## Pitfalls
 

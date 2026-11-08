@@ -242,6 +242,12 @@ namespace DotAsset
                     + ". " + cmd.Name + " accepts: " + (accepted.Count == 0 ? "no arguments" : string.Join(", ", accepted.OrderBy(a => a).Select(a => "-" + a))));
                 return ExitCode.Refused;
             }
+            string reportRefusal = cmd.Group == CommandGroup.Audit ? AuditReport.PathRefusal(ctx.Args.Get("report")) : null;
+            if (reportRefusal != null)
+            {
+                ctx.Log.Error(reportRefusal);
+                return ExitCode.Refused;
+            }
 
             if (ctx.DryRun)
             {

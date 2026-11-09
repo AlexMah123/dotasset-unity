@@ -67,6 +67,9 @@ HEARTBEAT_FRESHNESS_SEC = 15.0
 # Beyond this an idle heartbeat counts as dead for routing. Generous, an unfocused editor can tick slowly.
 STALE_HEARTBEAT_SEC = 120.0
 
+# Reads 0.05 s apart of a heartbeat that is missing while Unity holds the project, see live_editor.
+ALIVE_REREADS = 10
+
 # Added to --timeout for a queued task's ExpiresUnix.
 TASK_EXPIRY_MARGIN_SEC = 120
 
@@ -454,12 +457,20 @@ def same_path(a, b):
 
 def live_editor(queue_root):
     """The heartbeat of a running editor of this project, or None."""
+    project = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(queue_root))))
     alive = read_alive(queue_root)
+    # The editor replaces .alive with File.Replace, which on Windows leaves a moment with no file. While Unity holds
+    # the project, a missing heartbeat is read again for up to half a second before the queue counts as not up.
+    if not alive and project_locked(project):
+        for _ in range(ALIVE_REREADS):
+            time.sleep(0.05)
+            alive = read_alive(queue_root)
+            if alive:
+                break
     if not alive:
         return None
     # A heartbeat copied along with the project, or left by a crash whose pid now belongs to another editor,
     # names a different project.
-    project = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(queue_root))))
     if alive.get("ProjectPath") and not same_path(alive["ProjectPath"], project):
         return None
     # A heartbeat that stopped long ago with a state that should be ticking belongs to a dead or hung editor whose

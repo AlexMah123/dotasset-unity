@@ -851,6 +851,30 @@ class QueueRoute(Base):
             json.dump({"Pid": os.getpid(), "State": "ready", "ProjectPath": self.project.replace(os.sep, "/")}, f)
         self.assertIsNotNone(ops.live_editor(queue))
 
+    def test_heartbeat_being_replaced_is_read_again(self):
+        # The editor replaces .alive with File.Replace, which on Windows leaves a moment with no file. A --quit that
+        # read it then refused with "task queue is not up" (0.13.0 matrix, pass 3, 2022.3 headless).
+        queue = os.path.join(self.project, ops.QUEUE_RELATIVE)
+        os.makedirs(queue, exist_ok=True)
+        alive = os.path.join(queue, ops.ALIVE)
+
+        def replaced():
+            with open(alive, "w") as f:
+                json.dump({"Pid": os.getpid(), "State": "ready", "ProjectPath": self.project.replace(os.sep, "/")}, f)
+
+        timer = threading.Timer(0.1, replaced)
+        timer.start()
+        try:
+            with mock.patch.object(ops, "project_locked", return_value=True):
+                self.assertIsNotNone(ops.live_editor(queue), "an editor holds the project, its heartbeat comes back")
+        finally:
+            timer.join()
+        os.remove(alive)
+        started = time.time()
+        with mock.patch.object(ops, "project_locked", return_value=False):
+            self.assertIsNone(ops.live_editor(queue))
+        self.assertLess(time.time() - started, 0.05, "with no editor holding the project nothing waits")
+
     def test_long_dead_idle_heartbeat_is_ignored(self):
         queue = os.path.join(self.project, ops.QUEUE_RELATIVE)
         os.makedirs(queue, exist_ok=True)

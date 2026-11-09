@@ -26,7 +26,7 @@ Every write goes through Unity's own API (`SerializedObject`, `PrefabUtility`, `
 
 | Group | Runs |
 | :-- | :-- |
-| **Export** | `PrefabExport` `SceneExport` `AssetExport` `MaterialExport` `AnimatorControllerExport` `AnimationClipExport` `ImporterExport` `AssetReferenceExport` `TypeCatalogExport` `CommandCatalogExport` |
+| **Export** | `PrefabExport` `SceneExport` `AssetExport` `MaterialExport` `AnimatorControllerExport` `AnimationClipExport` `TimelineExport` `ImporterExport` `AssetReferenceExport` `TypeCatalogExport` `CommandCatalogExport` |
 | **Import** | `CreateAsset` (folders, ScriptableObjects, materials, prefabs, prefab variants, Animator Controllers, animation clips, scenes) |
 | **Edit** | `EditPrefab` `EditScene` `EditAsset` `EditMaterial` `EditImporter` `EditAnimatorController` `EditAnimationClip` |
 | **Migrate** | `MoveAsset` `DuplicateAsset` `DeleteAsset` `ResaveAsset` `RemapReference` `RemapScript` `RenameField` `RenameSerializeReferenceType` `RemoveMissingScripts` `RebindAnimation` `RenameShaderProperty` `UndoRun` |
@@ -49,7 +49,8 @@ Every write goes through Unity's own API (`SerializedObject`, `PrefabUtility`, `
 | ScriptableObject | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Material | ✓ | ✓ | ✓ | ✓ | ✓ |
 | Animator Controller | ✓ | ✓ | ✓ | ✓ | ✓ |
-| Animation clip (`.anim`) | ✓ | | ✓ | ✓ | ✓ (references) |
+| Animation clip (`.anim`) | ✓ | ✓ | ✓ | ✓ | ✓ (references) |
+| Timeline (`.playable`, with `com.unity.timeline`) | ✓ | | | ✓ | ✓ (references) |
 | Texture, model, audio import settings | ✓ | | ✓ | | ✓ (textures) |
 | Any other asset (sub-assets included) | ✓ | | ✓ | ✓ | ✓ (references) |
 

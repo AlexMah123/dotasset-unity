@@ -90,6 +90,69 @@ namespace DotAsset.Tests
             Assert.AreEqual(new[] { "Inner" }, Export("AnimationClipExport", Door)["Clips"].Select(c => (string)c["Name"]).ToArray());
         }
 
+        static Type TimelineType(string name)
+        {
+            Type t = Type.GetType("UnityEngine.Timeline." + name + ", Unity.Timeline");
+            Assert.IsNotNull(t, "the test project has no Timeline package, add com.unity.timeline to its manifest");
+            return t;
+        }
+
+        // The test assembly does not reference Timeline, so the timeline is built through its public API by reflection.
+        [Test]
+        public void TimelineExportListsTracksClipsAndMarkers()
+        {
+            Type timelineType = TimelineType("TimelineAsset");
+            Type trackType = TimelineType("TrackAsset");
+            Type animationTrack = TimelineType("AnimationTrack");
+            Type emitter = TimelineType("SignalEmitter");
+            string path = Folder + "/Intro.playable";
+            string hit = Folder + "/Hit.signal";
+            AssetDatabase.CreateAsset(ScriptableObject.CreateInstance(TimelineType("SignalAsset")), hit);
+            UnityEngine.Object signal = AssetDatabase.LoadMainAssetAtPath(hit);
+            AssetDatabase.CreateAsset(ScriptableObject.CreateInstance(timelineType), path);
+            UnityEngine.Object timeline = AssetDatabase.LoadMainAssetAtPath(path);
+            var wave = AssetDatabase.LoadAssetAtPath<AnimationClip>(NewClip());
+
+            var createTrack = timelineType.GetMethod("CreateTrack", new[] { typeof(Type), trackType, typeof(string) });
+            object group = createTrack.Invoke(timeline, new object[] { TimelineType("GroupTrack"), null, "Group" });
+            object body = createTrack.Invoke(timeline, new object[] { animationTrack, group, "Body" });
+            object walk = animationTrack.GetMethod("CreateClip", new[] { typeof(AnimationClip) }).Invoke(body, new object[] { wave });
+            TimelineType("TimelineClip").GetProperty("start").SetValue(walk, 1.0);
+            object step = trackType.GetMethod("CreateMarker", new[] { typeof(Type), typeof(double) }).Invoke(body, new object[] { emitter, 0.5 });
+            emitter.GetProperty("asset").SetValue(step, signal);
+            object lights = createTrack.Invoke(timeline, new object[] { TimelineType("ActivationTrack"), null, "Lights" });
+            trackType.GetMethod("CreateDefaultClip", Type.EmptyTypes).Invoke(lights, null);
+            trackType.GetProperty("muted").SetValue(lights, true);
+            timelineType.GetMethod("CreateMarkerTrack", Type.EmptyTypes).Invoke(timeline, null);
+            object markers = timelineType.GetProperty("markerTrack").GetValue(timeline);
+            object end = trackType.GetMethod("CreateMarker", new[] { typeof(Type), typeof(double) }).Invoke(markers, new object[] { emitter, 2.0 });
+            emitter.GetProperty("asset").SetValue(end, signal);
+            EditorUtility.SetDirty(timeline);
+            AssetDatabase.SaveAssetIfDirty(timeline);
+            Dictionary<string, string> before = Fingerprint();
+
+            // The folder also holds Hit.signal and Wave.anim, only the timeline is exported.
+            JObject intro = Export("TimelineExport", Folder);
+            Assert.AreEqual(path, (string)intro["AssetPath"]);
+            Assert.AreEqual(60, (double)intro["FrameRate"], intro.ToString());
+            Assert.AreEqual(new[] { "Group", "Group/Body", "Lights" }, intro["Tracks"].Select(t => (string)t["Path"]).ToArray());
+            JToken[] tracks = intro["Tracks"].ToArray();
+            Assert.AreEqual("GroupTrack", (string)tracks[0]["Type"]);
+            Assert.IsNull(tracks[0]["BindingType"], tracks[0].ToString());
+            Assert.AreEqual(new[] { "AnimationTrack", "Animator" }, new[] { (string)tracks[1]["Type"], (string)tracks[1]["BindingType"] });
+            JToken clip = tracks[1]["Clips"].Single();
+            Assert.AreEqual(new object[] { "Wave", 1.0, 1.0, 2.0, "AnimationPlayableAsset", Folder + "/Wave.anim" },
+                new object[] { (string)clip["Name"], (double)clip["Start"], (double)clip["Duration"], (double)clip["End"], (string)clip["AssetType"], (string)clip["Clip"] });
+            JToken marker = tracks[1]["Markers"].Single();
+            Assert.AreEqual(new object[] { 0.5, "SignalEmitter", hit }, new object[] { (double)marker["Time"], (string)marker["Type"], (string)marker["Signal"] });
+            Assert.IsTrue((bool)tracks[2]["Muted"], tracks[2].ToString());
+            Assert.AreEqual("GameObject", (string)tracks[2]["BindingType"]);
+            Assert.AreEqual("ActivationPlayableAsset", (string)tracks[2]["Clips"].Single()["AssetType"]);
+            JToken last = intro["Markers"].Single();
+            Assert.AreEqual(new object[] { 2.0, hit }, new object[] { (double)last["Time"], (string)last["Signal"] });
+            CollectionAssert.AreEquivalent(before, Fingerprint());
+        }
+
         [Test]
         public void AssetExportListsTheMainObject()
         {

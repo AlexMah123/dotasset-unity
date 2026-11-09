@@ -24,7 +24,7 @@ python dotasset.py <RunName> "<AssetList>" --args "<-key=value ...>" --agent
 
 | Need | Run |
 | --- | --- |
-| Look inside a prefab, scene, asset, material, controller, animation clip, importer | `PrefabExport`, `SceneExport`, `AssetExport`, `MaterialExport`, `AnimatorControllerExport`, `AnimationClipExport`, `ImporterExport` |
+| Look inside a prefab, scene, asset, material, controller, animation clip, timeline, importer | `PrefabExport`, `SceneExport`, `AssetExport`, `MaterialExport`, `AnimatorControllerExport`, `AnimationClipExport`, `TimelineExport`, `ImporterExport` |
 | What uses an asset, what it uses | `AssetReferenceExport` |
 | Property names and defaults of a type | `TypeCatalogExport --args "-filter=Rigidbody"` |
 | Create folders, ScriptableObjects, materials, prefabs, variants, controllers, animation clips, scenes | `CreateAsset` |

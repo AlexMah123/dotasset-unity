@@ -12,6 +12,7 @@ The call manual for agents. Arguments, spec shapes, exit codes and JSON fields a
 | A material's shader properties, keywords, render queue, variant parent | `MaterialExport` | Export |
 | An Animator Controller's parameters, layers, states, transitions, blend trees | `AnimatorControllerExport` | Export |
 | An animation clip's curves, keys, events and loop settings, also clips inside controllers and timelines | `AnimationClipExport` | Export |
+| A timeline's tracks, clips with their times, markers and signals, what each track binds to (needs `com.unity.timeline`) | `TimelineExport` | Export |
 | Import settings of a texture, model or audio clip | `ImporterExport` | Export |
 | What an asset uses, and what uses it | `AssetReferenceExport` | Export |
 | Which property paths a component or ScriptableObject type has, their defaults and enum options | `TypeCatalogExport` with `-filter=` | Export |

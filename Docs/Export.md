@@ -249,7 +249,7 @@ State `Path`s, transition `To`s and blend tree blocks are exactly what `EditAnim
 
 ```json
 {
-  "Name": "Intro", "Duration": 5, "DurationMode": "BasedOnClips", "FrameRate": 60,
+  "Name": "Intro", "Duration": 2, "DurationMode": "BasedOnClips", "FrameRate": 60,
   "Tracks": [
     { "Path": "Group", "Type": "GroupTrack", "Clips": [], "Markers": [] },
     { "Path": "Group/Body", "Type": "AnimationTrack", "BindingType": "Animator",
@@ -264,7 +264,7 @@ State `Path`s, transition `To`s and blend tree blocks are exactly what `EditAnim
 }
 ```
 
-Times are in seconds. `FixedDuration` is added when `DurationMode` is `FixedLength`. `Tracks` is flat in timeline order, a child right after its parent, and `Path` joins the track names through their groups. Two tracks can share a name, so read them in order. `BindingType` is the type of object the track binds to. The bound object itself is stored in the `PlayableDirector` that plays the timeline, so read it from that scene or prefab with `SceneExport` or `PrefabExport` (its `m_SceneBindings`). `Muted` and `Locked` appear only when set, and so does `InfiniteClip`, the clip an animation track records into when it has no clips.
+Times are in seconds. `Duration` is the length the Timeline window shows: the end of the last clip or marker on a track that is not muted, so the muted `Lights` above does not count, or the fixed length when `DurationMode` is `FixedLength`, which also adds `FixedDuration`. Timeline's own `duration` API stops one tick (1e-12 s) short of it, the export does not. `Tracks` is flat in timeline order, a child right after its parent, and `Path` joins the track names through their groups. Two tracks can share a name, so read them in order. `BindingType` is the type of object the track binds to. The bound object itself is stored in the `PlayableDirector` that plays the timeline, so read it from that scene or prefab with `SceneExport` or `PrefabExport` (its `m_SceneBindings`). `Muted` and `Locked` appear only when set, and so does `InfiniteClip`, the clip an animation track records into when it has no clips.
 
 A clip always has its timing. `EaseInDuration`, `EaseOutDuration`, `BlendInDuration`, `BlendOutDuration`, `PreExtrapolationMode` and `PostExtrapolationMode` appear only when set. `Clip` is the animation or audio clip the clip asset plays. A clip asset whose type comes from outside the Timeline package (your own `PlayableAsset`) adds its fields as `Properties`, in the [value format](#value-format). The same goes for a marker. A signal emitter adds `Signal`, plus `Retroactive` and `EmitOnce` when they are set. `Markers` at the top level are the timeline's own markers, the ones on its marker track. The curves a timeline recorded are clips inside the `.playable` that `AnimationClipExport` reads, and `AssetExport` lists every object in the file through the serializer.
 

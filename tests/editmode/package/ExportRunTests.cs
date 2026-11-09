@@ -150,7 +150,27 @@ namespace DotAsset.Tests
             Assert.AreEqual("ActivationPlayableAsset", (string)tracks[2]["Clips"].Single()["AssetType"]);
             JToken last = intro["Markers"].Single();
             Assert.AreEqual(new object[] { 2.0, hit }, new object[] { (double)last["Time"], (string)last["Signal"] });
+            // The length is the end of the last clip on a track that is not muted, not the tick short of it that
+            // Timeline's duration reports.
+            double lastEnd = intro["Tracks"].Where(t => (bool?)t["Muted"] != true).SelectMany(t => t["Clips"]).Max(c => (double)c["End"]);
+            Assert.AreEqual(lastEnd, (double)intro["Duration"], intro.ToString());
             CollectionAssert.AreEquivalent(before, Fingerprint());
+        }
+
+        [Test]
+        public void TimelineExportReadsAFixedLengthAsSet()
+        {
+            Type timelineType = TimelineType("TimelineAsset");
+            string path = Folder + "/Fixed.playable";
+            ScriptableObject timeline = ScriptableObject.CreateInstance(timelineType);
+            System.Reflection.PropertyInfo mode = timelineType.GetProperty("durationMode");
+            mode.SetValue(timeline, Enum.Parse(mode.PropertyType, "FixedLength"));
+            timelineType.GetProperty("fixedDuration").SetValue(timeline, 4.0);
+            AssetDatabase.CreateAsset(timeline, path);
+
+            JObject export = Export("TimelineExport", path);
+            Assert.AreEqual(new object[] { "FixedLength", 4.0, 4.0 },
+                new object[] { (string)export["DurationMode"], (double)export["FixedDuration"], (double)export["Duration"] }, export.ToString());
         }
 
         [Test]

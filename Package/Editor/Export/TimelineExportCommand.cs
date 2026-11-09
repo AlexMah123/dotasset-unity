@@ -57,15 +57,26 @@ namespace DotAsset
             });
         }
 
+        // Timeline counts time in ticks of 1e-12 s.
+        const double TicksPerSecond = 1e12;
+
         static void Timeline(JObject json, Object timeline, ReadOptions opt)
         {
             json["Name"] = timeline.name;
-            json["Duration"] = ((PlayableAsset)timeline).duration;
+            // Timeline's duration stops one tick short of the last clip's end, and its fixedDuration one tick short of
+            // the fixed length, so a clip that ends there still plays. The export gives the length as the Timeline
+            // window shows it: the tick goes back on, and in FixedLength mode duration is the stored fixed length.
             string mode = Convert.ToString(Get(timeline, "durationMode"));
+            double duration = ((PlayableAsset)timeline).duration;
+            if (mode == "BasedOnClips" && duration > 0)
+            {
+                duration = (Math.Round(duration * TicksPerSecond) + 1) / TicksPerSecond;
+            }
+            json["Duration"] = duration;
             json["DurationMode"] = mode;
             if (mode == "FixedLength")
             {
-                json["FixedDuration"] = Number(Get(timeline, "fixedDuration"));
+                json["FixedDuration"] = duration;
             }
             object settings = Get(timeline, "editorSettings");
             if (settings != null)

@@ -12,6 +12,7 @@ Changes existing assets to match an intent. Creating is [Import](Import.md), mov
 | `EditMaterial` | shader properties, textures, keywords, render queue, shader, variant parent | material |
 | `EditImporter` | texture import settings (typed), any importer field (raw), then reimport | asset |
 | `EditAnimatorController` | parameters, layers, sub-state machines, states, blend trees, transitions | controller |
+| `EditAnimationClip` | float and object reference curves, keys, events, clip settings, frame rate | clip |
 
 ```bash
 python dotasset.py EditPrefab --args '-spec="C:/temp/player.json"'           # dry run: every op runs, nothing is saved
@@ -253,3 +254,49 @@ Every op takes `Layer` (name or index, default 0). States are paths inside the l
 Conditions: `{"Parameter", "Mode", "Threshold"}`. Modes: `If`, `IfNot` for Bool and Trigger (the default for them), `Greater`, `Less` for Float and Int (`Greater` is the default), `Equals`, `NotEqual` for Int. A mode that does not fit the parameter type is refused.
 
 All changes of a target are recorded on one undo group and reverted when the target fails or the run is dry. A controller may appear in one target only.
+
+## EditAnimationClip
+
+```json
+{
+  "Targets": [
+    {
+      "AssetPath": "Assets/Anim/Wave.anim",
+      "Settings": { "LoopTime": true, "CycleOffset": 0.25 },
+      "FrameRate": 60,
+      "Ops": [
+        { "Op": "SetKeys", "Path": "Body/Arm", "Type": "Transform", "Property": "m_LocalPosition.x",
+          "Keys": [ { "Time": 0.5, "Value": 4 } ] },
+        { "Op": "SetCurve", "Path": "Body/Trail", "Type": "GameObject", "Property": "m_IsActive",
+          "Keys": [ { "Time": 0, "Value": true }, { "Time": 1, "Value": false, "InMode": "Constant", "OutMode": "Constant" } ] },
+        { "Op": "SetObjectCurve", "Path": "Body", "Type": "MeshRenderer", "Property": "m_Materials.Array.data[0]",
+          "Keys": [ { "Time": 0, "Value": "Assets/Materials/Red.mat" } ] },
+        { "Op": "SetEvent", "Time": 0.4, "Function": "Footstep", "String": "left" },
+        { "Op": "RemoveEvent", "Time": 0.9, "Function": "Footstep" }
+      ]
+    }
+  ]
+}
+```
+
+A target is one clip: an `.anim` file, or a clip inside a `.controller` or `.playable` (a Timeline recording) named with `"Clip"`. `"Clip"` is needed when the file holds more than one. A model's clips are refused, they come from its importer and a write would be lost on the next import: extract the clip to `.anim` first. A clip may appear in one target only.
+
+Curves are named by `Path` (the object below the animated root, `""` for the root), `Type` and `Property`, keys and events by their time, all as `AnimationClipExport` prints them. Ops run first, then `Settings`, then `FrameRate`.
+
+| Op | Keys |
+| --- | --- |
+| `SetCurve` | `Path`, `Type`, `Property`, `Keys`, `Check`. Creates the float curve or replaces all its keys |
+| `SetKeys` | the same. Replaces the keys at the given times and keeps the rest |
+| `RemoveKeys` | `Path`, `Type`, `Property`, `Times` (a list). A time without a key fails, so does removing every key (use `RemoveCurve`) |
+| `RemoveCurve` | `Path`, `Type`, `Property`. A float or object reference curve |
+| `SetObjectCurve` | `Path`, `Type`, `Property`, `Keys` (`Time`, `Value`: a reference or `null`), `Check`. Creates the curve or replaces all its keys |
+| `SetEvent` | `Time`, `Function`, `Float`, `Int`, `String`, `Object`. Adds the event, or replaces the one with the same `Time` and `Function`. A parameter left out is cleared |
+| `RemoveEvent` | `Time`, `Function`. Removes every event that matches, none fails |
+
+A float key: `Time`, `Value` (a number, or `true`/`false` for `m_IsActive` and `m_Enabled`), `InTangent`, `OutTangent`, `InMode`, `OutMode` (`Free`, `Auto`, `Linear`, `Constant`, `ClampedAuto`), `Broken`, `WeightedMode` (`None`, `In`, `Out`, `Both`), `InWeight`, `OutWeight`. A side with no mode is `Free` when its tangent is given and `ClampedAuto` (the editor's default) otherwise. Two keys at one time fail. The keys are read back after the write, a key Unity did not keep fails the target.
+
+`Check` (default `true`): a curve the clip does not have yet must bind to an animatable property of `Type` on a GameObject, so `m_LocalPositon.x` fails instead of becoming a curve that animates nothing. The check adds the component to an inactive temporary object, no script's `Awake` or `OnEnable` runs. A curve for a property only a configured object has (a blend shape weight, a material property under `material.`) fails the check, set `"Check": false` for it. So does the root's own `m_IsActive`, which Unity animates only below the root. With the check, a float property fails with `SetObjectCurve` and an object reference with `SetCurve`.
+
+`Settings` takes the `AnimationClipSettings` fields `AnimationClipExport` prints: `LoopTime`, `LoopBlend` (Loop Pose), `CycleOffset`, `StartTime`, `StopTime`, `Mirror`, `HeightFromFeet`, `Level`, `OrientationOffsetY`, `KeepOriginalOrientation`, `KeepOriginalPositionY`, `KeepOriginalPositionXZ`, `LoopBlendOrientation`, `LoopBlendPositionY`, `LoopBlendPositionXZ`, `AdditiveReferencePoseClip` (a clip, `null` clears), `AdditiveReferencePoseTime`. `FrameRate` is a number above 0.
+
+The dry run's plan names what changed in the export's terms: `FrameRate`, `Settings.<field>`, `Curves[<Path>|<Type>|<Property>]` and `ObjectCurves[...]` with their `[time, value]` pairs (a count and the time range past 8 keys, the full keys when only tangents changed), and `Events`. A clip that already matches is not saved. The clip is put back from a snapshot when the target fails or the run is dry.

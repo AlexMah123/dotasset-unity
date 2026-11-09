@@ -138,5 +138,86 @@ namespace DotAsset.Tests
             string forward = (string)states.First(s => (string)s["Path"] == "Closed")["Transitions"][0]["Conditions"][0]["Parameter"];
             Assert.AreEqual("IsOpen", forward, "the rename left a condition on the old name");
         }
+
+        static double[] Column(JToken curve, string key)
+        {
+            return curve["Keys"].Select(k => (double)k[key]).ToArray();
+        }
+
+        [Test]
+        public void EditAnimationClipSetsKeysCurvesEventsAndSettings()
+        {
+            string wave = NewClip();
+            string keys = @"{'Op': 'SetKeys', 'Path': 'Body/Arm', 'Type': 'Transform', 'Property': 'm_LocalPosition.x',
+                    'Keys': [{'Time': 0.5, 'Value': 4}, {'Time': 1, 'Value': 3}]},
+                {'Op': 'SetCurve', 'Path': 'Body', 'Type': 'Transform', 'Property': 'm_LocalScale.y',
+                    'Keys': [{'Time': 0, 'Value': 1}, {'Time': 2, 'Value': 1.5}]}";
+            string spec = Spec(@"{'Targets': [{'AssetPath': '" + wave + @"', 'Settings': {'LoopTime': false, 'CycleOffset': 0.5}, 'Ops': [" + keys + @",
+                {'Op': 'SetObjectCurve', 'Path': 'Body', 'Type': 'MeshRenderer', 'Property': 'm_Materials.Array.data[0]', 'Keys': [{'Time': 0, 'Value': '" + Red + @"'}]},
+                {'Op': 'SetObjectCurve', 'Path': 'Icon', 'Type': 'SpriteRenderer', 'Property': 'm_Sprite', 'Keys': [{'Time': 0, 'Value': null}]},
+                {'Op': 'SetCurve', 'Path': 'Body/Trail', 'Type': 'GameObject', 'Property': 'm_IsActive',
+                    'Keys': [{'Time': 0, 'Value': true}, {'Time': 1, 'Value': false, 'InMode': 'Constant', 'OutMode': 'Constant'}]},
+                {'Op': 'RemoveEvent', 'Time': 0.25, 'Function': 'Step'},
+                {'Op': 'SetEvent', 'Time': 1.5, 'Function': 'Land', 'String': 'dust'}]}]}");
+            string before = Text(wave);
+            RunResult dry = Ok("EditAnimationClip", spec);
+            Assert.IsNotEmpty(dry.Plan, "the dry run planned nothing");
+            Assert.AreEqual(before, Text(wave), "the dry run wrote the clip");
+            Assert.IsTrue((bool)Export("AnimationClipExport", wave)["Clips"][0]["Settings"]["LoopTime"], "the dry run left its change in memory");
+
+            Ok("EditAnimationClip", spec + " -apply");
+            JToken clip = Export("AnimationClipExport", wave)["Clips"].Single();
+            Assert.IsFalse((bool)clip["Settings"]["LoopTime"]);
+            Assert.AreEqual(0.5, (double)clip["Settings"]["CycleOffset"]);
+            JToken x = clip["Curves"].First(c => (string)c["Property"] == "m_LocalPosition.x");
+            Assert.AreEqual(new[] { 0.0, 0.5, 1.0 }, Column(x, "Time"), "SetKeys did not merge");
+            Assert.AreEqual(new[] { 0.0, 4.0, 3.0 }, Column(x, "Value"));
+            Assert.AreEqual(new[] { 1.0, 1.5 }, Column(clip["Curves"].First(c => (string)c["Property"] == "m_LocalScale.y"), "Value"));
+            JToken swap = clip["ObjectCurves"].First(c => (string)c["Type"] == "MeshRenderer");
+            Assert.AreEqual(new[] { 0.0 }, Column(swap, "Time"), "SetObjectCurve kept the old key");
+            // A new object curve passes the binding check, a bool is a 0 or 1 key.
+            Assert.IsTrue(clip["ObjectCurves"].Any(c => (string)c["Property"] == "m_Sprite"), clip["ObjectCurves"].ToString());
+            JToken active = clip["Curves"].First(c => (string)c["Property"] == "m_IsActive");
+            Assert.AreEqual(new[] { 1.0, 0.0 }, Column(active, "Value"));
+            Assert.AreEqual("Constant", (string)active["Keys"][1]["InMode"]);
+            JToken land = clip["Events"].Single();
+            Assert.AreEqual(new object[] { 1.5, "Land", "dust" }, new object[] { (double)land["Time"], (string)land["Function"], (string)land["String"] });
+
+            // The same keys again: nothing changes, nothing is saved.
+            string after = Text(wave);
+            Ok("EditAnimationClip", Spec(@"{'Targets': [{'AssetPath': '" + wave + @"', 'Settings': {'LoopTime': false}, 'Ops': [" + keys + "]}]}") + " -apply");
+            Assert.AreEqual(after, Text(wave), "an edit that changed nothing saved the clip");
+        }
+
+        [Test]
+        public void EditAnimationClipWithAMistypedPropertySavesNothing()
+        {
+            string wave = NewClip();
+            string before = Text(wave);
+            RunResult r = Run("EditAnimationClip", Spec(@"{'Targets': [{'AssetPath': '" + wave + @"', 'Settings': {'LoopTime': false}, 'Ops': [
+                {'Op': 'SetCurve', 'Path': 'Body', 'Type': 'Transform', 'Property': 'm_LocalPositon.y', 'Keys': [{'Time': 0, 'Value': 1}]}]}]}") + " -apply");
+            string lines = string.Join("\n", r.Lines.ToArray());
+            Assert.AreEqual(1, r.ExitCode, lines);
+            CollectionAssert.Contains(r.FailedTargets, wave);
+            StringAssert.Contains("m_LocalPositon.y", lines);
+            Assert.AreEqual(before, Text(wave));
+            Assert.IsTrue(AnimationUtility.GetAnimationClipSettings(AssetDatabase.LoadAssetAtPath<AnimationClip>(wave)).loopTime,
+                "the failed target kept its change in memory");
+        }
+
+        [Test]
+        public void EditAnimationClipPicksAClipInsideAController()
+        {
+            AssetDatabase.AddObjectToAsset(new AnimationClip { name = "Inner" }, Door);
+            AssetDatabase.AddObjectToAsset(new AnimationClip { name = "Other" }, Door);
+            AssetDatabase.SaveAssetIfDirty(AssetDatabase.LoadMainAssetAtPath(Door));
+            string ops = "'Ops': [{'Op': 'SetEvent', 'Time': 0, 'Function': 'Open'}]";
+            RunResult r = Run("EditAnimationClip", Spec("{'Targets': [{'AssetPath': '" + Door + "', " + ops + "}]}") + " -apply");
+            Assert.AreEqual(1, r.ExitCode, "two clips and no \"Clip\" was taken: " + string.Join("\n", r.Lines.ToArray()));
+            Ok("EditAnimationClip", Spec("{'Targets': [{'AssetPath': '" + Door + "', 'Clip': 'Inner', " + ops + "}]}") + " -apply");
+            JToken[] clips = Export("AnimationClipExport", Door)["Clips"].ToArray();
+            Assert.AreEqual("Open", (string)clips.First(c => (string)c["Name"] == "Inner")["Events"][0]["Function"]);
+            Assert.IsEmpty(clips.First(c => (string)c["Name"] == "Other")["Events"]);
+        }
     }
 }

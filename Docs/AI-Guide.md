@@ -25,6 +25,7 @@ The call manual for agents. Arguments, spec shapes, exit codes and JSON fields a
 | Change texture import settings (type, sRGB, compression, max size, mipmaps, platform overrides), or any importer field | `EditImporter` | Edit |
 | Add or change Animator parameters, layers, states, blend trees, transitions and conditions | `EditAnimatorController` | Edit |
 | Rename a parameter and every condition and blend tree that reads it | `EditAnimatorController` op `RenameParameter` | Edit |
+| Set or remove an animation clip's curves, keys and events, change its loop settings or frame rate | `EditAnimationClip` | Edit |
 | Move or rename assets and folders without breaking references | `MoveAsset` | Migrate |
 | Copy an asset or folder before a risky change | `DuplicateAsset` | Migrate |
 | Delete assets, refusing while an asset or a project setting still uses them | `DeleteAsset` | Migrate |
@@ -216,7 +217,7 @@ What a script can rely on from 0.12.0 on:
 | `EditScene` while the editor shows an Untitled scene | Unity cannot open a second scene next to an Untitled one. Save it first |
 | `EditPrefab` on a prefab open in Prefab Mode with unsaved changes | Refused for the same reason |
 | `Unity changed <property> ... after the write` | `OnValidate` or a range check replaced the value. Nothing was saved. Write a value the object keeps |
-| Any run that writes (`EditMaterial`, `EditAsset`, `EditAnimatorController`, `EditImporter`, `EditPrefab`, `RemapReference`, `ResaveAsset`, `DeleteAsset`, `MoveAsset`) on an asset with unsaved changes in the editor | That target fails with "has unsaved changes in the editor", the file is untouched and the user's changes stay in the editor. Ask the user to save (File > Save Project) or discard them, then run again |
+| Any run that writes (`EditMaterial`, `EditAsset`, `EditAnimatorController`, `EditAnimationClip`, `EditImporter`, `EditPrefab`, `RemapReference`, `ResaveAsset`, `DeleteAsset`, `MoveAsset`) on an asset with unsaved changes in the editor | That target fails with "has unsaved changes in the editor", the file is untouched and the user's changes stay in the editor. Ask the user to save (File > Save Project) or discard them, then run again |
 | Editing a model (`.fbx`) as a prefab | Refused, its hierarchy comes from the importer. Create a variant with `CreateAsset` `PrefabVariant`, or change the import with `EditImporter` |
 | `RemapScript`, `RenameField` or the fast pass of `AuditMissingReference` reports nothing | They read YAML. Project Settings > Editor > Asset Serialization Mode must be Force Text |
 | Renaming a C# field loses its data | Add `[FormerlySerializedAs("oldName")]`, then `ResaveAsset -dependson=Assets/Scripts/X.cs -apply`, then the attribute can go |

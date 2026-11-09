@@ -69,7 +69,8 @@ namespace DotAsset
                 .ToList();
         }
 
-        static JObject Clip(AnimationClip clip, bool keys)
+        // Also EditAnimationClip's before and after, so its plan names what this export prints.
+        internal static JObject Clip(AnimationClip clip, bool keys)
         {
             var obj = new JObject
             {

@@ -159,6 +159,23 @@ namespace DotAsset.Tests
             return AssetDatabase.GetAssetPath(root.transform.Find("Mesh").GetComponent<MeshRenderer>().sharedMaterial);
         }
 
+        // Wave.anim: a float curve, a material swap, one event, looping at 30 frames per second.
+        protected static string NewClip()
+        {
+            string path = Folder + "/Wave.anim";
+            var clip = new AnimationClip { name = "Wave", frameRate = 30 };
+            AnimationUtility.SetEditorCurve(clip, EditorCurveBinding.FloatCurve("Body/Arm", typeof(Transform), "m_LocalPosition.x"),
+                AnimationCurve.Linear(0, 0, 1, 2));
+            AnimationUtility.SetObjectReferenceCurve(clip, EditorCurveBinding.PPtrCurve("Body", typeof(MeshRenderer), "m_Materials.Array.data[0]"),
+                new[] { new ObjectReferenceKeyframe { time = 0.5f, value = AssetDatabase.LoadAssetAtPath<Material>(Red) } });
+            AnimationUtility.SetAnimationEvents(clip, new[] { new AnimationEvent { time = 0.25f, functionName = "Step", intParameter = 3 } });
+            AnimationClipSettings settings = AnimationUtility.GetAnimationClipSettings(clip);
+            settings.loopTime = true;
+            AnimationUtility.SetAnimationClipSettings(clip, settings);
+            AssetDatabase.CreateAsset(clip, path);
+            return path;
+        }
+
         protected static void WritePng(string asset)
         {
             var texture = new Texture2D(4, 4);

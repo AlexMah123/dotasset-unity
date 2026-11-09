@@ -60,6 +60,7 @@ namespace DotAsset.Tests
                 new[] { "EditImporter", Spec(@"{'Targets': [{'AssetPath': '" + Climb + @"/Red.mat', 'Properties': {}}]}") },
                 new[] { "EditImporter", Spec(@"{'Targets': [{'AssetPaths': ['" + Climb + @"'], 'Properties': {}}]}") },
                 new[] { "EditAnimatorController", Spec(@"{'Targets': [{'AssetPath': '" + Climb + @"/Door.controller', 'Ops': []}]}") },
+                new[] { "EditAnimationClip", Spec(@"{'Targets': [{'AssetPath': '" + Climb + @"/Door.controller', 'Ops': []}]}") },
                 new[] { "EditPrefab", Spec(@"{'Targets': [{'AssetPath': '" + Climb + @"/Crate.prefab', 'Ops': []}]}") },
                 new[] { "EditScene", Spec(@"{'Targets': [{'AssetPath': '" + Climb + @"/Smoke.unity', 'Ops': []}]}") },
                 new[] { "CreateAsset", Spec(@"{'Assets': [{'Kind': 'Material', 'Path': '" + Climb + @"/New.mat', 'Properties': {}}]}") },

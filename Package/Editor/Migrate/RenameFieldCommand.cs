@@ -192,64 +192,12 @@ namespace DotAsset
             targets.Follow();
 
             // Pass 2: the keys in this script's documents, and the override paths that target one of its objects.
-            int changedFiles = 0;
-            int changedKeys = 0;
-            var toImport = new List<string>();
-            foreach (string path in candidates)
-            {
-                string abs = DotAssetPaths.Absolute(path);
-                string text;
-                try
-                {
-                    text = File.ReadAllText(abs);
-                }
-                catch (Exception e)
-                {
-                    // Thrown here it would end the run before the files already written are imported.
-                    ctx.FailTarget(path, e.Message);
-                    continue;
-                }
-                int hits;
-                string conflict;
-                string rewritten = Rewrite(text, from, to, scriptRef, targets, out hits, out conflict);
-                if (conflict != null)
-                {
-                    ctx.FailTarget(path, conflict);
-                    continue;
-                }
-                if (hits == 0)
-                {
-                    continue;
-                }
-                string busy = ReadOnly.Reason(path) ?? AssetScan.OpenInEditor(path);
-                if (busy != null)
-                {
-                    ctx.FailTarget(path, busy);
-                    continue;
-                }
-                changedFiles++;
-                changedKeys += hits;
-                ctx.Log.Info((ctx.DryRun ? "would rename " : "renamed ") + hits + " key(s) in " + path);
-                if (ctx.DryRun)
-                {
-                    ctx.PlanFile("rewrite", path, hits + " key(s) " + from + " to " + to);
-                    continue;
-                }
-                try
-                {
-                    RunJournal.Keep(path);
-                    DotAssetPaths.ReplaceText(abs, rewritten);
-                    toImport.Add(path);
-                }
-                catch (Exception e)
-                {
-                    ctx.FailTarget(path, e.Message);
-                }
-            }
-            foreach (string path in toImport)
-            {
-                AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
-            }
+            int changedFiles, changedKeys;
+            YamlRewrite.Files(ctx, candidates, false,
+                (string text, out int hits, out string conflict) => Rewrite(text, from, to, scriptRef, targets, out hits, out conflict),
+                hits => (ctx.DryRun ? "would rename " : "renamed ") + hits + " key(s)",
+                hits => hits + " key(s) " + from + " to " + to,
+                out changedFiles, out changedKeys);
             ctx.Log.Info((ctx.DryRun ? "would rename " : "renamed ") + changedKeys + " key(s) in " + changedFiles + " file(s), " + from + " to " + to);
             return ctx.FailedTargets.Count > 0 ? ExitCode.Failed : ExitCode.Success;
         }

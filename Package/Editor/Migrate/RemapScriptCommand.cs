@@ -1,7 +1,5 @@
 using System;
 using System.Collections.Generic;
-using System.IO;
-using System.Text;
 using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
@@ -80,66 +78,17 @@ namespace DotAsset
             string replacement = Replacement(newFileId, newGuid);
 
             var files = AssetScan.All(AssetScan.Roots(ctx.Args), p => AssetScan.HasExtension(p, AssetScan.YamlExtensions));
-            int changedFiles = 0;
-            int changedRefs = 0;
-            var toImport = new List<string>();
-            for (int i = 0; i < files.Count; i++)
-            {
-                string path = files[i];
-                if (i % 100 == 0)
+            int changedFiles, changedRefs;
+            YamlRewrite.Files(ctx, files, true,
+                (string text, out int hits, out string conflict) =>
                 {
-                    ctx.Progress(i, files.Count, path);
-                }
-                string abs = DotAssetPaths.Absolute(path);
-                string text;
-                try
-                {
-                    text = File.ReadAllText(abs);
-                }
-                catch (Exception e)
-                {
-                    ctx.FailTarget(path, e.Message);
-                    continue;
-                }
-                if (text.IndexOf(oldGuid, StringComparison.Ordinal) < 0)
-                {
-                    continue;
-                }
-                int hits = pattern.Matches(text).Count;
-                if (hits == 0)
-                {
-                    continue;
-                }
-                string busy = ReadOnly.Reason(path) ?? AssetScan.OpenInEditor(path);
-                if (busy != null)
-                {
-                    // The file is rewritten on disk. A loaded copy would keep the old GUID and write it back on its next save.
-                    ctx.FailTarget(path, busy);
-                    continue;
-                }
-                changedFiles++;
-                changedRefs += hits;
-                ctx.Log.Info((ctx.DryRun ? "would repoint " : "repointed ") + hits + " script reference(s) in " + path);
-                if (ctx.DryRun)
-                {
-                    ctx.PlanFile("rewrite", path, hits + " script reference(s) to " + to);
-                    continue;
-                }
-                try
-                {
-                    RunJournal.Keep(path);
-                    DotAssetPaths.ReplaceText(abs, pattern.Replace(text, replacement));
-                    toImport.Add(path);
-                }
-                catch (Exception e)
-                {
-                    ctx.FailTarget(path, e.Message);
-                }
-            }
-            foreach (string path in toImport)
-            {
-                AssetDatabase.ImportAsset(path, ImportAssetOptions.ForceUpdate);
-            }
+                    conflict = null;
+                    hits = text.IndexOf(oldGuid, StringComparison.Ordinal) < 0 ? 0 : pattern.Matches(text).Count;
+                    return hits == 0 ? text : pattern.Replace(text, replacement);
+                },
+                hits => (ctx.DryRun ? "would repoint " : "repointed ") + hits + " script reference(s)",
+                hits => hits + " script reference(s) to " + to,
+                out changedFiles, out changedRefs);
             ctx.Log.Info((ctx.DryRun ? "would change " : "changed ") + changedRefs + " reference(s) in " + changedFiles + " file(s) to " + to);
             return ctx.FailedTargets.Count > 0 ? ExitCode.Failed : ExitCode.Success;
         }

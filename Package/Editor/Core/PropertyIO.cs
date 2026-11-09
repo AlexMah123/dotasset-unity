@@ -194,7 +194,14 @@ namespace DotAsset
                         Remember(was, array);
                     }
                 }
-                ApplyArrayOps(so, arrayOps, wc);
+                try
+                {
+                    ApplyArrayOps(so, arrayOps, wc);
+                }
+                catch (SpecValueException e)
+                {
+                    wc.Fail(null, "ArrayOps entry: " + e.Message);
+                }
             }
             if (wc.Errors.Count != before)
             {

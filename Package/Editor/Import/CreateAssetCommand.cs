@@ -182,6 +182,12 @@ namespace DotAsset
                     ok = false;
                     error = "Unity could not create it: " + e.Message;
                 }
+                catch (SpecValueException e)
+                {
+                    // A wrong-typed value, read before anything of the entry is saved.
+                    ok = false;
+                    error = e.Message;
+                }
                 if (!ok)
                 {
                     ctx.FailTarget(path, error ?? ctx.TargetError);
@@ -386,9 +392,10 @@ namespace DotAsset
                 return false;
             }
             string rootName = Json.Str(entry, "Root", Path.GetFileNameWithoutExtension(path));
+            bool rect = Json.Bool(entry, "RectTransform", false);
             var scratch = new ScratchScene();
             GameObject root = scratch.Spawn(rootName);
-            if (Json.Bool(entry, "RectTransform", false))
+            if (rect)
             {
                 root.AddComponent<RectTransform>();
             }
@@ -566,7 +573,8 @@ namespace DotAsset
                 error = "an animation clip path ends in .anim";
                 return false;
             }
-            var clip = new AnimationClip { name = Path.GetFileNameWithoutExtension(path), legacy = Json.Bool(entry, "Legacy", false) };
+            bool legacy = Json.Bool(entry, "Legacy", false);
+            var clip = new AnimationClip { name = Path.GetFileNameWithoutExtension(path), legacy = legacy };
             error = EditAnimationClipCommand.Fill(clip, entry);
             if (error == null && ctx.TargetFailed())
             {
@@ -592,6 +600,8 @@ namespace DotAsset
                 return false;
             }
             NewSceneSetup setup = Json.Str(entry, "Setup", "Empty") == "Default" ? NewSceneSetup.DefaultGameObjects : NewSceneSetup.EmptyScene;
+            // Read before the save, a wrong type here must not fail an entry whose scene is already written.
+            bool addToBuild = Json.Bool(entry, "AddToBuild", false);
             if (!ParentFolder(path, out error))
             {
                 return false;
@@ -632,7 +642,7 @@ namespace DotAsset
                     error = "Unity refused to save " + path;
                     return false;
                 }
-                if (Json.Bool(entry, "AddToBuild", false))
+                if (addToBuild)
                 {
                     var list = EditorBuildSettings.scenes.ToList();
                     if (!list.Any(s => s.path == path))

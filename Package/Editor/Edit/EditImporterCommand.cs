@@ -300,6 +300,10 @@ namespace DotAsset
                             break;
                     }
                 }
+                catch (SpecValueException e)
+                {
+                    error = e.Message;
+                }
                 catch (Exception)
                 {
                     error = "bad value " + ValueCodec.Show(v);

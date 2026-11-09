@@ -69,6 +69,8 @@ Entries run in order, so a later entry can use what an earlier one created. Each
 
 Paths must be under `Assets/`. Every entry's `Kind`, `Path` and keys are checked before anything is created, and a mistake in any entry is refused with exit 2, so a misspelt `Propeties` cannot be dropped silently and a bad third entry leaves the first two uncreated. A path with a `.` or `..` segment, or starting `assets/` in the wrong case, is refused too.
 
+A value of the wrong type (`"AddToBuild": "yes"`, `"SiblingIndex": "last"`) fails its entry with a message naming the key, and nothing of that entry is created. The other entries still run. The accepted forms are the ones in [Edit.md](Edit.md).
+
 ## Exit codes
 
 | Code | Meaning |

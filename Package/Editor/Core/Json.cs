@@ -8,6 +8,14 @@ using Newtonsoft.Json.Linq;
 
 namespace DotAsset
 {
+    // A spec value of the wrong type, thrown by Json.Bool and Json.Int. The op or target that read it fails with this message.
+    public sealed class SpecValueException : FormatException
+    {
+        public SpecValueException(string message) : base(message)
+        {
+        }
+    }
+
     public static class Json
     {
         // Indented, one property per line, LF line endings. Agents grep the file and read line ranges.
@@ -150,38 +158,84 @@ namespace DotAsset
             return value != null && value.Type != JTokenType.Null;
         }
 
+        // A spec value, read with fallback when the key is absent or null. A value of the wrong type throws
+        // SpecValueException naming the key, so "Active": "0" fails the op instead of quietly becoming the default.
         public static bool Bool(JToken token, string key, bool fallback)
         {
-            var value = Get(token, key);
+            bool result;
+            if (TryBool(Get(token, key), fallback, out result))
+            {
+                return result;
+            }
+            throw new SpecValueException(key + ": " + ValueCodec.Show(Get(token, key)) + " is not true or false");
+        }
+
+        // As Bool: a whole number, also "3" or 3.0. "last", 2.5 or true throws SpecValueException.
+        public static int Int(JToken token, string key, int fallback)
+        {
+            int result;
+            if (TryInt(Get(token, key), fallback, out result))
+            {
+                return result;
+            }
+            throw new SpecValueException(key + ": " + ValueCodec.Show(Get(token, key)) + " is not a whole number");
+        }
+
+        // For files DotAsset writes itself (queue requests, results), where a bad value falls back instead of throwing.
+        public static bool LooseBool(JToken token, string key, bool fallback)
+        {
+            bool result;
+            return TryBool(Get(token, key), fallback, out result) ? result : fallback;
+        }
+
+        public static int LooseInt(JToken token, string key, int fallback)
+        {
+            int result;
+            return TryInt(Get(token, key), fallback, out result) ? result : fallback;
+        }
+
+        static bool TryBool(JToken value, bool fallback, out bool result)
+        {
+            result = fallback;
             if (value == null || value.Type == JTokenType.Null)
             {
-                return fallback;
+                return true;
             }
             if (value.Type == JTokenType.Boolean)
             {
-                return (bool)value;
+                result = (bool)value;
+                return true;
             }
             if (value.Type == JTokenType.Integer)
             {
-                return (long)value != 0;
+                result = (long)value != 0;
+                return true;
             }
-            bool parsed;
-            return bool.TryParse(value.ToString(), out parsed) ? parsed : fallback;
+            return value.Type == JTokenType.String && bool.TryParse((string)value, out result);
         }
 
-        public static int Int(JToken token, string key, int fallback)
+        static bool TryInt(JToken value, int fallback, out int result)
         {
-            var value = Get(token, key);
+            result = fallback;
             if (value == null || value.Type == JTokenType.Null)
             {
-                return fallback;
+                return true;
             }
+            double d;
             if (value.Type == JTokenType.Integer || value.Type == JTokenType.Float)
             {
-                return (int)(double)value;
+                d = (double)value;
             }
-            int parsed;
-            return int.TryParse(value.ToString(), NumberStyles.Integer, CultureInfo.InvariantCulture, out parsed) ? parsed : fallback;
+            else if (value.Type != JTokenType.String || !double.TryParse((string)value, NumberStyles.Integer, CultureInfo.InvariantCulture, out d))
+            {
+                return false;
+            }
+            if (Math.Floor(d) != d || d < int.MinValue || d > int.MaxValue)
+            {
+                return false;
+            }
+            result = (int)d;
+            return true;
         }
 
         public static bool TryDouble(JToken value, out double result)

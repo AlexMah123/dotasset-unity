@@ -1676,6 +1676,21 @@ class PackageFiles(unittest.TestCase):
         "Migrate/UndoRunCommand.cs": (1, "the journal after a partial undo"),
     }
 
+    def test_spec_values_are_read_strictly(self):
+        """R6-4: Json.Bool and Json.Int throw on a wrong-typed spec value instead of falling back to the default. The
+        loose forms, which fall back, are for files DotAsset writes itself and appear only in TaskQueue.cs."""
+        loose = []
+        for dirpath, _, files in os.walk(os.path.join(PACKAGE, "Editor")):
+            for name in files:
+                if name.endswith(".cs") and name != "Json.cs" and re.search(r"\bJson\.Loose(Bool|Int)\(", read(os.path.join(dirpath, name))):
+                    loose.append(name)
+        self.assertEqual(loose, ["TaskQueue.cs"])
+        json_cs = read(os.path.join(PACKAGE, "Editor", "Core", "Json.cs"))
+        for kind, reader in (("bool", "Bool"), ("int", "Int")):
+            body = json_cs[json_cs.index("public static %s %s(" % (kind, reader)):]
+            body = body[:body.index("\n        }\n")]
+            self.assertIn("throw new SpecValueException", body, "Json.%s falls back on a wrong type" % reader)
+
     def test_file_writes_stay_in_known_places(self):
         pattern = re.compile(r"File\.(WriteAll\w*|Delete|Move|Copy|Replace|Create\w*|AppendAll\w*|SetAttributes|Open\w*)\("
                              r"|Directory\.(Delete|Move|CreateDirectory)\(|new (FileStream|StreamWriter)\(|Json\.WriteFile\("

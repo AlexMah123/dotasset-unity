@@ -27,6 +27,20 @@ namespace DotAsset
 
         public static bool Apply(Material mat, JToken block, List<string> errors, RunLog log)
         {
+            try
+            {
+                return ApplyBlock(mat, block, errors, log);
+            }
+            catch (SpecValueException e)
+            {
+                // "RenderQueue": "high" and the like. The caller's snapshot undoes what was set before it.
+                errors.Add(e.Message);
+                return false;
+            }
+        }
+
+        static bool ApplyBlock(Material mat, JToken block, List<string> errors, RunLog log)
+        {
             int before = errors.Count;
 
             // Shapes first, so a malformed value fails this material instead of throwing out of the run.

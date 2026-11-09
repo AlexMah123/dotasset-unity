@@ -279,7 +279,7 @@ namespace DotAsset
                     }
                 }
             }
-            if (refusal == null && !Json.Bool(request, "Force", false))
+            if (refusal == null && !Json.LooseBool(request, "Force", false))
             {
                 refusal = UnsavedWork("open the scene");
             }
@@ -337,7 +337,7 @@ namespace DotAsset
             {
                 JObject request;
                 string error;
-                force |= Json.TryReadFile(requestPath, out request, out error) && Json.Bool(request, "Force", false);
+                force |= Json.TryReadFile(requestPath, out request, out error) && Json.LooseBool(request, "Force", false);
                 TryDelete(requestPath);
             }
             string refusal = force ? null : UnsavedWork("quit");
@@ -562,7 +562,7 @@ namespace DotAsset
                     if (lines != null)
                     {
                         lines.Add("W Unity reloaded before the run settled. Check the scenes it saved for unsaved changes");
-                        settled["Warnings"] = Json.Int(settled, "Warnings", 0) + 1;
+                        settled["Warnings"] = Json.LooseInt(settled, "Warnings", 0) + 1;
                     }
                     try
                     {

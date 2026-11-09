@@ -181,6 +181,22 @@ namespace DotAsset.Tests
         }
 
         [Test]
+        public void ImporterExportSummarizesAModelsMeshes()
+        {
+            string obj = Folder + "/Tri.obj";
+            File.WriteAllText(Absolute(obj), "v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n");
+            AssetDatabase.ImportAsset(obj);
+            JToken meshes = Export("ImporterExport", obj)["Summary"]["Meshes"];
+            Assert.IsNotNull(meshes, "the model summary lists no meshes");
+            Assert.AreEqual(1, meshes.Count());
+            Assert.AreEqual(1, (int)meshes[0]["Triangles"]);
+            Assert.AreEqual(3, (int)meshes[0]["Vertices"]);
+            Assert.AreEqual(1, (int)meshes[0]["SubMeshes"]);
+            Assert.AreEqual(0, (int)meshes[0]["BlendShapes"]);
+            Assert.AreEqual(0, (int)meshes[0]["Bones"]);
+        }
+
+        [Test]
         public void TypeCatalogExportListsDefaults()
         {
             JObject types = Export("TypeCatalogExport", null, "-filter=Rigidbody");

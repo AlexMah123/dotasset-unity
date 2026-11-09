@@ -9,6 +9,7 @@ Read-only checks that write a report JSON, and a fix spec where a fix is mechani
 | `AuditMissingReference` | references to deleted assets, Missing Scripts, missing sub-objects, missing prefab sources, `[SerializeReference]` data of a missing type (R1-R5) |
 | `AuditTexture` | texture import settings against how the texture is used (T1-T8) |
 | `AuditMaterial` | missing, broken or unsupported shaders, stale properties, stray keywords (M1-M5) |
+| `AuditMesh` | how prefabs and scenes use meshes: empty material slots, empty LOD levels, large meshes without LODs, non-convex MeshColliders on moving Rigidbodies (G1-G4) |
 | `AuditUnusedAsset` | assets nothing in the project reaches, scenes outside Build Settings (U1-U2) |
 
 ```bash
@@ -127,6 +128,27 @@ Names are matched at the end of the file name, case-insensitive.
 | `-rules=M1,M3` | only these rules |
 
 The report's `RenderPipeline` names the active pipeline the M3 check used. Headless runs have no graphics device (`-nographics`), so there M3 only catches Built-in shaders under a render pipeline; run with the editor open, or pass `--graphics` to the wrapper, for the GPU support check. Converting Built-in materials to URP or HDRP is the render pipeline's converter's job; the report lists which materials need it.
+
+## AuditMesh
+
+```bash
+python dotasset.py AuditMesh "Assets/Prefabs" --args "-triangles=20000"
+```
+
+| Rule | Severity | Finds | Fix |
+| --- | --- | --- | --- |
+| G1 | Warning | a MeshRenderer or SkinnedMeshRenderer with an empty or missing material slot, or with fewer slots than its mesh has submeshes (the rest are not drawn) | set `m_Materials` with `EditPrefab` or `EditScene` |
+| G2 | Warning | an LODGroup level with no renderer, or listing a renderer that was deleted | set the LODs again, or remove the level |
+| G3 | Info | a mesh over `-triangles` in a renderer that no LODGroup lists | add an LODGroup, or a lighter mesh |
+| G4 | Error | a non-convex MeshCollider under a Rigidbody that is not kinematic. Unity does not support it and logs an error in play mode | `m_Convex: true` on the collider, or `m_IsKinematic: true` on the Rigidbody |
+
+| Argument | Effect |
+| --- | --- |
+| `-scandir=<dirs>` | default `Assets` |
+| `-triangles=N` | the G3 limit, default 10000, a whole number of 0 or more, anything else is refused |
+| `-rules=G1,G4` | only these rules |
+
+It checks `.prefab` and `.unity` files, model files are not scanned (their import settings are `ImporterExport`'s, and Unity's Project Auditor checks them). Each issue names the GameObject as `Object`, the path `EditPrefab` and `EditScene` take, and G3 adds `Mesh` and `Triangles`, G4 `Rigidbody`. An issue on an object a prefab instance brings along belongs to the source prefab: when the scan includes that prefab and the issue is there too, only the prefab reports it, so a scene full of instances reports each problem once. Triangles come from the index counts, so a mesh without Read/Write counts too, a quad as two triangles. There is no fix spec, because each fix is a choice; the triangle counts of a model's meshes are in `ImporterExport`'s `Summary`.
 
 ## AuditUnusedAsset
 

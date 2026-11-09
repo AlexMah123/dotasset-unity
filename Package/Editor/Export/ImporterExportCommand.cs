@@ -8,6 +8,7 @@ namespace DotAsset
 {
     // Import settings from the .meta file, read through the importer: textures, models, audio, anything with one.
     // Textures and models also get a Summary block with the settings agents ask about most, in EditImporter's terms.
+    // A model's summary also lists its meshes: vertices, triangles, submeshes, blend shapes and bones.
     // Usage: dotasset.py ImporterExport Assets/Art/Textures[,Assets/Art/Hero.fbx] [--args "-full"]
     // Docs/Export.md
     public sealed class ImporterExportCommand : DotAssetCommand
@@ -123,7 +124,42 @@ namespace DotAsset
                     ["LastFrame"] = Json.F(c.lastFrame),
                     ["Loop"] = c.loopTime,
                 }).ToArray()),
+                ["Meshes"] = new JArray(AssetDatabase.LoadAllAssetsAtPath(m.assetPath).OfType<Mesh>()
+                    .OrderBy(mesh => mesh.name, System.StringComparer.Ordinal).Select(mesh => (JToken)MeshSummary(mesh)).ToArray()),
             };
+        }
+
+        // Bones are the bind poses a skinned mesh carries.
+        static JObject MeshSummary(Mesh mesh)
+        {
+            return new JObject
+            {
+                ["Name"] = mesh.name,
+                ["Vertices"] = mesh.vertexCount,
+                ["Triangles"] = Triangles(mesh),
+                ["SubMeshes"] = mesh.subMeshCount,
+                ["BlendShapes"] = mesh.blendShapeCount,
+                ["Bones"] = mesh.bindposes.Length,
+            };
+        }
+
+        // From the index counts, so it needs no Read/Write. A quad counts as two triangles, lines and points as none.
+        public static long Triangles(Mesh mesh)
+        {
+            long count = 0;
+            for (int i = 0; i < mesh.subMeshCount; i++)
+            {
+                MeshTopology topology = mesh.GetTopology(i);
+                if (topology == MeshTopology.Triangles)
+                {
+                    count += mesh.GetIndexCount(i) / 3;
+                }
+                else if (topology == MeshTopology.Quads)
+                {
+                    count += mesh.GetIndexCount(i) / 4 * 2;
+                }
+            }
+            return count;
         }
     }
 }

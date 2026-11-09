@@ -41,6 +41,7 @@ python dotasset.py <RunName> "<AssetList>" --args "<-key=value ...>" --agent
 | Rename a serialized field and keep the data through Unity | `[FormerlySerializedAs("old")]`, then `ResaveAsset --args "-dependson=<script> -apply"` |
 | Take back a writing run | `UndoRun --args "-run=last -apply"` (or the id from its `out:` journal line) |
 | Find broken textures, materials, references | `AuditTexture`, `AuditMaterial`, `AuditMissingReference` |
+| Find empty material slots, LOD gaps, heavy meshes, unsupported MeshColliders | `AuditMesh` |
 | Find unused assets | `AuditUnusedAsset`, then `DeleteAsset -spec=<fix spec>` |
 
 ## Workflow

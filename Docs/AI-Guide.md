@@ -44,6 +44,7 @@ The call manual for agents. Arguments, spec shapes, exit codes and JSON fields a
 | References to deleted assets, missing scripts, missing prefab sources | `AuditMissingReference` | Audit |
 | Textures with wrong type, sRGB, compression, mipmaps or size | `AuditTexture` | Audit |
 | Materials that render pink, stale properties, stray keywords | `AuditMaterial` | Audit |
+| Empty material slots, empty LOD levels, heavy meshes without LODs, non-convex MeshColliders on moving Rigidbodies | `AuditMesh` | Audit |
 
 Before editing, export. The export shows the exact property names (`m_Mass`, not `mass`), paths (`Player/Model/Hand.R`) and reference forms the Edit spec needs. When a property name is unknown, `TypeCatalogExport -filter=<type>` lists them without touching any asset.
 

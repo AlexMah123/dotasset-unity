@@ -277,7 +277,13 @@ A clip always has its timing. `EaseInDuration`, `EaseOutDuration`, `BlendInDurat
              "Compression": "Compressed", "ReadWrite": false, "Platforms": { "Android": { "MaxSize": 1024, "Format": "ASTC_6x6" } } }
 ```
 
-Models add one with scale, animation, mesh and material import settings and the clip list.
+Models add one with scale, animation, mesh and material import settings, the clip list, and `Meshes`, the meshes the import made:
+
+```json
+"Meshes": [ { "Name": "Hero_Body", "Vertices": 8124, "Triangles": 12006, "SubMeshes": 2, "BlendShapes": 14, "Bones": 52 } ]
+```
+
+Triangles come from the index counts (a quad is two), so they need no Read/Write. `Bones` is the number of bind poses, 0 on a mesh that is not skinned.
 
 ## AssetReferenceExport
 

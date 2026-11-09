@@ -2,6 +2,7 @@ using System.Linq;
 using Newtonsoft.Json.Linq;
 using NUnit.Framework;
 using UnityEditor;
+using UnityEngine;
 
 namespace DotAsset.Tests
 {
@@ -47,6 +48,64 @@ namespace DotAsset.Tests
             Ok("EditImporter", FixSpec(report) + " -apply");
             Assert.AreEqual("NormalMap", (string)Export("ImporterExport", rock)["Summary"]["TextureType"]);
             Assert.IsFalse(HasIssue(Report("AuditTexture", AnyIssues, "", Folder), "T1", rock));
+        }
+
+        [Test]
+        public void AuditMeshFindsEmptySlotsEmptyLodsLargeMeshesAndNonConvexMeshColliders()
+        {
+            // PhysX may log the unsupported collider on the scene object, before any run sets this.
+            UnityEngine.TestTools.LogAssert.ignoreFailingMessages = true;
+            string rig = Folder + "/Rig.prefab";
+            string placed = Folder + "/Placed.unity";
+            var quad = new Mesh { name = "Quad", vertices = new[] { Vector3.zero, Vector3.right, Vector3.up, new Vector3(1, 1, 0) }, subMeshCount = 2 };
+            quad.SetTriangles(new[] { 0, 2, 1 }, 0);
+            quad.SetTriangles(new[] { 1, 2, 3 }, 1);
+            AssetDatabase.CreateAsset(quad, Folder + "/Quad.asset");
+            var red = AssetDatabase.LoadAssetAtPath<Material>(Red);
+            var root = new GameObject("Rig");
+            try
+            {
+                root.AddComponent<Rigidbody>();
+                MeshRenderer body = Child(root, "Body", quad, red, null);
+                Child(root, "Big", quad, red, red);
+                var hull = new GameObject("Hull");
+                hull.transform.SetParent(root.transform);
+                hull.AddComponent<MeshCollider>().sharedMesh = quad;
+                root.AddComponent<LODGroup>().SetLODs(new[] { new LOD(0.5f, new Renderer[] { body }), new LOD(0.1f, new Renderer[0]) });
+                PrefabUtility.SaveAsPrefabAsset(root, rig);
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+            }
+            Ok("CreateAsset", Spec(@"{'Assets': [{'Kind': 'Scene', 'Path': '" + placed + @"',
+                'Ops': [{'Op': 'AddPrefabInstance', 'Prefab': '" + rig + @"', 'Name': 'Rig'}]}]}"));
+
+            JObject report = Report("AuditMesh", 3, "-triangles=1", Folder);
+            Assert.AreEqual(new[] { "Rig/Body" }, Objects(report, "G1", rig), report.ToString());
+            Assert.AreEqual(new[] { "Rig" }, Objects(report, "G2", rig), report.ToString());
+            Assert.AreEqual(new[] { "Rig/Big" }, Objects(report, "G3", rig), "Body is in the LODGroup\n" + report);
+            Assert.AreEqual(new[] { "Rig/Hull" }, Objects(report, "G4", rig), report.ToString());
+            Assert.IsFalse(report["Issues"].Any(i => (string)i["Asset"] != rig), "the scene's instance repeats the prefab's issues, or the fixture has one\n" + report);
+
+            Ok("EditPrefab", Spec(@"{'Targets': [{'AssetPath': '" + rig + @"', 'Ops': [{'Op': 'Set', 'Path': 'Rig', 'Component': 'Rigidbody', 'Properties': {'m_IsKinematic': true}}]}]}") + " -apply");
+            Assert.IsEmpty(Objects(Report("AuditMesh", 3, "-triangles=1", Folder), "G4", rig), "a kinematic Rigidbody may carry a non-convex MeshCollider");
+            Assert.IsEmpty(Objects(Report("AuditMesh", 3, "", Folder), "G3", rig), "two triangles are under the default -triangles");
+        }
+
+        static MeshRenderer Child(GameObject parent, string name, Mesh mesh, params Material[] materials)
+        {
+            var go = new GameObject(name);
+            go.transform.SetParent(parent.transform);
+            go.AddComponent<MeshFilter>().sharedMesh = mesh;
+            var renderer = go.AddComponent<MeshRenderer>();
+            renderer.sharedMaterials = materials;
+            return renderer;
+        }
+
+        static string[] Objects(JObject report, string rule, string asset)
+        {
+            return (report["Issues"] ?? new JArray()).Where(i => (string)i["Rule"] == rule && (string)i["Asset"] == asset).Select(i => (string)i["Object"]).ToArray();
         }
 
         [Test]

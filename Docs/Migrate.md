@@ -15,7 +15,7 @@ Asset-level moves and project-wide reference changes, the repairs after a rename
 | `RenameField` | renames a serialized field of a script and the scripts that inherit it, in assets and prefab overrides, values kept |
 | `RenameSerializeReferenceType` | repoints `[SerializeReference]` data from an old type name to a compiled type, values kept |
 | `RemoveMissingScripts` | removes Missing Script components from prefabs and scenes |
-| `RebindAnimation` | rewrites curve paths in `.anim` clips after a GameObject or bone was renamed or moved |
+| `RebindAnimation` | rewrites curve paths or property names in clips (`.anim`, and inside `.controller` and `.playable` files) after a GameObject, bone or animated field was renamed or moved |
 | `RenameShaderProperty` | renames a saved shader property in `.mat` files, values kept |
 | `UndoRun` | puts back every file an earlier writing run wrote, from its journal |
 
@@ -24,7 +24,7 @@ Asset-level moves and project-wide reference changes, the repairs after a rename
 | What changed | Run |
 | --- | --- |
 | An asset or folder needs a new path | `MoveAsset`. References are by GUID and survive; `Resources.Load` strings and hard-coded paths do not, the run lists the scripts that mention them |
-| A C# field was renamed | `RenameField -script=Assets/Scripts/X.cs -from=oldName -to=newName -apply` after the C# rename, before Unity saves the assets. Or `[FormerlySerializedAs("oldName")]`, `ResaveAsset -dependson=Assets/Scripts/X.cs -apply`, then remove the attribute |
+| A C# field was renamed | `RenameField -script=Assets/Scripts/X.cs -from=oldName -to=newName -apply` after the C# rename, before Unity saves the assets. Or `[FormerlySerializedAs("oldName")]`, `ResaveAsset -dependson=Assets/Scripts/X.cs -apply`, then remove the attribute. Clips that animate the field: `RebindAnimation -property=oldName -toproperty=newName -type=X -apply` |
 | A `.meta` was lost or regenerated, components show Missing Script | `AuditMissingReference` lists the old GUIDs, `RemapScript -from=<old guid> -to=Assets/Scripts/X.cs -apply` |
 | A class behind a `[SerializeReference]` field was renamed or moved | `AuditMissingReference` R5 lists the old type names, `RenameSerializeReferenceType -from="<assembly> <old type>" -to=<new type> -apply` |
 | A class moved to another file or assembly | `RemapScript -from=Assets/Old/X.cs -to=Assets/New/X.cs -apply` (by path while the old file still exists, by GUID after) |
@@ -32,6 +32,7 @@ Asset-level moves and project-wide reference changes, the repairs after a rename
 | A prefab is replaced by another | `RemapReference` swaps its instances through Unity's Replace Prefab Asset and repoints fields that reference it |
 | Leftover Missing Script components | `RemoveMissingScripts` |
 | A GameObject or bone under an Animator was renamed or moved, clips show "(Missing!)" | `RebindAnimation -from=Body/Arm -to=Body/ArmL -apply` |
+| An animated field or property was renamed, its curves show "(Missing!)" | `RebindAnimation -property=speed -toproperty=moveSpeed -type=Mover -apply` |
 | A shader renamed a property, materials fall back to the default | `RenameShaderProperty -from=_Color -to=_BaseColor -apply` |
 
 ## MoveAsset
@@ -168,15 +169,21 @@ Rewrites `m_Script: {fileID: ..., guid: <old>, type: 3}` in every YAML asset (`.
 
 ```bash
 python dotasset.py RebindAnimation --args '-from=Body/Arm -to=Body/ArmL -scandir=Assets/Animations -apply'
+python dotasset.py RebindAnimation --args '-property=speed -toproperty=moveSpeed -type=Mover -apply'
 ```
 
 | Argument | Effect |
 | --- | --- |
 | `-from` | the old path, relative to the Animator, as the Animation window shows it |
 | `-to` | the new path |
-| `-scandir=<dirs>` | default `Assets`. An AssetList of clips or folders replaces the scan |
+| `-property` | the old property name, as the curve saves it (`speed`, `m_Color`, `material._Color`) |
+| `-toproperty` | the new property name |
+| `-type=<types>` | needed with `-property`: the component whose property was renamed, by class name or full name. A list for several (`MeshRenderer,SkinnedMeshRenderer`) |
+| `-scandir=<dirs>` | default `Assets`. An AssetList of clip files or folders replaces the scan |
 
-Curves on `-from` and everything beneath it move: `Body/Arm` -> `Body/ArmL` also rewrites `Body/Arm/Hand`. Float and object reference curves (sprite swaps) both move, keys and tangents unchanged. A clip that already animates the same property at the new path fails its target instead of overwriting it. Clips inside model files are read-only and skipped, extract them to `.anim` first. The dry run plans one change per old path with its curve count. `AssetExport` on a clip shows the paths under `m_FloatCurves`, `m_PPtrCurves` and `m_EditorCurves`.
+Curves on `-from` and everything beneath it move: `Body/Arm` -> `Body/ArmL` also rewrites `Body/Arm/Hand`. A property rename takes its parts along: `m_Color` -> `m_Tint` also rewrites `m_Color.r`, but not `m_ColorTemperature`, and only on the components `-type` names, so a SpriteRenderer's `m_Color` stays when `-type=Light`. Both pairs in one run do both. Float and object reference curves (sprite swaps) both change, keys and tangents unchanged. A clip that already animates the same property at the new path or name fails its target instead of overwriting it.
+
+Clips are read from `.anim` files and from inside `.controller` and `.playable` (Timeline) files, where they are sub-assets. Each file is one target, all its clips saved together. Clips inside model files are read-only and skipped, extract them to `.anim` first. The dry run plans one change per old path, and one per renamed property and type, with the curve count, plus `Clip` for a clip inside a controller or timeline. `AssetExport` on a clip shows the paths and names under `m_FloatCurves`, `m_PPtrCurves` and `m_EditorCurves`.
 
 ## RenameShaderProperty
 

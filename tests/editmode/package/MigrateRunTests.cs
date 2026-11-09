@@ -192,6 +192,68 @@ namespace DotAsset.Tests
             Assert.AreEqual(new[] { "Body/ArmL", "Body/ArmL/Hand", "Body/Leg" }, Animated(clip));
         }
 
+        static AnimationClip ClipWith(string name, params EditorCurveBinding[] bindings)
+        {
+            var clip = new AnimationClip { name = name };
+            foreach (EditorCurveBinding b in bindings)
+            {
+                AnimationUtility.SetEditorCurve(clip, b, AnimationCurve.Linear(0, 0, 1, 1));
+            }
+            return clip;
+        }
+
+        static string[] Bindings(AnimationClip clip)
+        {
+            return AnimationUtility.GetCurveBindings(clip).Select(b => b.path + " " + b.type.Name + "." + b.propertyName)
+                .OrderBy(s => s, System.StringComparer.Ordinal).ToArray();
+        }
+
+        [Test]
+        public void RebindAnimationRenamesAPropertyOfOneType()
+        {
+            string glow = Folder + "/Glow.anim";
+            AssetDatabase.CreateAsset(ClipWith("Glow",
+                EditorCurveBinding.FloatCurve("Body", typeof(Light), "m_Color.r"),
+                EditorCurveBinding.FloatCurve("Body", typeof(Light), "m_ColorTemperature"),
+                EditorCurveBinding.FloatCurve("Body", typeof(SpriteRenderer), "m_Color.r")), glow);
+            string[] before = Bindings(AssetDatabase.LoadAssetAtPath<AnimationClip>(glow));
+            string args = "-property=m_Color -toproperty=m_Tint -type=Light -scandir=" + Folder;
+            RunResult dry = Ok("RebindAnimation", args);
+            Assert.IsTrue(dry.Plan.Any(p => (string)p["Target"] == glow && (string)p["Before"] == "m_Color" && (string)p["After"] == "m_Tint"),
+                "the dry run did not plan Glow.anim: " + new JArray(dry.Plan));
+            Assert.AreEqual(before, Bindings(AssetDatabase.LoadAssetAtPath<AnimationClip>(glow)), "the dry run renamed");
+            Ok("RebindAnimation", args + " -apply");
+            Assert.AreEqual(new[] { "Body Light.m_ColorTemperature", "Body Light.m_Tint.r", "Body SpriteRenderer.m_Color.r" },
+                Bindings(AssetDatabase.LoadAssetAtPath<AnimationClip>(glow)));
+            StringAssert.Contains("attribute: m_Tint.r", Text(glow), "Glow.anim was not saved");
+        }
+
+        [Test]
+        public void RebindAnimationReachesClipsInsideControllersAndTimelines()
+        {
+            string cut = Folder + "/Cut.playable";
+            AssetDatabase.CreateAsset(ScriptableObject.CreateInstance<RunTestTimeline>(), cut);
+            foreach (string file in new[] { Door, cut })
+            {
+                AssetDatabase.AddObjectToAsset(ClipWith("Inner", EditorCurveBinding.FloatCurve("Body/Arm", typeof(Transform), "m_LocalPosition.x")), file);
+                AssetDatabase.SaveAssetIfDirty(AssetDatabase.LoadMainAssetAtPath(file));
+            }
+            string args = "-from=Body/Arm -to=Body/ArmL -scandir=" + Folder;
+            RunResult dry = Ok("RebindAnimation", args);
+            foreach (string file in new[] { Door, cut })
+            {
+                Assert.IsTrue(Planned(dry, "Target", file), "the dry run did not plan " + file + ": " + new JArray(dry.Plan));
+                StringAssert.DoesNotContain("Body/ArmL", Text(file), "the dry run wrote " + file);
+            }
+            Ok("RebindAnimation", args + " -apply");
+            foreach (string file in new[] { Door, cut })
+            {
+                AnimationClip inner = AssetDatabase.LoadAllAssetsAtPath(file).OfType<AnimationClip>().Single();
+                Assert.AreEqual(new[] { "Body/ArmL Transform.m_LocalPosition.x" }, Bindings(inner), file);
+                StringAssert.Contains("path: Body/ArmL", Text(file), file + " was not saved");
+            }
+        }
+
         static JToken Stale(string material)
         {
             return Export("MaterialExport", material)["StaleProperties"] ?? new JArray();

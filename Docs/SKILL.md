@@ -35,6 +35,7 @@ python dotasset.py <RunName> "<AssetList>" --args "<-key=value ...>" --agent
 | Rename a serialized field, Unity has not saved the assets yet | rename it in C#, then `RenameField` (rewrites the YAML key) |
 | `[SerializeReference]` data lost after a class rename | `AuditMissingReference`, then `RenameSerializeReferenceType` |
 | Renamed or moved a GameObject or bone, clips show "(Missing!)" | `RebindAnimation --args "-from=Body/Arm -to=Body/ArmL -apply"` |
+| Renamed an animated field, its curves show "(Missing!)" | `RebindAnimation --args "-property=speed -toproperty=moveSpeed -type=Mover -apply"` |
 | A shader renamed a property, materials lost their values | `RenameShaderProperty --args "-from=_Color -to=_BaseColor -apply"` |
 | Rename a serialized field and keep the data through Unity | `[FormerlySerializedAs("old")]`, then `ResaveAsset --args "-dependson=<script> -apply"` |
 | Take back a writing run | `UndoRun --args "-run=last -apply"` (or the id from its `out:` journal line) |

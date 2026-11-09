@@ -32,7 +32,7 @@ The call manual for agents. Arguments, spec shapes, exit codes and JSON fields a
 | Fix "Missing Script" after a `.meta` was lost or a class moved to another file | `RemapScript` (GUIDs from `AuditMissingReference`) | Migrate |
 | Keep values after renaming a serialized C# field | `RenameField` (after the C# rename, before Unity saves) | Migrate |
 | `[SerializeReference]` data reads as null after a class was renamed or moved | `RenameSerializeReferenceType` (old names from `AuditMissingReference` R5) | Migrate |
-| Fix animation clips after a GameObject or bone was renamed or moved | `RebindAnimation` | Migrate |
+| Fix animation clips after a GameObject or bone was renamed or moved, or an animated field was renamed | `RebindAnimation` | Migrate |
 | Keep material values after a shader renamed a property | `RenameShaderProperty` | Migrate |
 | Remove Missing Script components | `RemoveMissingScripts` | Migrate |
 | Rename a serialized field without losing data | add `[FormerlySerializedAs("old")]`, then `ResaveAsset -dependson=<script> -apply` | Migrate |

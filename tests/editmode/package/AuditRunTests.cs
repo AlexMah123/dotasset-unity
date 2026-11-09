@@ -97,6 +97,41 @@ namespace DotAsset.Tests
             Assert.IsEmpty(Objects(Report("AuditMesh", 3, "", Folder), "G3", rig), "two triangles are under the default -triangles");
         }
 
+        [Test]
+        public void AuditAudioFindsAnAudioSourceWithNoMixerGroupWhileTheProjectHasAMixer()
+        {
+            string mixer = Folder + "/Main.mixer";
+            string speaker = Folder + "/Speaker.prefab";
+            string hall = Folder + "/Hall.unity";
+            // Unity has no public API that creates a mixer, the editor's own menu item calls this.
+            typeof(EditorWindow).Assembly.GetType("UnityEditor.Audio.AudioMixerController")
+                .GetMethod("CreateMixerControllerAtPath", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.Static)
+                .Invoke(null, new object[] { mixer });
+            UnityEngine.Audio.AudioMixerGroup master = AssetDatabase.LoadAssetAtPath<UnityEngine.Audio.AudioMixer>(mixer).FindMatchingGroups("Master")[0];
+            var root = new GameObject("Speaker");
+            try
+            {
+                root.AddComponent<AudioSource>();
+                var routed = new GameObject("Routed");
+                routed.transform.SetParent(root.transform);
+                routed.AddComponent<AudioSource>().outputAudioMixerGroup = master;
+                PrefabUtility.SaveAsPrefabAsset(root, speaker);
+            }
+            finally
+            {
+                Object.DestroyImmediate(root);
+            }
+            Ok("CreateAsset", Spec(@"{'Assets': [{'Kind': 'Scene', 'Path': '" + hall + @"',
+                'Ops': [{'Op': 'AddPrefabInstance', 'Prefab': '" + speaker + @"', 'Name': 'Speaker'}]}]}"));
+
+            JObject report = Report("AuditAudio", 3, "", Folder);
+            Assert.AreEqual(new[] { "Speaker" }, Objects(report, "A1", speaker), report.ToString());
+            Assert.IsFalse(report["Issues"].Any(i => (string)i["Asset"] != speaker), "the scene's instance repeats the prefab's issue\n" + report);
+
+            AssetDatabase.DeleteAsset(mixer);
+            Report("AuditAudio", 0, "", Folder);
+        }
+
         static MeshRenderer Child(GameObject parent, string name, Mesh mesh, params Material[] materials)
         {
             var go = new GameObject(name);

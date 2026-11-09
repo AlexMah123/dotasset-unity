@@ -10,6 +10,7 @@ Read-only checks that write a report JSON, and a fix spec where a fix is mechani
 | `AuditTexture` | texture import settings against how the texture is used (T1-T8) |
 | `AuditMaterial` | missing, broken or unsupported shaders, stale properties, stray keywords (M1-M5) |
 | `AuditMesh` | how prefabs and scenes use meshes: empty material slots, empty LOD levels, large meshes without LODs, non-convex MeshColliders on moving Rigidbodies (G1-G4) |
+| `AuditAudio` | AudioSources in prefabs and scenes that play past the project's AudioMixer (A1) |
 | `AuditUnusedAsset` | assets nothing in the project reaches, scenes outside Build Settings (U1-U2) |
 
 ```bash
@@ -148,7 +149,24 @@ python dotasset.py AuditMesh "Assets/Prefabs" --args "-triangles=20000"
 | `-triangles=N` | the G3 limit, default 10000, a whole number of 0 or more, anything else is refused |
 | `-rules=G1,G4` | only these rules |
 
-It checks `.prefab` and `.unity` files, model files are not scanned (their import settings are `ImporterExport`'s, and Unity's Project Auditor checks them). Each issue names the GameObject as `Object`, the path `EditPrefab` and `EditScene` take, and G3 adds `Mesh` and `Triangles`, G4 `Rigidbody`. An issue on an object a prefab instance brings along belongs to the source prefab: when the scan includes that prefab and the issue is there too, only the prefab reports it, so a scene full of instances reports each problem once. Triangles come from the index counts, so a mesh without Read/Write counts too, a quad as two triangles. There is no fix spec, because each fix is a choice; the triangle counts of a model's meshes are in `ImporterExport`'s `Summary`.
+It checks `.prefab` and `.unity` files, model files are not scanned (their import settings are `ImporterExport`'s, and Unity's Project Auditor checks them). Each issue names the GameObject as `Object`, the path `EditPrefab` and `EditScene` take, and G3 adds `Mesh` (its name) and `Triangles`, G4 `Rigidbody` (the GameObject that has it). An issue on an object a prefab instance brings along belongs to the source prefab: when the scan includes that prefab and the issue is there too, only the prefab reports it, so a scene full of instances reports each problem once. A scene open in the editor is checked as it is, with a warning when it has unsaved changes. Triangles come from the index counts, so a mesh without Read/Write counts too, a quad as two triangles. There is no fix spec, because each fix is a choice; the triangle counts of a model's meshes are in `ImporterExport`'s `Summary`.
+
+## AuditAudio
+
+```bash
+python dotasset.py AuditAudio --args "-scandir=Assets"
+```
+
+| Rule | Severity | Finds | Fix |
+| --- | --- | --- | --- |
+| A1 | Warning | an AudioSource with no output mixer group, while the project has an AudioMixer: it plays straight to the listener, past the mixer's volume, snapshots and effects | set `m_OutputAudioMixerGroup` with `EditPrefab` or `EditScene` |
+
+| Argument | Effect |
+| --- | --- |
+| `-scandir=<dirs>` | default `Assets` |
+| `-rules=A1` | only these rules |
+
+A project without an AudioMixer has nothing to route to, so A1 does not apply there and the run checks nothing (exit 0). The report's `Mixers` lists the `.mixer` files found in the whole project. A group whose mixer was deleted reads as no group, and `AuditMissingReference` R1 names the missing mixer too. It scans `.prefab` and `.unity` files the way `AuditMesh` does, with the same `Object` field and the same rule for prefab instances. Audio clip import settings (load type, compression, sample rate, preload) are not checked: Unity's Project Auditor package does that, headless through the Unity CLI's `diagnostics run_audit` command. No fix spec, because which group a source plays to is a choice.
 
 ## AuditUnusedAsset
 

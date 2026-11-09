@@ -42,6 +42,7 @@ python dotasset.py <RunName> "<AssetList>" --args "<-key=value ...>" --agent
 | Take back a writing run | `UndoRun --args "-run=last -apply"` (or the id from its `out:` journal line) |
 | Find broken textures, materials, references | `AuditTexture`, `AuditMaterial`, `AuditMissingReference` |
 | Find empty material slots, LOD gaps, heavy meshes, unsupported MeshColliders | `AuditMesh` |
+| Find AudioSources that bypass the AudioMixer | `AuditAudio` |
 | Find unused assets | `AuditUnusedAsset`, then `DeleteAsset -spec=<fix spec>` |
 
 ## Workflow

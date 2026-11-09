@@ -30,7 +30,7 @@ Every write goes through Unity's own API (`SerializedObject`, `PrefabUtility`, `
 | **Import** | `CreateAsset` (folders, ScriptableObjects, materials, prefabs, prefab variants, Animator Controllers, animation clips, scenes) |
 | **Edit** | `EditPrefab` `EditScene` `EditAsset` `EditMaterial` `EditImporter` `EditAnimatorController` `EditAnimationClip` |
 | **Migrate** | `MoveAsset` `DuplicateAsset` `DeleteAsset` `ResaveAsset` `RemapReference` `RemapScript` `RenameField` `RenameSerializeReferenceType` `RemoveMissingScripts` `RebindAnimation` `RenameShaderProperty` `UndoRun` |
-| **Audit** | `AuditMissingReference` `AuditTexture` `AuditMaterial` `AuditMesh` `AuditUnusedAsset` |
+| **Audit** | `AuditMissingReference` `AuditTexture` `AuditMaterial` `AuditMesh` `AuditAudio` `AuditUnusedAsset` |
 
 - **Closed loop**: an export's `Properties` block is what `Set` ops and `EditAsset` take; `ImporterExport`'s texture `Summary` is what `EditImporter`'s `Texture` block takes; audits write a `.fix.json` the matching Edit or Migrate run takes as is
 - **Editor open**: the task goes to the editor's queue and runs on its main thread, the editor stays open, a scene open in the editor is edited on one undo group (one Ctrl+Z)

@@ -6,6 +6,19 @@ Defined in `Package/Editor/Core/DotAssetVersion.cs` and `Package/package.json`, 
 
 Versions follow one rule. A patch (0.1.x) holds fixes, test upgrades and docs. A minor version (0.x.0) adds something new to call: a run, an op, a spec key, an argument or a wrapper option. While on 0.x, a change that breaks existing calls is also a minor version, marked breaking here. 1.0.0 comes when runs, specs and export JSON are promised to stay stable.
 
+### 0.13.1
+
+Fixes from the sixth review, and a cleanup pass with no behaviour change. Each fix came with a test that failed on the code before it.
+
+- Fixed: a spec value of the wrong type fails its target and names the key, e.g. `Active: "0" is not true or false`. Before, it fell back to the default and the run exited 0, so `"Active": "0"` left a GameObject active and `"RenderQueue": "high"` was dropped. A true/false key takes `true`, `false`, `"true"`, `"false"` or a number (0 for false). A whole-number key (`SiblingIndex`, `Index`, `RenderQueue`, ...) takes a whole number, also as a string, and refuses `2.5`, `"last"` and values past the int range, which it used to cut off or overflow. `CreateAsset` reads its values before it builds the entry, so a bad one leaves no file. A spec that ran before with a value DotAsset could not read now exits 1, see `Docs/Edit.md`
+- Fixed: `--route editor` never falls back to a headless run. When the editor exited between the task write and its claim, the task ran headless anyway. It is now withdrawn and refused with exit 2. `--route auto` still falls back
+- Fixed: a mode flag (`--status`, `--list`, `--result`, `--launch`, `--serve`, `--quit`, `--open-scene`) beside a run name, assets or `--args`, or two modes in one call, is refused with exit 2. Before, the mode ran, the run was dropped and the call exited 0. `--list` still takes `--args`
+- Fixed: `--open-scene` says "the editor exited without answering" when the editor exits, not that it did not answer within the timeout
+- Docs: the `dotasset_run` MCP tool and the `dotasset run` Unity CLI command say that `-apply` in `args` writes an Edit or Migrate run just as `confirm=true` does, so a dry run leaves both out, and that Import runs write either way. Refusing `-apply` in `args` without `confirm` would break callers that use it, so it waits for a minor release
+- Docs: the README comparison table is checked again against the sources of 2026-11-10 (Unity CLI beta.17 release notes, IvanMurzak Unity-MCP 1.9.0, CoplayDev unity-mcp, unity-cli-loop)
+- Cleanup, no behaviour change: the Migrate runs that rewrite YAML text share one file loop (`Core/YamlRewrite.cs`), `CreateAsset` saves prefabs and variants through one helper, `--open-scene` and `--quit` share one request wait, two code-rule slips are fixed with guard tests, and an unused constant is gone. Tests pinned each run's wording before its code moved
+- Tests: 121 unit tests (new: `--route editor`, the mode flags, an editor that exits during `--open-scene` or `--quit`, and guards for the strict spec readers and the write wording), 166 EditMode tests (new: `SpecValueTests`)
+
 ### 0.13.0
 
 Asset coverage: animation clips, timelines, how prefabs and scenes use meshes, and where audio plays to. Each planned item was first checked against the Unity CLI's commands and Project Auditor, and what they already cover was dropped. The migrations (`RenameMethod`, and `RenameField` and `RenameShaderProperty` following `.anim` curves) still wait for the December Unity 7 preview and move to 0.14.0.

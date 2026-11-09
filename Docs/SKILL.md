@@ -77,6 +77,7 @@ Audits write `<report>.fix.json` for the matching fix run (`EditImporter`, `Edit
 ## Rules
 
 - Never hand-edit `.prefab`, `.unity`, `.asset` or `.meta` files, and never call `AssetDatabase.SaveAssets`.
+- DotAsset changes assets only. Compiling, tests, the Console, play mode, builds and C# eval go through the Unity CLI or an MCP server, see "Which tool" in `Docs/AI-Guide.md`.
 - Spec paths are absolute or relative to the project root. Quote values that contain spaces.
 - Writes are all or nothing per target, so a failed target leaves its file unchanged. Migrate runs are also all or nothing across every target of the run (`-atomic=false` turns it off), Edit and Import runs with `-atomic`. A rollback that cannot finish keeps the journal and prints the `UndoRun` command to run once the scene or prefab it names is closed.
 - `--quit` and `--open-scene` refuse while there are unsaved changes. Ask the user before adding `--force`.

@@ -48,6 +48,24 @@ Every writing run (Import, and Edit or Migrate with `-apply`) keeps the files it
 
 Audit first, then fix with the spec the audit wrote: `AuditTexture` writes `<report>.fix.json` for `EditImporter`, `AuditMaterial` for `EditMaterial`, `AuditMissingReference` for `RemoveMissingScripts`, `AuditUnusedAsset` for `DeleteAsset`. Review it, run once without `-apply`, then with it.
 
+## Which tool
+
+DotAsset changes assets. It does not drive the editor. When the Unity CLI, an MCP server or UniCli is also there, split the work like this (what each tool documents, and when it was checked, is in the README's [comparison](../README.md#compared-with-other-tools)):
+
+| Job | Use | Why |
+| --- | --- | --- |
+| Move, rename or delete assets, repoint references or scripts, keep values after a field or shader property rename | DotAsset Migrate | None of the others checked repoints references. A dry run first, a journal `UndoRun` takes back |
+| Change prefabs, scenes, materials, importers or controllers in a way that can be repeated and reviewed | DotAsset Edit, after an export | A spec in a file, the same value format as the export, all or nothing per asset |
+| Find broken references, unused assets, wrong texture or material settings, then fix them | DotAsset Audit and its fix spec | The report names the fix run and writes its spec |
+| Code and performance analysis | Unity CLI `audit` (Project Auditor) | DotAsset audits asset settings and references only |
+| Compile, run tests, read the Console, enter play mode, build, take captures | Unity CLI, an MCP server or UniCli | DotAsset never controls the editor |
+| Try things in an open scene, undone with Ctrl+Z | Unity CLI or an MCP server | Editor Undo. DotAsset writes files and journals them instead |
+| Run any C# in the editor | Unity CLI `eval` or an MCP server's code tool | DotAsset has no eval. Its journal does not see what eval writes |
+| Install editors or packages, set up CI | Unity CLI | Out of scope for DotAsset |
+| Read or patch YAML on a machine without Unity | a YAML parser | DotAsset needs Unity to open the project. A parser does not validate or reimport |
+
+An agent can mix them in one task: build and test through the Unity CLI, change assets through DotAsset, with the editor open or closed.
+
 ## Call templates
 
 The wrapper is `dotasset.py` (in the package's `Scripts~/`, or copied to the project root by the **Copy dotasset.py** button in `Window > DotAsset`). Run it from anywhere inside the project, or give `--project`.

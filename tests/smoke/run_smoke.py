@@ -1173,6 +1173,138 @@ def check_rebind_animation(base, tmp):
     return None
 
 
+def check_animation_clip(base, tmp):
+    # CreateAsset makes a clip with a curve and Loop Time, EditAnimationClip adds a key and an event. Each state is
+    # read back through AnimationClipExport, and the dry run must leave the clip as it was.
+    clip = ROOT + "/Swing.anim"
+    curve = {"Path": "Lid", "Type": "Transform", "Property": "m_LocalPosition.y"}
+    seed = spec("clip", {"Assets": [{"Kind": "AnimationClip", "Path": clip, "FrameRate": 30, "Settings": {"LoopTime": True},
+                                     "Ops": [dict(curve, Op="SetCurve", Keys=[{"Time": 0, "Value": 0}, {"Time": 1, "Value": 1}])]}]}, tmp)
+    problem = expect(base, "CreateAsset Swing.anim", ["CreateAsset", "--args", '-spec="%s"' % seed], 0)
+    if problem:
+        return problem
+
+    def state():
+        c = export_of("AnimationClipExport", base, clip)["Clips"][0]
+        keys = next((k.get("Keys", []) for k in c.get("Curves", []) if all(k.get(f) == v for f, v in curve.items())), [])
+        return (c.get("FrameRate"), (c.get("Settings") or {}).get("LoopTime"), [(k.get("Time"), k.get("Value")) for k in keys],
+                [e.get("Function") for e in c.get("Events", [])])
+
+    made = state()
+    if made != (30, True, [(0, 0), (1, 1)], []):
+        return "CreateAsset made Swing.anim with (FrameRate, LoopTime, keys, events) %s" % (made,)
+    edit = spec("edit_clip", {"Targets": [{"AssetPath": clip, "Ops": [
+        dict(curve, Op="SetKeys", Keys=[{"Time": 0.5, "Value": 2}]),
+        {"Op": "SetEvent", "Time": 0.25, "Function": "Creak"}]}]}, tmp)
+    problem = expect(base, "EditAnimationClip dry run", ["EditAnimationClip", "--args", '-spec="%s"' % edit], 0)
+    if problem:
+        return problem
+    dry = state()
+    if dry != made:
+        return "the EditAnimationClip dry run changed Swing.anim to %s" % (dry,)
+    problem = expect(base, "EditAnimationClip -apply", ["EditAnimationClip", "--args", '-spec="%s" -apply' % edit], 0)
+    if problem:
+        return problem
+    edited = state()
+    if edited != (30, True, [(0, 0), (0.5, 2), (1, 1)], ["Creak"]):
+        return "after EditAnimationClip -apply Swing.anim has (FrameRate, LoopTime, keys, events) %s" % (edited,)
+    return expect(base, "DeleteAsset Swing.anim", ["DeleteAsset", clip, "--args", "-force -permanent -apply"], 0)
+
+
+def has_package(base, name):
+    """Whether the project resolves the package, from its lock file or, without one, its manifest."""
+    for f in ("packages-lock.json", "manifest.json"):
+        path = os.path.join(project_of(base), "Packages", f)
+        if os.path.isfile(path):
+            with open(path, encoding="utf-8") as fh:
+                return '"%s"' % name in fh.read()
+    return False
+
+
+def check_timeline(base, tmp):
+    # TimelineExport reaches Timeline by reflection, so it must refuse in a project without com.unity.timeline. In
+    # one with it, a timeline CreateAsset made with a fixed duration is read back.
+    if not has_package(base, "com.unity.timeline"):
+        return expect(base, "TimelineExport without Timeline", ["TimelineExport", ROOT], 2)
+    timeline = ROOT + "/Intro.playable"
+    seed = spec("timeline", {"Assets": [{"Kind": "ScriptableObject", "Type": "TimelineAsset", "Path": timeline,
+                                         "Properties": {"m_DurationMode": "FixedLength", "m_FixedDuration": 4}}]}, tmp)
+    problem = expect(base, "CreateAsset Intro.playable", ["CreateAsset", "--args", '-spec="%s"' % seed], 0)
+    if problem:
+        return problem
+    export = export_of("TimelineExport", base, timeline)
+    got = (export.get("DurationMode"), export.get("FixedDuration"), export.get("Duration"), export.get("Tracks"))
+    if got != ("FixedLength", 4, 4, []):
+        return "TimelineExport read Intro.playable as (DurationMode, FixedDuration, Duration, Tracks) %s" % (got,)
+    return expect(base, "DeleteAsset Intro.playable", ["DeleteAsset", timeline, "--args", "-force -permanent -apply"], 0)
+
+
+def check_audit_mesh(base, tmp):
+    # A one-triangle OBJ goes through a real import, ImporterExport lists its mesh. A prefab draws it with an empty
+    # material slot and has a non-convex MeshCollider under its Rigidbody, a scene holds an instance of it. AuditMesh
+    # must report G1, G3 (with -triangles=0) and G4 on the prefab only, then nothing once EditPrefab fixes it.
+    folder = ROOT + "/Meshes"
+    tri, cart, yard = folder + "/Tri.obj", folder + "/Cart.prefab", folder + "/Yard.unity"
+    os.makedirs(os.path.join(project_of(base), *folder.split("/")), exist_ok=True)
+    with open(os.path.join(project_of(base), *tri.split("/")), "w", encoding="utf-8", newline="") as f:
+        f.write("v 0 0 0\nv 1 0 0\nv 0 1 0\nf 1 2 3\n")
+    problem = fresh_host(base)
+    if problem:
+        return problem
+    meshes = (export_of("ImporterExport", base, tri).get("Summary") or {}).get("Meshes") or []
+    if [(m.get("Vertices"), m.get("Triangles"), m.get("SubMeshes")) for m in meshes] != [(3, 1, 1)]:
+        return "ImporterExport lists the meshes of Tri.obj as %s" % meshes
+    mesh = {"Asset": tri, "Sub": meshes[0]["Name"], "Type": "Mesh"}
+    seed = spec("mesh_seed", {"Assets": [
+        {"Kind": "Material", "Path": folder + "/Paint.mat", "Properties": {}},
+        {"Kind": "Prefab", "Path": cart, "Root": "Cart", "Components": ["Rigidbody"],
+         "Ops": [{"Op": "AddGameObject", "Parent": "Cart", "Name": "Body", "Components": [
+                     {"Type": "MeshFilter", "Properties": {"m_Mesh": mesh}},
+                     {"Type": "MeshRenderer", "Properties": {"m_Materials": [None]}}]},
+                 {"Op": "AddGameObject", "Parent": "Cart", "Name": "Hull", "Components": ["MeshCollider"]}]},
+        {"Kind": "Scene", "Path": yard, "Ops": [{"Op": "AddPrefabInstance", "Prefab": cart, "Name": "Cart"}]}]}, tmp)
+    problem = expect(base, "CreateAsset Cart.prefab, Yard.unity", ["CreateAsset", "--args", '-spec="%s"' % seed], 0)
+    if problem:
+        return problem
+    code, report, _ = audit(base, "AuditMesh", folder, "-triangles=0")
+    found = sorted((i.get("Rule"), i.get("Object")) for i in report.get("Issues", []) if i.get("Asset") == cart)
+    large = issues(report, "G3", cart)
+    moving = issues(report, "G4", cart)
+    on_yard = [i for i in report.get("Issues", []) if i.get("Asset") == yard]
+    if code != 3 or found != [("G1", "Cart/Body"), ("G3", "Cart/Body"), ("G4", "Cart/Hull")] or on_yard \
+            or (large[0].get("Mesh"), large[0].get("Triangles")) != (meshes[0]["Name"], 1) or moving[0].get("Rigidbody") != "Cart":
+        return "AuditMesh exit %s, issues %s" % (code, report.get("Issues"))
+    fix = spec("mesh_fix", {"Targets": [{"AssetPath": cart, "Ops": [
+        {"Op": "Set", "Path": "Cart/Body", "Component": "MeshRenderer", "Properties": {"m_Materials": [folder + "/Paint.mat"]}},
+        {"Op": "Set", "Path": "Cart/Hull", "Component": "MeshCollider", "Properties": {"m_Convex": True}}]}]}, tmp)
+    problem = expect(base, "EditPrefab the fix -apply", ["EditPrefab", "--args", '-spec="%s" -apply' % fix], 0)
+    if problem:
+        return problem
+    code, report, _ = audit(base, "AuditMesh", folder)
+    if code != 0:
+        return "AuditMesh still reports %s after the fix: %s" % (report.get("Counts"), report.get("Issues"))
+    return expect(base, "DeleteAsset Meshes", ["DeleteAsset", folder, "--args", "-force -permanent -apply"], 0)
+
+
+def check_audit_audio(base, tmp):
+    # An AudioSource with no output group. Without an AudioMixer in the project A1 does not apply, the audit is clean
+    # and lists no mixers. With one, it must report the source.
+    folder = ROOT + "/Audio"
+    speaker = folder + "/Speaker.prefab"
+    seed = spec("audio_seed", {"Assets": [{"Kind": "Prefab", "Path": speaker, "Root": "Speaker", "Components": ["AudioSource"]}]}, tmp)
+    problem = expect(base, "CreateAsset Speaker.prefab", ["CreateAsset", "--args", '-spec="%s"' % seed], 0)
+    if problem:
+        return problem
+    code, report, _ = audit(base, "AuditAudio", folder)
+    mixers = report.get("Mixers")
+    if mixers == []:
+        if code != 0 or report.get("Issues"):
+            return "AuditAudio in a project with no AudioMixer exit %s, issues %s" % (code, report.get("Issues"))
+    elif not mixers or code != 3 or [i.get("Object") for i in issues(report, "A1", speaker)] != ["Speaker"]:
+        return "AuditAudio exit %s, Mixers %s, issues %s" % (code, mixers, report.get("Issues"))
+    return expect(base, "DeleteAsset Audio", ["DeleteAsset", folder, "--args", "-force -permanent -apply"], 0)
+
+
 SCRIPT_GUIDS = {"DotAssetSmokeOld": "5c0a7e01d07a55e75c0a7e01d07a55e7", "DotAssetSmokeNew": "5c0a7e02d07a55e75c0a7e02d07a55e7"}
 
 
@@ -2300,6 +2432,10 @@ def steps_of(specs):
         ("rollback blocked by an open scene", check_rollback_blocked, None),
         ("expired task refused", check_expired_task, None),
         ("editor states: pause, compile, play", check_editor_states, None),
+        ("animation clip: create, edit", check_animation_clip, None),
+        ("timeline export", check_timeline, None),
+        ("model meshes, mesh audit", check_audit_mesh, None),
+        ("audio audit", check_audit_audio, None),
         ("unused assets, audit and delete", check_unused_asset, None),
     ]
 

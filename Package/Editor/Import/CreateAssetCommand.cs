@@ -435,33 +435,39 @@ namespace DotAsset
                     error = editor.Errors[0];
                     return false;
                 }
-                if (!ParentFolder(path, out error) || !ctx.ReadyToSave(out error))
-                {
-                    return false;
-                }
-                bool success;
-                try
-                {
-                    RunJournal.Keep(path);
-                    PrefabUtility.SaveAsPrefabAsset(root, path, out success);
-                }
-                catch (Exception e)
-                {
-                    // A bad file name or an immutable folder throws, the entry fails and the run goes on.
-                    error = "Unity could not save " + path + ": " + e.Message;
-                    return false;
-                }
-                if (!success)
-                {
-                    error = "Unity refused to save " + path;
-                }
-                return success;
+                return SavePrefab(ctx, root, path, out error);
             }
             finally
             {
                 Object.DestroyImmediate(root);
                 scratch.Dispose();
             }
+        }
+
+        // Saves a built prefab or variant as a new asset at path, its folder made first.
+        static bool SavePrefab(RunContext ctx, GameObject root, string path, out string error)
+        {
+            if (!ParentFolder(path, out error) || !ctx.ReadyToSave(out error))
+            {
+                return false;
+            }
+            bool success;
+            try
+            {
+                RunJournal.Keep(path);
+                PrefabUtility.SaveAsPrefabAsset(root, path, out success);
+            }
+            catch (Exception e)
+            {
+                // A bad file name or an immutable folder throws, the entry fails and the run goes on.
+                error = "Unity could not save " + path + ": " + e.Message;
+                return false;
+            }
+            if (!success)
+            {
+                error = "Unity refused to save " + path;
+            }
+            return success;
         }
 
         static bool CreateVariant(RunContext ctx, JToken entry, string path, out string error)
@@ -491,27 +497,7 @@ namespace DotAsset
                         return false;
                     }
                 }
-                if (!ParentFolder(path, out error) || !ctx.ReadyToSave(out error))
-                {
-                    return false;
-                }
-                bool success;
-                try
-                {
-                    RunJournal.Keep(path);
-                    PrefabUtility.SaveAsPrefabAsset(instance, path, out success);
-                }
-                catch (Exception e)
-                {
-                    // A bad file name or an immutable folder throws, the entry fails and the run goes on.
-                    error = "Unity could not save " + path + ": " + e.Message;
-                    return false;
-                }
-                if (!success)
-                {
-                    error = "Unity refused to save " + path;
-                }
-                return success;
+                return SavePrefab(ctx, instance, path, out error);
             }
             finally
             {

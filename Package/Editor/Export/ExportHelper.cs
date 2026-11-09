@@ -7,12 +7,13 @@ namespace DotAsset
 {
     static class ExportHelper
     {
-        // Every export starts with the same header. ExporterVersion and ExportType are always there.
+        // Every export starts with the same header. ExporterVersion, FormatVersion and ExportType are always there.
         public static JObject Header(RunContext ctx, string assetPath)
         {
             var json = new JObject
             {
                 ["ExporterVersion"] = DotAssetVersion.Version,
+                ["FormatVersion"] = DotAssetVersion.Format,
                 ["ExportType"] = ctx.RunName,
                 ["UnityVersion"] = Application.unityVersion,
                 ["ExportedUtc"] = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ", System.Globalization.CultureInfo.InvariantCulture),

@@ -46,6 +46,8 @@ An Audit run writes only its report and fix spec, never an asset, so a run the w
 }
 ```
 
+A report starts with `ExporterVersion`, `FormatVersion`, `UnityVersion` and `CreatedUtc` too, see [AI-Guide.md](AI-Guide.md#stability).
+
 ## Fix specs
 
 When issues have a mechanical fix the audit writes `<report>.fix.json` next to the report, in the spec format of `FixRun`:

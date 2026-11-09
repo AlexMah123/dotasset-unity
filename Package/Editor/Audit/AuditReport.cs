@@ -8,8 +8,9 @@ using UnityEngine;
 namespace DotAsset
 {
     // Report shared by every audit:
-    //   {"ReportType", "Rules": {"T1": "..."}, "Checked", "IssueCount", "Counts": {"T1": 3},
-    //    "Issues": [{"Rule", "Severity", "Asset", "Message", ...}], "FixSpec": "<path>"}
+    //   {"ExporterVersion", "FormatVersion", "ReportType", "UnityVersion", "CreatedUtc",
+    //    "Rules": {"T1": "..."}, "Checked", "IssueCount", "Counts": {"T1": 3},
+    //    "Issues":[{"Rule", "Severity", "Asset", "Message", ...}], "FixSpec": "<path>"}
     // Fixable issues also go into a spec next to the report (<report>.fix.json) that the matching Edit or
     // Migrate run takes as is. Review it, then run that command with -apply.
     sealed class AuditReport
@@ -69,6 +70,7 @@ namespace DotAsset
             var json = new JObject
             {
                 ["ExporterVersion"] = DotAssetVersion.Version,
+                ["FormatVersion"] = DotAssetVersion.Format,
                 ["ReportType"] = ctx.RunName,
                 ["UnityVersion"] = Application.unityVersion,
                 ["CreatedUtc"] = DateTime.UtcNow.ToString("yyyy-MM-ddTHH:mm:ssZ", System.Globalization.CultureInfo.InvariantCulture),

@@ -194,7 +194,7 @@ An AI agent such as Claude can do most of this without DotAsset, by editing the 
 | 3 | Audits only: the run succeeded and the report lists issues |
 | 4 | Unknown: the wrapper was interrupted, timed out or lost Unity after a run that could write (an Import, or an Edit or Migrate with `-apply`) started. A run that cannot write is 1. `--result <task>` reads the editor's result later |
 
-`--json` prints the full result as well: every log line, the outputs, the failed targets. On code 4 the wrapper prints `outcome: unknown, task <id>`: check with `python dotasset.py --result <id>`, which returns the run's own code once the editor has finished it and 4 while it still runs, before retrying anything that writes.
+`--json` prints the full result as well: every log line, the outputs, the failed targets. Every result, export and audit report carries `FormatVersion`, which goes up only on a breaking change, see [Stability](Docs/AI-Guide.md#stability). On code 4 the wrapper prints `outcome: unknown, task <id>`: check with `python dotasset.py --result <id>`, which returns the run's own code once the editor has finished it and 4 while it still runs, before retrying anything that writes.
 
 ## For AI agents
 

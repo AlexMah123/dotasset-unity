@@ -36,6 +36,7 @@ namespace DotAsset
             var json = new JObject
             {
                 ["DotAssetVersion"] = DotAssetVersion.Version,
+                ["FormatVersion"] = DotAssetVersion.Format,
                 ["RunName"] = RunName,
                 ["ExitCode"] = ExitCode,
                 ["DryRun"] = DryRun,

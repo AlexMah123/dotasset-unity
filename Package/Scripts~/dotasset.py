@@ -71,6 +71,9 @@ EXIT_REFUSED = 2
 EXIT_ISSUES = 3
 EXIT_UNKNOWN = 4
 
+# DotAssetVersion.Format: every run result carries it, the wrapper's own --json report too.
+FORMAT_VERSION = 1
+
 BUSY_STATES = {"busy", "compiling", "importing", "playmode", "reloading", "starting"}
 
 # --agent: compact output for AI agents. Wrapper progress is muted, only its errors, warnings and hints print.
@@ -567,7 +570,7 @@ def unknown_outcome(args, task_id, result_path, may_have_written=True):
     log(line)
     code = EXIT_UNKNOWN if may_have_written else EXIT_FAILED
     if args.json:
-        report = {"ExitCode": code}
+        report = {"FormatVersion": FORMAT_VERSION, "ExitCode": code}
         if may_have_written:
             report["Outcome"] = "unknown"
         report.update({"Task": task_id, "ResultPath": result_path})

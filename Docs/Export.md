@@ -59,6 +59,7 @@ Every export starts with:
 | Field | Meaning |
 | --- | --- |
 | `ExporterVersion` | DotAsset version |
+| `FormatVersion` | The JSON format, 1. Goes up only on a breaking change, see [AI-Guide.md](AI-Guide.md#stability) |
 | `ExportType` | The run name |
 | `UnityVersion`, `ExportedUtc` | |
 | `AssetPath`, `Guid` | |

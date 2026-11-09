@@ -1452,6 +1452,19 @@ class PackageFiles(unittest.TestCase):
         self.assertIn("`#v%s`" % pkg["version"], readme, "README install pin")
         self.assertIn("DotAsset %s, Unity" % pkg["version"], readme, "README sample output")
 
+    def test_format_version_agrees(self):
+        """N3: the wrapper's own --json report for a run it lost sight of carries the same FormatVersion as a
+        RunResult, so a caller can check it on every run's JSON."""
+        cs = read(os.path.join(PACKAGE, "Editor", "Core", "DotAssetVersion.cs"))
+        self.assertIn("Format = %d;" % getattr(ops, "FORMAT_VERSION", -1), cs)
+        out = StringIO()
+        with redirect_stdout(out), redirect_stderr(StringIO()):
+            code = ops.unknown_outcome(mock.Mock(json=True), "a" * 32, None)
+        self.assertEqual(code, ops.EXIT_UNKNOWN)
+        text = out.getvalue()
+        report = json.loads(text[text.index("{"):])
+        self.assertEqual(report.get("FormatVersion"), 1, text)
+
     def test_no_char_contains(self):
         """string.Contains(char) is missing from .NET Framework 4.8."""
         for dirpath, _, files in os.walk(os.path.join(PACKAGE, "Editor")):

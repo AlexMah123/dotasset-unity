@@ -148,6 +148,16 @@ grep -n '"Path": "Player/Model' Library/DotAsset/Export/Assets/Prefabs/Player.pr
 
 Audit reports land in `Library/DotAsset/Audit/`, with `-report=` to choose the path, outside `Assets/`, `Packages/` and `ProjectSettings/`. It replaces only its own earlier report and fix spec there, any other file at that path is refused with exit 2. Run logs: `Library/DotAsset/Logs/`, and `Window > DotAsset` lists them in the editor.
 
+## Stability
+
+What a script can rely on from 0.12.0 on:
+
+- Every run result (`--json`, `--result`, the Unity CLI route), export and audit report carries `"FormatVersion": 1`. It goes up only on a breaking change to that JSON: a key removed or renamed, or a value whose meaning changes. Check it, not `ExporterVersion` or `DotAssetVersion`, which name the release.
+- New keys can appear in any release without it. Skip keys you do not know.
+- A key, run name, argument, spec key or exit code is never removed or renamed at once. It is marked deprecated in Version.md and kept for one more minor release, an input with a `warning:` line naming what replaces it, then removed in a release marked breaking.
+- Until 1.0.0 a breaking change comes in a minor release, from 1.0.0 in a major one.
+- Not covered: the wording of log lines (the `error:`, `warning:` and `output:` prefixes and the failure line shape are), key order, and files under `Library/DotAsset/` other than exports, audit reports and fix specs.
+
 ## Pitfalls
 
 | Pitfall | Do this |

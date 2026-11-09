@@ -237,7 +237,7 @@ Commands are plain classes: derive from `DotAssetCommand`, name the class `<RunN
 | Tool | Checked | Editor closed | Writes | Best for |
 | :-- | :-- | :-: | :-- | :-- |
 | **DotAsset** | | ✓ (headless) | Fixed runs: dry run by default, all or nothing per asset, journaled so `UndoRun` takes a run back, unknown keys refused, never over unsaved work in the editor | Reference-aware migrations (remap references and scripts, moves, deletes that check users), audits with fix specs, repeatable asset edits, in CI or by an agent |
-| [Unity CLI](https://unity.com/blog/meet-the-unity-cli) with `com.unity.pipeline` (Unity 6+) | Tested 2026-10-30 (beta.13), docs 2026-11-01 (beta.14), DotAsset's adapter tested 2026-11-02 (beta.15), release notes and Pipeline 0.9 safety docs 2026-11-05 (beta.16) | Partial: `unity cmd` talks to a running Unity with the Pipeline, an editor or a batch instance | About 200 editor commands (217 listed in beta.15). Destructive and overwriting commands take `confirm` and `dry_run` (a preview), asset writes are not undone by Ctrl+Z. `batch` of up to 200 ops on one undo (rollback covers Undo, not asset files; its dry run validates only), `eval` for any C#, custom `[CliCommand]`s, `unity mcp` for agents (`--tools` and `--exclude-tools` pick which tools it lists since beta.14) | Editor installs, builds, tests, Project Auditor, general editor work |
+| [Unity CLI](https://unity.com/blog/meet-the-unity-cli) with `com.unity.pipeline` (Unity 6+) | Tested 2026-10-30 (beta.13), docs 2026-11-01 (beta.14), DotAsset's adapter tested 2026-11-02 (beta.15), release notes and Pipeline 0.9 safety docs 2026-11-05 (beta.16), Pipeline 0.10 command list 2026-11-09 | Partial: `unity cmd` talks to a running Unity with the Pipeline, an editor or a batch instance | About 200 editor commands (217 listed in beta.15). Destructive and overwriting commands take `confirm` and `dry_run` (a preview), asset writes are not undone by Ctrl+Z. `batch` of up to 200 ops on one undo (rollback covers Undo, not asset files; its dry run validates only), `eval` for any C#, custom `[CliCommand]`s, `unity mcp` for agents (`--tools` and `--exclude-tools` pick which tools it lists since beta.14) | Editor installs, builds, tests, Project Auditor, general editor work |
 | [IvanMurzak/Unity-MCP](https://github.com/IvanMurzak/Unity-MCP) | Docs 2026-11-05 (1.7.0) | Batch mode (`-batchmode -nographics` with `-UNITY_MCP_KEEP_CONNECTED=true`) | Editor tools, including Prefab Mode open and save, asset move and delete (no reference checks documented), and since 1.7.0 queries and changes through `rql-query` and `rql-mutate` | Agent work in an open editor, or a batch-mode Unity in CI |
 | [CoplayDev/unity-mcp](https://github.com/CoplayDev/unity-mcp) | Docs and source 2026-11-05 (v10.3.0) | ✗ | 50 editor tools: assets (create, duplicate, move, rename, delete), prefabs, materials, ScriptableObjects, textures, scenes, scripts, builds, packages, tests, `execute_code`, `batch_execute`. No dry run or rollback documented | Interactive work in an open editor |
 | [AnkleBreaker unity-mcp-plugin](https://github.com/AnkleBreaker-Studio/unity-mcp-plugin) | Docs 2026-11-05 (2.41.4) | ✗ | 338 editor routes, named undo groups for writes that register Undo (not filesystem changes) | Interactive work in an open editor |
@@ -271,10 +271,11 @@ Package/                  the UPM package (com.alexmah.dotasset)
   Editor/Core/            dispatcher, task queue, headless entry, value codec, sessions
   Editor/<Group>/         one <RunName>Command.cs per run
   Scripts~/dotasset.py    the wrapper
-Docs/                     agent-facing docs, one per group plus AI-Guide.md
+Docs/                     agent-facing docs, one per group plus AI-Guide.md, SKILL.md and Unity-CLI-and-MCP.md
 tests/                    wrapper tests and naming-rule checks, tests/smoke/ the end-to-end test
 examples/                 agent tasks done with DotAsset, e.g. npc_scenario.py
 tools/gen_meta.py         writes missing .meta files
+tools/compile_check.py    compiles the package with each test project's Unity compiler
 ```
 
 - `python -m unittest discover -s tests` runs the wrapper tests against a fake editor and a fake Unity

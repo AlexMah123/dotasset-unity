@@ -14,7 +14,7 @@ Package/                         the UPM package (com.alexmah.dotasset), install
 │   ├── UnityCli/                Unity CLI adapter, its own asmdef, compiled only with com.unity.pipeline
 │   └── UI/                      Window > DotAsset
 └── Scripts~/dotasset.py              the wrapper (the ~ keeps Unity from importing it)
-Docs/                            agent-facing docs, one per group plus AI-Guide.md
+Docs/                            agent-facing docs, one per group plus AI-Guide.md, SKILL.md and Unity-CLI-and-MCP.md
 tests/                           wrapper tests and naming-rule checks: python -m unittest discover -s tests
 tests/smoke/run_smoke.py         end-to-end test in a real Unity project, both routes
 tests/editmode/run_editmode.py   EditMode tests of the rewriters, ValueCodec and RunArgs, in DotAssetTest-Medium (has the Test Framework)

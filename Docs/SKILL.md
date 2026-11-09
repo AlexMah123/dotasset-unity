@@ -1,6 +1,6 @@
 ---
 name: dotasset
-description: Read, create, edit, move and audit Unity assets (prefabs, scenes, ScriptableObjects, materials, animator controllers, import settings) from the command line through the DotAsset wrapper. Use for any Unity asset change instead of hand-editing YAML.
+description: Read, create, edit, move and audit Unity assets (prefabs, scenes, ScriptableObjects, materials, animator controllers, animation clips, timelines, import settings) from the command line through the DotAsset wrapper. Use for any Unity asset change instead of hand-editing YAML.
 ---
 
 # DotAsset
@@ -16,7 +16,7 @@ python dotasset.py <RunName> "<AssetList>" --args "<-key=value ...>" --agent
 - `dotasset.py` sits in the package's `Scripts~/` or the project root. Run it inside the project, or pass `--project DIR`.
 - It uses the open editor when there is one, headless Unity otherwise. `--launch` opens the editor, `--serve` starts a warm headless host for many runs in a row, `--quit` closes either.
 - Always pass `--agent`. A clean run prints one line, `exit <code> <summary>`. Lines that follow start with `error:`, `warning:`, `failed:`, `out:`, `plan:` or `log:`.
-- `--list` prints every run, project-specific ones included.
+- `--list` prints every run, project-specific ones included. It runs `CommandCatalogExport`, whose JSON also gives each run's arguments.
 - With `com.unity.pipeline` installed, `unity command dotasset run --name <RunName> --args "..."` reaches the same runs (`--confirm true` for `-apply`). The wrapper is still needed for the closed editor, `--launch` and `--quit`, see `Docs/AI-Guide.md`.
 - `dotasset.py --mcp` serves the same runs as MCP tools (`dotasset_run`, `dotasset_list`) on any Unity version, see "As an MCP server" in `Docs/AI-Guide.md`.
 

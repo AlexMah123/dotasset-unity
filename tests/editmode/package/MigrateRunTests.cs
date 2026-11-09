@@ -302,15 +302,31 @@ namespace DotAsset.Tests
             Report("AuditMissingReference", 0, "", Folder);
         }
 
+        // The run reports each file and the total in these words, the plan entry carries the detail.
+        static void Says(RunResult r, string planned, params string[] lines)
+        {
+            string all = string.Join("\n", r.Lines.ToArray());
+            foreach (string line in lines)
+            {
+                CollectionAssert.Contains(r.Lines, "I " + line, all);
+            }
+            if (planned != null)
+            {
+                Assert.IsTrue(r.Plan.Any(p => (string)p["Detail"] == planned), "no plan entry with Detail " + planned);
+            }
+        }
+
         [Test]
         public void RemapScriptMovesTheComponentAndKeepsItsValues()
         {
             string unit = Prefab<RunTestOld>("Unit", c => c.hp = 7);
-            string args = "-from=" + ScriptPath<RunTestOld>() + " -to=" + ScriptPath<RunTestNew>() + " -scandir=" + Folder;
+            string to = ScriptPath<RunTestNew>();
+            string args = "-from=" + ScriptPath<RunTestOld>() + " -to=" + to + " -scandir=" + Folder;
             RunResult dry = Ok("RemapScript", args);
             Assert.IsTrue(dry.Plan.Any(p => (string)p["Action"] == "rewrite" && (string)p["Path"] == unit), "the dry run did not plan Unit");
+            Says(dry, "1 script reference(s) to " + to, "would repoint 1 script reference(s) in " + unit, "would change 1 reference(s) in 1 file(s) to " + to);
             Assert.IsNotNull(AssetDatabase.LoadAssetAtPath<GameObject>(unit).GetComponent<RunTestOld>(), "the dry run remapped");
-            Ok("RemapScript", args + " -apply");
+            Says(Ok("RemapScript", args + " -apply"), null, "repointed 1 script reference(s) in " + unit, "changed 1 reference(s) in 1 file(s) to " + to);
             var root = AssetDatabase.LoadAssetAtPath<GameObject>(unit);
             Assert.IsNull(root.GetComponent<RunTestOld>());
             Assert.AreEqual(7, root.GetComponent<RunTestNew>().hp);
@@ -327,8 +343,9 @@ namespace DotAsset.Tests
             string args = "-script=" + script + " -from=hp -to=health -scandir=" + Folder;
             RunResult dry = Ok("RenameField", args);
             Assert.IsTrue(dry.Plan.Any(p => (string)p["Action"] == "rewrite" && (string)p["Path"] == field), "the dry run did not plan Field");
+            Says(dry, "1 key(s) hp to health", "would rename 1 key(s) in " + field, "would rename 1 key(s) in 1 file(s), hp to health");
             StringAssert.Contains("  hp: 7", Text(field), "the dry run renamed");
-            Ok("RenameField", args + " -apply");
+            Says(Ok("RenameField", args + " -apply"), null, "renamed 1 key(s) in " + field, "renamed 1 key(s) in 1 file(s), hp to health");
             StringAssert.Contains("  health: 7", Text(field));
             Assert.AreEqual(7, AssetDatabase.LoadAssetAtPath<GameObject>(field).GetComponent<RunTestField>().health);
         }
@@ -346,8 +363,10 @@ namespace DotAsset.Tests
             string args = "-from=\"DotAsset.Tests DotAsset.Tests.RunTestRefGone\" -to=DotAsset.Tests.RunTestRefItem -scandir=" + Folder;
             RunResult dry = Ok("RenameSerializeReferenceType", args);
             Assert.IsTrue(dry.Plan.Any(p => (string)p["Action"] == "rewrite" && (string)p["Path"] == asset), "the dry run did not plan Ref.asset");
+            string toName = "DotAsset.Tests DotAsset.Tests.RunTestRefItem";
+            Says(dry, "1 entry to " + toName, "would repoint 1 [SerializeReference] entry in " + asset, "would change 1 entry in 1 file(s) to " + toName);
             StringAssert.Contains("class: RunTestRefGone", Text(asset), "the dry run renamed");
-            Ok("RenameSerializeReferenceType", args + " -apply");
+            Says(Ok("RenameSerializeReferenceType", args + " -apply"), null, "repointed 1 [SerializeReference] entry in " + asset, "changed 1 entry in 1 file(s) to " + toName);
             var item = AssetDatabase.LoadAssetAtPath<RunTestRefHolder>(asset).item as RunTestRefItem;
             Assert.IsNotNull(item, "the data did not come back as RunTestRefItem");
             Assert.AreEqual(7, item.x);

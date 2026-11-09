@@ -87,6 +87,10 @@ namespace DotAsset.Tests
             Assert.AreEqual(new[] { "Rig/Big" }, Objects(report, "G3", rig), "Body is in the LODGroup\n" + report);
             Assert.AreEqual(new[] { "Rig/Hull" }, Objects(report, "G4", rig), report.ToString());
             Assert.IsFalse(report["Issues"].Any(i => (string)i["Asset"] != rig), "the scene's instance repeats the prefab's issues, or the fixture has one\n" + report);
+            JToken large = report["Issues"].First(i => (string)i["Rule"] == "G3");
+            Assert.AreEqual("Quad", (string)large["Mesh"], report.ToString());
+            Assert.AreEqual(2, (int?)large["Triangles"], report.ToString());
+            Assert.AreEqual("Rig", (string)report["Issues"].First(i => (string)i["Rule"] == "G4")["Rigidbody"], report.ToString());
 
             Ok("EditPrefab", Spec(@"{'Targets': [{'AssetPath': '" + rig + @"', 'Ops': [{'Op': 'Set', 'Path': 'Rig', 'Component': 'Rigidbody', 'Properties': {'m_IsKinematic': true}}]}]}") + " -apply");
             Assert.IsEmpty(Objects(Report("AuditMesh", 3, "-triangles=1", Folder), "G4", rig), "a kinematic Rigidbody may carry a non-convex MeshCollider");

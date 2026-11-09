@@ -149,7 +149,7 @@ namespace DotAsset
             if (failed)
             {
                 result.Error = ctx.FailedTargets.Count > 0
-                    ? runName + " failed for " + string.Join(", ", ctx.FailedTargets) + ". " + (log.FirstError ?? string.Empty)
+                    ? runName + " failed for " + string.Join(", ", ctx.FailedTargets) + ". " + WithoutTarget(runName, ctx.FailedTargets, log.FirstError)
                     : log.FirstError ?? result.Summary;
             }
             result.LogFile = WriteLogFile(runName, result);
@@ -408,6 +408,25 @@ namespace DotAsset
             sb.Append(", ").Append(ctx.Log.Warnings).Append(" warning(s), ").Append(ctx.Log.Errors).Append(" error(s), ");
             sb.Append(seconds.ToString("0.0", System.Globalization.CultureInfo.InvariantCulture)).Append('s');
             return sb.ToString();
+        }
+
+        // The first error without the "<RunName> failed for <target>. " that FailTarget puts in front, since the
+        // Error names the run and its failed targets already. Any other first error is kept as it is.
+        static string WithoutTarget(string runName, IList<string> failedTargets, string firstError)
+        {
+            if (firstError == null)
+            {
+                return string.Empty;
+            }
+            foreach (string target in failedTargets)
+            {
+                string own = runName + " failed for " + target + ". ";
+                if (firstError.StartsWith(own, StringComparison.Ordinal))
+                {
+                    return firstError.Substring(own.Length);
+                }
+            }
+            return firstError;
         }
 
         static string FirstLine(string message)

@@ -370,7 +370,8 @@ class GroupRule(unittest.TestCase):
                     text = read(os.path.join(dirpath, name))
                     cls = name[:-3]
                     self.assertRegex(text, r"public sealed class %s : DotAssetCommand" % cls, name)
-                    self.assertIn("Docs/", text, name + " header must point at its doc")
+                    group = os.path.basename(dirpath)
+                    self.assertRegex(text, r"(?m)^\s*// Docs/%s\.md$" % group, name + " header must point at Docs/%s.md" % group)
 
     def test_queue_constants_match(self):
         src = read(os.path.join(PACKAGE, "Editor", "Core", "TaskQueue.cs"))
@@ -1583,6 +1584,15 @@ class PackageFiles(unittest.TestCase):
                 if name.endswith(".cs"):
                     text = read(os.path.join(dirpath, name))
                     self.assertIsNone(re.search(r"\.Contains\('.'\)", text), name)
+
+    def test_exit_codes_go_through_the_enum(self):
+        """Exit codes come from ExitCode, never a bare int (CLAUDE.md code rules)."""
+        bare = re.compile(r"\bExit\(\s*-?\d|\bExitCode\s*=\s*-?\d|\(ExitCode\)\s*-?\d")
+        for dirpath, _, files in os.walk(os.path.join(PACKAGE, "Editor")):
+            for name in files:
+                if name.endswith(".cs"):
+                    for n, line in enumerate(read(os.path.join(dirpath, name)).splitlines(), 1):
+                        self.assertIsNone(bare.search(line), "%s:%d %s" % (name, n, line.strip()))
 
     def test_docs_mention_every_run(self):
         docs = "".join(read(os.path.join(ROOT, "Docs", f)) for f in os.listdir(os.path.join(ROOT, "Docs")))

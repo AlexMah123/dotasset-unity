@@ -370,7 +370,7 @@ namespace DotAsset
             }
             UnityEngine.Debug.Log("[DotAsset] closing the editor on request" + (force ? ", unsaved changes discarded" : string.Empty));
             TryDelete(AlivePath);
-            EditorApplication.Exit(0);
+            EditorApplication.Exit((int)ExitCode.Success);
         }
 
         static string UnsavedWork(string action)

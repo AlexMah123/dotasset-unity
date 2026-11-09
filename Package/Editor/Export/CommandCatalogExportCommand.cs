@@ -7,7 +7,7 @@ namespace DotAsset
     // Every registered run with its group, summary and arguments, including commands from your own assemblies.
     // The wrapper's --list prints it.
     // Usage: dotasset.py CommandCatalogExport      (or: dotasset.py --list)
-    // Docs/AI-Guide.md
+    // Docs/Export.md
     public sealed class CommandCatalogExportCommand : DotAssetCommand
     {
         public override string Summary

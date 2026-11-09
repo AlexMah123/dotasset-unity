@@ -1502,18 +1502,20 @@ def seconds(text):
 # routed the way a dotasset.py call is, so the closed editor and a --serve host work too.
 MCP_PROTOCOLS = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")
 MCP_INSTRUCTIONS = ("DotAsset reads, creates, edits, moves and audits Unity assets. Export first for exact property names "
-                    "and paths, dry run an Edit or Migrate run and read its plan: lines, then call it again with "
+                    "and paths, dry run an Edit or Migrate run (no -apply in args) and read its plan: lines, then call it again with "
                     "confirm=true, then export again to check. Docs/AI-Guide.md in the package has the full manual.")
 MCP_TOOLS = [
     {"name": "dotasset_run",
-     "description": "Run a DotAsset run on the Unity project, in the open editor or headless. Edit and Migrate runs only "
-                    "plan without confirm=true. The result is the run's --agent output: exit code and summary, then "
-                    "error:, warning:, failed:, out: and plan: lines",
+     "description": "Run a DotAsset run on the Unity project, in the open editor or headless. An Edit or Migrate run "
+                    "writes only with confirm=true or -apply in args, otherwise it reports its plan. Import runs write "
+                    "either way, Export and Audit runs never. The result is the run's --agent output: exit code and "
+                    "summary, then error:, warning:, failed:, out: and plan: lines",
      "inputSchema": {"type": "object", "required": ["name"], "properties": {
          "name": {"type": "string", "description": "The run, e.g. EditMaterial or MoveAsset. dotasset_list shows them all"},
          "args": {"type": "string", "description": "The run's arguments as on the dotasset.py command line, e.g. -spec=\"C:/t/red.json\""},
          "assets": {"type": "string", "description": "Comma-separated asset paths or folders for runs that take entry assets, as the AssetList of dotasset.py"},
-         "confirm": {"type": "boolean", "description": "true writes (adds -apply). Without it an Edit or Migrate run only reports its plan"},
+         "confirm": {"type": "boolean", "description": "true adds -apply, so an Edit or Migrate run writes. -apply in args writes "
+                                                       "too, so a dry run leaves both out. Import runs write either way"},
          "timeout": {"type": "integer", "minimum": 1, "description": "Seconds to wait (default: the wrapper's --timeout). A run that outlasts it can still "
                                                                       "finish and write, its task: line names the task for dotasset.py --result"}}}},
     {"name": "dotasset_list",

@@ -1379,6 +1379,20 @@ class McpMode(Base):
         self.assertEqual(replies[None]["error"]["code"], -32700)
         self.assertEqual(replies[7]["error"]["code"], -32602)
 
+    def test_write_wording_names_apply_in_args(self):
+        """R6-5: confirm is not the only way to write. -apply in args writes an Edit or Migrate run too, and an Import
+        run writes either way, so the run and confirm descriptions of both adapters say so."""
+        run = ops.MCP_TOOLS[0]
+        texts = {"mcp run": run["description"], "mcp confirm": run["inputSchema"]["properties"]["confirm"]["description"]}
+        cli = read(os.path.join(PACKAGE, "Editor", "UnityCli", "UnityCliCommands.cs"))
+        texts["cli run"] = re.search(r'\[CliCommand\(Group, "run", "([^"]*)"', cli).group(1)
+        texts["cli confirm"] = re.search(r'\[CliArg\("confirm", "([^"]*)"', cli).group(1)
+        for where, text in texts.items():
+            self.assertIn("-apply in args", text, where)
+            self.assertIn("Import runs write either way", text, where)
+        guide = read(os.path.join(ROOT, "Docs", "AI-Guide.md"))
+        self.assertIn("`-apply` in `args` writes", guide)
+
     def test_mcp_takes_no_run(self):
         err = StringIO()
         with redirect_stderr(err):

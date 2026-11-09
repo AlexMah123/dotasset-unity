@@ -12,12 +12,12 @@ namespace DotAsset
     {
         const string Group = "dotasset";
 
-        [CliCommand(Group, "run", "Run a DotAsset run in the open editor. Edit and Migrate runs only plan without confirm=true. The result is the run's JSON, a run that does not exit 0 fails with its lines as the message")]
+        [CliCommand(Group, "run", "Run a DotAsset run in the open editor. An Edit or Migrate run writes only with confirm=true or -apply in args, otherwise it reports its plan. Import runs write either way, Export and Audit runs never. The result is the run's JSON, a run that does not exit 0 fails with its lines as the message")]
         public static async Task<JObject> Run(
             [CliArg("name", "The run, e.g. EditMaterial or MoveAsset. dotasset list shows them all", Required = true)] string name,
             [CliArg("args", "The run's arguments as on the dotasset.py command line, e.g. \"-spec=Assets/Specs/red.json\"")] string args = "",
             [CliArg("assets", "Comma-separated asset paths or folders for runs that take entry assets, as the AssetList of dotasset.py")] string assets = "",
-            [CliArg("confirm", "true writes (adds -apply). Without it an Edit or Migrate run only reports its plan")] bool confirm = false,
+            [CliArg("confirm", "true adds -apply, so an Edit or Migrate run writes. -apply in args writes too, so a dry run leaves both out. Import runs write either way")] bool confirm = false,
             [CliArg("timeout", "Seconds the caller waits. A run that outlasts it still finishes and writes, read its log before rerunning")] double timeout = 1800)
         {
             // A string, not string[]: the CLI takes an array only as JSON, and refuses a repeated --assets.

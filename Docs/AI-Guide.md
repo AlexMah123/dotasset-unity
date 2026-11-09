@@ -144,6 +144,18 @@ unity command dotasset run --name PrefabExport --assets "Assets/Prefabs/Player.p
 
 A run that exits 0 returns the result JSON (`--result-only` prints just that), the same as `--json`. Any other exit fails the command (the CLI exits non-zero) with `exit <code>, <summary>` and the run's lines as the message. The CLI's exit codes are its own, not DotAsset's: 6 when the run did not exit 0 or outlasted `--timeout` (not 14, the message says `504` and "did not complete within its N s timeout"), 13 when the editor has no `dotasset` command (the package or `com.unity.pipeline` 0.9+ is missing), 12 when no editor or host has the project open, 2 for a bad CLI argument. `unity --help` marks with `*` the codes where the same command can succeed when run again, 12 among them. 6 is not one: read the run's log first, a timed-out run may still be writing. These codes are beta.15's. The beta.16 release notes (2026-11-03) give a timeout its own code, 14, and add 17 (unavailable) and 18 (awaiting input), both 6 before, so treat 6, 14, 17 and 18 alike: a run that may have written, read its log. MCP clients see `dotasset_run` marked destructive, because it takes `confirm`. That marking covers the Export and Audit runs too, which never write. Runs are reported after the open scenes they saved have settled, and wait for a queued run that is still settling. `unity command job batch` refuses `dotasset run` (`not_batchable`, it is async): DotAsset writes files that Undo cannot revert, so run it on its own, before or after the batch. The wrapper's flags (`--launch`, `--quit`, `--status`, the headless route) have no CLI form. With the editor closed, use `dotasset.py`, or start a warm host with `dotasset.py --serve` and the CLI reaches that host as it reaches the editor.
 
+### As an MCP server
+
+`dotasset.py --mcp` serves the runs as MCP tools over stdin and stdout, standard library only, for an MCP client in a project without `unity mcp` (Unity 2022.3, or no `com.unity.pipeline`). It has the same two tools as the Unity CLI adapter: `dotasset_run` (`name`, `args`, `assets`, `confirm`, `timeout`, as in the table above) and `dotasset_list`. Each call goes the way a `dotasset.py` call goes, to the open editor, a warm `--serve` host, or a headless Unity started for that call. Headless starts are slow, so start a host with `--serve` before many calls.
+
+```json
+{ "mcpServers": { "dotasset": { "command": "python", "args": ["C:/Work/Project/dotasset.py", "--project", "C:/Work/Project", "--mcp"] } } }
+```
+
+In Claude Code: `claude mcp add dotasset -- python C:/Work/Project/dotasset.py --project C:/Work/Project --mcp`.
+
+A tool result is the run's `--agent` output as text: `exit <code> <summary>`, then the `error:`, `warning:`, `failed:`, `out:`, `plan:` and `task:` lines. `isError` is true for every exit but 0 and 3, so an audit that found issues is no error, read its `exit 3` line. `confirm: true` adds `-apply` to an Edit or Migrate run only. `dotasset_list` returns one line per run, `RunName (Group): Summary. -arguments`. Calls are answered one at a time, in order. Keep `timeout` (default the wrapper's `--timeout`, 600 s) below the client's own tool timeout, for the same reason as on the command line. `--launch`, `--quit`, `--status` and `--result` are not tools, call them from a shell.
+
 ## Reading results
 
 Every run prints its log, then `[dotasset] <summary>` and the path of its log file. Lines starting `error:` and `warning:` are the ones to read first.

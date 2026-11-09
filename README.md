@@ -38,6 +38,7 @@ Every write goes through Unity's own API (`SerializedObject`, `PrefabUtility`, `
 - **Writes**: all or nothing per target, unknown spec keys and arguments are refused rather than ignored. Edit and Migrate are dry runs until `-apply`, and a dry run that tries to save, move or delete anyway is refused and fails. A Migrate run that fails a target rolls back every file it wrote (`-atomic=false` keeps the targets that worked)
 - **Undo**: every writing run journals the files it touches under `Library/DotAsset/Journal/`, and the Build Settings scene list when the run changes it, and `UndoRun -run=last -apply` puts them back. With several callers on one project, `--caller` makes `-run=last` take only your own runs
 - **Unity CLI**: with `com.unity.pipeline` 0.9 or later, `unity command dotasset run` and `unity mcp` reach the same runs in the open editor or a warm `--serve` host
+- **MCP**: `dotasset.py --mcp` is a stdio MCP server with the same two tools, on every supported Unity version, Unity 2022.3 included, editor open or closed
 
 ## Supported assets
 

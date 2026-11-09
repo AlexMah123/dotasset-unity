@@ -18,6 +18,7 @@ python dotasset.py <RunName> "<AssetList>" --args "<-key=value ...>" --agent
 - Always pass `--agent`. A clean run prints one line, `exit <code> <summary>`. Lines that follow start with `error:`, `warning:`, `failed:`, `out:`, `plan:` or `log:`.
 - `--list` prints every run, project-specific ones included.
 - With `com.unity.pipeline` installed, `unity command dotasset run --name <RunName> --args "..."` reaches the same runs (`--confirm true` for `-apply`). The wrapper is still needed for the closed editor, `--launch` and `--quit`, see `Docs/AI-Guide.md`.
+- `dotasset.py --mcp` serves the same runs as MCP tools (`dotasset_run`, `dotasset_list`) on any Unity version, see "As an MCP server" in `Docs/AI-Guide.md`.
 
 ## Pick a run
 

@@ -1138,6 +1138,93 @@ class HeadlessLock(Base):
         self.assertEqual(codes, [0, 0, 0, 0])
 
 
+class McpMode(Base):
+    """q-later-5 (F16): --mcp serves the runs as MCP tools over stdin and stdout, for Unity 2022.3, which has no unity
+    mcp. The same two tools as the Unity CLI adapter, each call going the way a dotasset.py call goes."""
+
+    def serve(self, messages, respond):
+        editor = FakeEditor(self.project, respond)
+        editor.start()
+        raw_in = __import__("io").BytesIO("".join(m if isinstance(m, str) else json.dumps(m) + "\n" for m in messages).encode("utf-8"))
+        raw_out = __import__("io").BytesIO()
+        text_out = __import__("io").TextIOWrapper(raw_out, encoding="utf-8", write_through=True)
+        try:
+            with mock.patch.object(ops.sys, "stdin", __import__("io").TextIOWrapper(raw_in, encoding="utf-8")), \
+                    mock.patch.object(ops.sys, "stdout", text_out):
+                code = ops.main(["--project", self.project, "--mcp"])
+        finally:
+            editor.stop.set()
+        lines = raw_out.getvalue().decode("utf-8").splitlines()
+        # Nothing but protocol messages on stdout: the run's own lines go into the tool result.
+        replies = [json.loads(l) for l in lines if l.strip()]
+        return code, {r.get("id"): r for r in replies}, editor
+
+    def test_tools_list_and_call(self):
+        catalog = os.path.join(self.tmp, "catalog.json")
+        with open(catalog, "w") as f:
+            json.dump({"Commands": [{"RunName": "EditMaterial", "Group": "Edit", "Summary": "Edits materials", "Arguments": ["-spec", "-apply"]}]}, f)
+
+        def respond(t):
+            if t["RunName"] == "CommandCatalogExport":
+                return result(t["RunName"], outputs=[catalog])
+            if t["RunName"] == "MoveAsset":
+                return result(t["RunName"], code=2, error="needs -from")
+            return result(t["RunName"], lines=["I working", "W careful"])
+
+        code, replies, editor = self.serve([
+            {"jsonrpc": "2.0", "id": 1, "method": "initialize",
+             "params": {"protocolVersion": "2025-06-18", "capabilities": {}, "clientInfo": {"name": "test", "version": "1"}}},
+            {"jsonrpc": "2.0", "method": "notifications/initialized"},
+            {"jsonrpc": "2.0", "id": 2, "method": "tools/list"},
+            {"jsonrpc": "2.0", "id": 3, "method": "tools/call",
+             "params": {"name": "dotasset_run", "arguments": {"name": "EditMaterial", "args": "-spec=C:/t/red.json", "assets": "Assets/A.mat", "confirm": True}}},
+            {"jsonrpc": "2.0", "id": 4, "method": "tools/call", "params": {"name": "dotasset_run", "arguments": {"name": "MoveAsset"}}},
+            {"jsonrpc": "2.0", "id": 5, "method": "tools/call", "params": {"name": "dotasset_list", "arguments": {}}},
+            {"jsonrpc": "2.0", "id": 6, "method": "resources/list"},
+            "not json\n",
+            {"jsonrpc": "2.0", "id": 7, "method": "tools/call", "params": {"name": "dotasset_run", "arguments": {}}},
+        ], respond)
+        self.assertEqual(code, 0)
+        self.assertEqual(sorted(k for k in replies if k is not None), [1, 2, 3, 4, 5, 6, 7], "a notification got a reply")
+        init = replies[1]["result"]
+        self.assertEqual(init["protocolVersion"], "2025-06-18")
+        self.assertIn("tools", init["capabilities"])
+        self.assertEqual(init["serverInfo"]["name"], "dotasset")
+        tools = replies[2]["result"]["tools"]
+        self.assertEqual([t["name"] for t in tools], ["dotasset_run", "dotasset_list"])
+        self.assertEqual(tools[0]["inputSchema"]["required"], ["name"])
+
+        run = replies[3]["result"]
+        self.assertFalse(run["isError"])
+        self.assertEqual(run["content"][0]["type"], "text")
+        self.assertIn("exit 0 EditMaterial done", run["content"][0]["text"].splitlines(), "the --agent lines")
+        self.assertIn("warning: careful", run["content"][0]["text"])
+        task = next(t for t in editor.tasks if t["RunName"] == "EditMaterial")
+        self.assertEqual(task["Assets"], ["Assets/A.mat"])
+        self.assertEqual(task["ExtraArgs"], "-spec=C:/t/red.json -apply", "confirm adds -apply")
+
+        refused = replies[4]["result"]
+        self.assertTrue(refused["isError"])
+        self.assertIn("error: needs -from", refused["content"][0]["text"])
+        self.assertNotIn("-apply", next(t for t in editor.tasks if t["RunName"] == "MoveAsset")["ExtraArgs"])
+
+        listed = replies[5]["result"]
+        self.assertFalse(listed["isError"])
+        self.assertIn("EditMaterial (Edit): Edits materials. -spec -apply", listed["content"][0]["text"])
+
+        self.assertEqual(replies[6]["error"]["code"], -32601)
+        self.assertEqual(replies[None]["error"]["code"], -32700)
+        self.assertEqual(replies[7]["error"]["code"], -32602)
+
+    def test_mcp_takes_no_run(self):
+        err = StringIO()
+        with redirect_stderr(err):
+            code, out = self.call("PrefabExport", "--mcp")
+        self.assertEqual(code, ops.EXIT_REFUSED)
+        self.assertEqual(out, "", "stdout carries protocol messages only")
+        self.assertIn("--mcp", err.getvalue())
+
+
 class LogSweep(unittest.TestCase):
     def setUp(self):
         self.dir = tempfile.mkdtemp()

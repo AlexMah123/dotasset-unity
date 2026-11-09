@@ -20,6 +20,8 @@ Usage:
                                        unsaved changes unless --force
   python dotasset.py --open-scene A.unity[,B.unity] [--force]  open scenes in that editor, refused the same way.
                                        The last line names what was open before: "previously open: ..."
+  python dotasset.py --mcp           serve the runs as MCP tools (dotasset_run, dotasset_list) over stdin and stdout
+                                       until stdin closes, each call routed like a dotasset.py call
 
   AssetList   comma-separated asset paths or folders, e.g. "Assets/Prefabs/A.prefab,Assets/Prefabs/B.prefab".
               Spec-driven runs (Edit*, Create*, most Migrate runs) name targets in the spec, leave it out.
@@ -40,6 +42,7 @@ Python 3.8+, standard library only.
 
 import argparse
 import base64
+import io
 import json
 import os
 import re
@@ -47,6 +50,8 @@ import subprocess
 import sys
 import time
 import uuid
+from contextlib import redirect_stdout
+from io import StringIO
 
 # Same constants as TaskQueueProtocol in Editor/Core/TaskQueue.cs. Change both together.
 QUEUE_RELATIVE = os.path.join("Library", "DotAsset", "Queue")
@@ -1478,6 +1483,201 @@ def seconds(text):
     return value
 
 
+# ---------------------------------------------------------------- MCP server
+
+# --mcp: the runs as MCP tools over stdin and stdout, for a project without the Unity CLI's MCP (Unity 2022.3).
+# JSON-RPC 2.0, one message per line. The same two tools as the Unity CLI adapter (UnityCliCommands.cs), each call
+# routed the way a dotasset.py call is, so the closed editor and a --serve host work too.
+MCP_PROTOCOLS = ("2025-11-25", "2025-06-18", "2025-03-26", "2024-11-05")
+MCP_INSTRUCTIONS = ("DotAsset reads, creates, edits, moves and audits Unity assets. Export first for exact property names "
+                    "and paths, dry run an Edit or Migrate run and read its plan: lines, then call it again with "
+                    "confirm=true, then export again to check. Docs/AI-Guide.md in the package has the full manual.")
+MCP_TOOLS = [
+    {"name": "dotasset_run",
+     "description": "Run a DotAsset run on the Unity project, in the open editor or headless. Edit and Migrate runs only "
+                    "plan without confirm=true. The result is the run's --agent output: exit code and summary, then "
+                    "error:, warning:, failed:, out: and plan: lines",
+     "inputSchema": {"type": "object", "required": ["name"], "properties": {
+         "name": {"type": "string", "description": "The run, e.g. EditMaterial or MoveAsset. dotasset_list shows them all"},
+         "args": {"type": "string", "description": "The run's arguments as on the dotasset.py command line, e.g. -spec=\"C:/t/red.json\""},
+         "assets": {"type": "string", "description": "Comma-separated asset paths or folders for runs that take entry assets, as the AssetList of dotasset.py"},
+         "confirm": {"type": "boolean", "description": "true writes (adds -apply). Without it an Edit or Migrate run only reports its plan"},
+         "timeout": {"type": "integer", "minimum": 1, "description": "Seconds to wait (default: the wrapper's --timeout). A run that outlasts it can still "
+                                                                      "finish and write, its task: line names the task for dotasset.py --result"}}}},
+    {"name": "dotasset_list",
+     "description": "Every DotAsset run the project knows, with its group, summary and arguments",
+     "inputSchema": {"type": "object", "properties": {}}},
+]
+
+
+class McpInvalidParams(Exception):
+    pass
+
+
+def mcp_main(args):
+    # stdout carries protocol messages only. What the wrapper says outside a tool call goes to stderr.
+    protocol_in = getattr(sys.stdin, "buffer", sys.stdin)
+    protocol_out = getattr(sys.stdout, "buffer", sys.stdout)
+    with redirect_stdout(sys.stderr):
+        if (args.run or args.assets or args.extra or args.list or args.status or args.result is not None or args.launch
+                or args.serve or args.quit or args.open_scene is not None):
+            log("error: --mcp takes no run, --args or other mode, the runs come as MCP tool calls")
+            return EXIT_REFUSED
+        project = project_of(args)
+        if project is None:
+            return EXIT_REFUSED
+        return mcp_serve(args, project, protocol_in, protocol_out)
+
+
+def mcp_serve(args, project, protocol_in, protocol_out):
+    """Answers requests one at a time until stdin closes. Notifications and responses get no reply."""
+    global AGENT
+    AGENT = True
+    args.json = args.quiet = False
+
+    def send(message):
+        text = json.dumps(message, ensure_ascii=False) + "\n"
+        protocol_out.write(text if isinstance(protocol_out, io.TextIOBase) else text.encode("utf-8"))
+        protocol_out.flush()
+
+    while True:
+        raw = protocol_in.readline()
+        if not raw:
+            break
+        line = (raw.decode("utf-8", "replace") if isinstance(raw, bytes) else raw).strip()
+        if not line:
+            continue
+        try:
+            message = json.loads(line)
+        except ValueError:
+            send(mcp_error(None, -32700, "parse error: one JSON-RPC message per line"))
+            continue
+        if not isinstance(message, dict) or not isinstance(message.get("method", ""), str):
+            send(mcp_error(None, -32600, "invalid request"))
+            continue
+        if "method" not in message or "id" not in message:
+            continue
+        send(mcp_reply(args, project, message))
+    return EXIT_SUCCESS
+
+
+def mcp_error(request_id, code, text):
+    return {"jsonrpc": "2.0", "id": request_id, "error": {"code": code, "message": text}}
+
+
+def mcp_reply(args, project, message):
+    request_id, method, params = message["id"], message["method"], message.get("params") or {}
+    try:
+        if not isinstance(params, dict):
+            raise McpInvalidParams("params must be an object")
+        if method == "initialize":
+            asked = params.get("protocolVersion")
+            result = {"protocolVersion": asked if asked in MCP_PROTOCOLS else MCP_PROTOCOLS[0],
+                      "capabilities": {"tools": {}},
+                      "serverInfo": {"name": "dotasset", "version": package_version()},
+                      "instructions": MCP_INSTRUCTIONS}
+        elif method == "ping":
+            result = {}
+        elif method == "tools/list":
+            result = {"tools": MCP_TOOLS}
+        elif method == "tools/call":
+            result = mcp_call(args, project, params)
+        else:
+            return mcp_error(request_id, -32601, "method not found: %s" % method)
+    except McpInvalidParams as e:
+        return mcp_error(request_id, -32602, str(e))
+    return {"jsonrpc": "2.0", "id": request_id, "result": result}
+
+
+def mcp_call(args, project, params):
+    tool, given = params.get("name"), params.get("arguments") or {}
+    if not isinstance(given, dict):
+        raise McpInvalidParams("arguments must be an object")
+    if tool == "dotasset_list":
+        return mcp_list(args, project)
+    if tool != "dotasset_run":
+        raise McpInvalidParams("unknown tool: %s, the tools are dotasset_run and dotasset_list" % tool)
+    run = given.get("name")
+    extra, assets = given.get("args", ""), given.get("assets", "")
+    confirm, timeout = given.get("confirm", False), given.get("timeout", args.timeout)
+    if not isinstance(run, str) or not run.strip():
+        raise McpInvalidParams("dotasset_run needs name, the run to start (dotasset_list shows them)")
+    if (not isinstance(extra, str) or not isinstance(assets, str) or not isinstance(confirm, bool)
+            or isinstance(timeout, bool) or not isinstance(timeout, (int, float)) or timeout < 1):
+        raise McpInvalidParams("args and assets take a string, confirm true or false, timeout seconds from 1")
+    run = run.strip()
+    # As EditorRun.RunAsync does for the Unity CLI: only Edit and Migrate take -apply, others refuse it.
+    if confirm and resolve_group(AnyCase(run)) in ("Edit", "Migrate"):
+        extra = (extra + " -apply").strip()
+    call = argparse.Namespace(**vars(args))
+    call.timeout = int(timeout)
+    code, text = mcp_captured(lambda: run_once(call, project, run, assets, extra))
+    return mcp_text(text, code not in (EXIT_SUCCESS, EXIT_ISSUES))
+
+
+def mcp_list(args, project):
+    code, text = mcp_captured(lambda: run_once(args, project, "CommandCatalogExport", "", ""))
+    path = next((l[len("out: "):] for l in text.splitlines() if l.startswith("out: ")), None)
+    if code != EXIT_SUCCESS or path is None:
+        return mcp_text(text, True)
+    try:
+        with open(path, encoding="utf-8-sig") as f:
+            catalog = json.load(f)
+    except (OSError, ValueError) as e:
+        return mcp_text("%s\nerror: cannot read %s: %s" % (text, path, e), True)
+    lines = []
+    for entry in catalog.get("Commands") or []:
+        line = "%s (%s): %s." % (entry.get("RunName"), entry.get("Group"), (entry.get("Summary") or "").rstrip("."))
+        if entry.get("Arguments"):
+            line += " " + " ".join(entry["Arguments"])
+        lines.append(line)
+    for entry in catalog.get("Rejected") or []:
+        lines.append("not registered: %s" % entry.get("Reason"))
+    return mcp_text("\n".join(lines), False)
+
+
+def mcp_captured(call):
+    # The run's --agent lines become the tool result. A wrapper error must not end the server.
+    out = StringIO()
+    try:
+        with redirect_stdout(out):
+            code = call()
+    except (Exception, SystemExit) as e:
+        out.write("error: %s: %s\n" % (type(e).__name__, e))
+        code = EXIT_FAILED
+    return code, out.getvalue().strip()
+
+
+def mcp_text(text, is_error):
+    return {"content": [{"type": "text", "text": text}], "isError": is_error}
+
+
+def package_version():
+    # The package's version when the wrapper runs from its Scripts~ folder, unknown for a copy elsewhere.
+    try:
+        with open(os.path.join(os.path.dirname(os.path.abspath(__file__)), os.pardir, "package.json"), encoding="utf-8") as f:
+            return str(json.load(f)["version"])
+    except (OSError, ValueError, KeyError, TypeError):
+        return "unknown"
+
+
+def project_of(args):
+    project = os.path.abspath(args.project) if args.project else find_project(os.getcwd())
+    if not project or not os.path.isdir(os.path.join(project, "Assets")):
+        log("error: no Unity project found, pass --project <folder with Assets/ and ProjectSettings/>")
+        return None
+    return project
+
+
+def run_once(args, project, run, assets_text, extra):
+    # One run, from the command line or an MCP tool call.
+    if re.search(r"(^|\s)-assets=", extra):
+        log("error: entry assets go in the AssetList argument, not in --args")
+        return EXIT_REFUSED
+    assets = [a.strip().replace("\\", "/") for a in assets_text.split(",") if a.strip()]
+    return route(args, project, run, assets, extra)
+
+
 def main(argv=None):
     # Asset names can hold characters a Windows console code page cannot print, never fail on those.
     for stream in (sys.stdout, sys.stderr):
@@ -1512,6 +1712,8 @@ def main(argv=None):
     p.add_argument("--not-mine", action="store_true",
                    help="with --quit: close the editor or host even when this caller did not start it (--launch, --serve)")
     p.add_argument("--force", action="store_true", help="with --quit or --open-scene: go ahead even when a scene has unsaved changes")
+    p.add_argument("--mcp", action="store_true",
+                   help="serve the runs as MCP tools (dotasset_run, dotasset_list) over stdin and stdout until stdin closes, each call routed like a dotasset.py call")
     argv = list(sys.argv[1:] if argv is None else argv)
     # "--args -apply" would make argparse read -apply as an option of its own. Glue the value on.
     for i in range(len(argv) - 1):
@@ -1521,10 +1723,11 @@ def main(argv=None):
     args = p.parse_args(argv)
     global AGENT
     AGENT = args.agent
+    if args.mcp:
+        return mcp_main(args)
 
-    project = os.path.abspath(args.project) if args.project else find_project(os.getcwd())
-    if not project or not os.path.isdir(os.path.join(project, "Assets")):
-        log("error: no Unity project found, pass --project <folder with Assets/ and ProjectSettings/>")
+    project = project_of(args)
+    if project is None:
         return EXIT_REFUSED
 
     if args.status:
@@ -1554,11 +1757,7 @@ def main(argv=None):
     if not run:
         p.print_usage()
         return EXIT_REFUSED
-    if re.search(r"(^|\s)-assets=", args.extra):
-        log("error: entry assets go in the AssetList argument, not in --args")
-        return EXIT_REFUSED
-    assets = [a.strip().replace("\\", "/") for a in args.assets.split(",") if a.strip()]
-    return route(args, project, run, assets, args.extra)
+    return run_once(args, project, run, args.assets, args.extra)
 
 
 if __name__ == "__main__":

@@ -602,6 +602,63 @@ class EditorControl(Base):
         self.assertEqual(code, 2)
         self.assertIn("--launch it first", out)
 
+    def requests_left(self, kind):
+        queue = os.path.join(self.project, ops.QUEUE_RELATIVE)
+        return [n for n in os.listdir(queue) if n.startswith(kind + ".")]
+
+    def exit_on_request(self, kind):
+        """The fake editor exits without an answer once a <kind> request is waiting."""
+        queue = os.path.join(self.project, ops.QUEUE_RELATIVE)
+
+        def watch():
+            deadline = time.time() + 10
+            while time.time() < deadline:
+                if any(n.endswith(ops.REQUEST_SUFFIX) for n in os.listdir(queue) if n.startswith(kind + ".")):
+                    self.editor_alive = False
+                    return
+                time.sleep(0.02)
+        threading.Thread(target=watch, daemon=True).start()
+
+    def test_unanswered_requests_are_withdrawn(self):
+        editor = FakeEditor(self.project, lambda t: result(t["RunName"]), claim=False)
+        self.launched_by(None)
+        editor.start()
+        try:
+            code, out = self.call("--open-scene", "Assets/A.unity", "--timeout", "1")
+            self.assertEqual(code, 1, out)
+            self.assertIn("the editor did not answer within 1s. Request withdrawn", out)
+            self.assertEqual(self.requests_left(ops.OPEN_SCENE_REQUEST), [])
+            code, out = self.call("--quit", "--timeout", "1")
+            self.assertEqual(code, 1, out)
+            self.assertIn("the editor did not answer within 1s (state: ready). Request withdrawn", out)
+            self.assertEqual(self.requests_left(ops.QUIT_REQUEST), [])
+        finally:
+            editor.stop.set()
+
+    def test_open_scene_fails_when_the_editor_exits_without_answering(self):
+        editor = FakeEditor(self.project, lambda t: result(t["RunName"]), claim=False)
+        editor.start()
+        try:
+            self.exit_on_request(ops.OPEN_SCENE_REQUEST)
+            code, out = self.call("--open-scene", "Assets/A.unity", "--timeout", "10")
+        finally:
+            editor.stop.set()
+        self.assertEqual(code, 1, out)
+        self.assertEqual(self.requests_left(ops.OPEN_SCENE_REQUEST), [])
+
+    def test_quit_counts_an_editor_that_exits_without_answering_as_closed(self):
+        editor = FakeEditor(self.project, lambda t: result(t["RunName"]), claim=False)
+        self.launched_by(None)
+        editor.start()
+        try:
+            self.exit_on_request(ops.QUIT_REQUEST)
+            code, out = self.call("--quit", "--timeout", "10")
+        finally:
+            editor.stop.set()
+        self.assertEqual(code, 0, out)
+        self.assertIn("the editor closed, the project is free", out)
+        self.assertFalse(os.path.exists(os.path.join(self.project, ops.QUEUE_RELATIVE, "launched.json")))
+
     def test_force_needs_quit(self):
         code, out = self.call("PrefabExport", "Assets/A.prefab", "--force")
         self.assertEqual(code, 2)

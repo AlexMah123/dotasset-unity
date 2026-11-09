@@ -1180,6 +1180,49 @@ class BatchRoute(Base):
                 self.assertIn("at least 1", err.getvalue(), option + " " + value)
 
 
+class ModeFlags(Base):
+    # R6-3: a mode flag ran its mode and dropped a run given beside it, often with exit 0.
+    MODES = [("--status", []), ("--list", []), ("--result", ["0123456789abcdef0123456789abcdef"]), ("--launch", []),
+             ("--serve", []), ("--quit", []), ("--open-scene", ["Assets/A.unity"])]
+
+    def stubbed(self, argv):
+        """Calls main with every mode and run_once stubbed to succeed. Returns the exit code, output and what ran."""
+        calls = []
+        stubs = [mock.patch.object(ops, n, lambda *a, _n=n, **k: calls.append(_n) or ops.EXIT_SUCCESS)
+                 for n in ("status", "task_result", "launch", "quit_editor", "open_scene", "run_once")]
+        for s in stubs:
+            s.start()
+        try:
+            code, out = self.call(*argv)
+        finally:
+            for s in stubs:
+                s.stop()
+        return code, out, calls
+
+    def test_a_run_beside_any_mode_is_refused(self):
+        for flag, value in self.MODES:
+            for given in (["EditPrefab", "Assets/A.prefab", "--args=-spec=C:/x.json -apply"], ["EditPrefab"],
+                          ["--args=-spec=C:/x.json"]):
+                if flag == "--list" and given == ["--args=-spec=C:/x.json"]:
+                    continue
+                with self.subTest(flag=flag, given=given):
+                    code, out, calls = self.stubbed(given + [flag] + value)
+                    self.assertEqual(code, 2, "%s beside %s: exit %s, ran %s" % (flag, given, code, calls))
+                    self.assertEqual(calls, [])
+                    self.assertIn(flag + " takes no", out)
+
+    def test_two_modes_are_refused(self):
+        code, out, calls = self.stubbed(["--launch", "--open-scene", "Assets/A.unity"])
+        self.assertEqual(code, 2, out)
+        self.assertEqual(calls, [])
+        self.assertIn("--launch and --open-scene are separate calls", out)
+
+    def test_list_takes_args(self):
+        code, out, calls = self.stubbed(["--list", "--args=-full"])
+        self.assertEqual(code, 0, out)
+        self.assertEqual(calls, ["run_once"])
+
+
 class Status(Base):
     def test_no_editor(self):
         code, out = self.call("--status")

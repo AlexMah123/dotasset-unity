@@ -1737,6 +1737,19 @@ def main(argv=None):
     AGENT = args.agent
     if args.mcp:
         return mcp_main(args)
+    # A mode runs only itself. Anything else given beside it was dropped, and its exit code spoke for a run that never ran.
+    modes = [flag for flag, on in (("--status", args.status), ("--list", args.list), ("--result", args.result is not None),
+                                   ("--launch", args.launch), ("--serve", args.serve), ("--quit", args.quit),
+                                   ("--open-scene", args.open_scene is not None)) if on]
+    if len(modes) > 1:
+        log("error: %s are separate calls, give one at a time" % " and ".join(modes))
+        return EXIT_REFUSED
+    # --list runs CommandCatalogExport, which takes --args.
+    dropped = [what for what, on in (("run name", args.run), ("assets", args.assets),
+                                     ("--args", args.extra and modes != ["--list"])) if on]
+    if modes and dropped:
+        log("error: %s takes no %s. Give the run in a separate call" % (modes[0], " or ".join(dropped)))
+        return EXIT_REFUSED
 
     project = project_of(args)
     if project is None:

@@ -79,7 +79,7 @@ The wrapper is `dotasset.py` (in the package's `Scripts~/`, or copied to the pro
 | --- | --- |
 | `--project DIR` | the Unity project, default the one containing the current directory, or `DOTASSET_PROJECT` |
 | `--unity PATH` | editor executable for the headless route, default from `ProjectVersion.txt` through Unity Hub, or `DOTASSET_UNITY` |
-| `--route auto\|editor\|batch` | `editor` refuses when no editor has the project open, `batch` never uses the queue. Default `auto` |
+| `--route auto\|editor\|batch` | `editor` refuses when no editor has the project open, also when the editor exits before it takes the task. `batch` never uses the queue. Default `auto` |
 | `--caller NAME` | who is calling, default `DOTASSET_CALLER`. The run's journal keeps it, and `UndoRun -run=last` refuses a run another caller started. `--quit` refuses an editor or host another caller started |
 | `--timeout SEC` | give up after this long, whole seconds, at least 1, default 600. A task the editor has not taken yet is withdrawn |
 | `--startup-wait SEC` | how long to wait for a starting editor's queue, whole seconds, at least 1, default 300 |
@@ -93,6 +93,8 @@ The wrapper is `dotasset.py` (in the package's `Scripts~/`, or copied to the pro
 | `--serve` | start a warm headless host: batchmode Unity, no window (on Windows it runs on a desktop of its own, so it never takes the focus), that takes runs through the same queue as an open editor until `--quit`. Exit 0 when ready. Runs report `inEditor` false, `--status` prints `host pid` |
 | `--quit [--force] [--not-mine]` | close the editor or `--serve` host that has the project open, once it is idle. Refused (exit 2) while a scene or Prefab Mode has unsaved changes, `--force` discards them. Unsaved asset changes are saved as Unity closes (checked on 2022.3 and 6000.3). Also refused when this caller did not start it: an editor that was open before `--launch`, or one another `--caller` launched. `--not-mine` closes it anyway |
 | `--open-scene A.unity[,B.unity] [--force]` | open scenes in that editor: the first replaces what is open, the rest are added. Refused like `--quit`. The last line is `previously open: <paths>`, pass them back to `--open-scene` to restore the user's layout |
+
+`--list`, `--status`, `--result`, `--launch`, `--serve`, `--quit` and `--open-scene` are modes. Give one per call, without a run name, assets or `--args`: anything else is refused with exit 2, since it would not run. Only `--list` takes `--args`, for `CommandCatalogExport`.
 
 Ctrl+C withdraws a task the editor has not taken, and stops a headless Unity.
 

@@ -11,6 +11,7 @@ Reads assets through Unity's serializer and writes grep-friendly JSON. Nothing i
 | `AssetExport` | ScriptableObjects, and the main object plus sub-assets of any other asset file | anything but scenes and prefabs or models. Folders skip scripts, a script given by path exports as its `MonoScript` |
 | `MaterialExport` | Shader properties with values, keywords, render queue, variant parent, stale properties | `.mat` |
 | `AnimatorControllerExport` | Parameters, layers, state machines, states, transitions, conditions, blend trees | `.controller` |
+| `AnimationClipExport` | Clip settings, float curves with their keys, object reference curves, events | `.anim`, the clips inside `.controller` and `.playable` files, models by explicit path |
 | `ImporterExport` | Import settings (the `.meta`), with a typed summary for textures and models | textures, models, audio, any asset with an importer |
 | `AssetReferenceExport` | Direct (and with `-recursive` transitive) dependencies, and what references the asset | any |
 | `TypeCatalogExport` | Property paths, kinds, defaults, enum options of component and ScriptableObject types | none, `-filter=` |
@@ -43,6 +44,7 @@ Per run:
 | `PrefabExport`, `SceneExport` | `-subtree=<path>` | Export only that GameObject and its children |
 | `AssetExport` | `-type=<type>` | When a folder is given, only assets whose main object is this type |
 | `AssetExport` | `-nosub` | Main object only |
+| `AnimationClipExport` | `-nokeys` | Every curve with its `KeyCount` instead of its keys, for a long clip |
 | `AssetReferenceExport` | `-scandir=<dirs>` | Where to look for referencers, default `Assets` |
 | `AssetReferenceExport` | `-recursive` | Add `DependenciesRecursive` and `ReferencedByRecursive` |
 | `TypeCatalogExport` | `-filter=<text>` | Required. Types whose full name contains the text |
@@ -218,6 +220,29 @@ ScriptableObject properties are the delta from a fresh instance. Other objects e
 ```
 
 State `Path`s, transition `To`s and blend tree blocks are exactly what `EditAnimatorController` takes. Two things are export only: a transition's `ToStateMachine` (a transition into a sub-state machine), and a sub-state machine's `ExitTransitions`. `AddTransition` targets states and `Exit` only. A synced layer reports `SyncedLayer` instead of a state machine.
+
+## AnimationClipExport
+
+```json
+{
+  "Clips": [
+    {
+      "Name": "Wave", "Length": 1, "FrameRate": 30, "Legacy": false,
+      "Settings": { "LoopTime": true, "LoopBlend": false, "CycleOffset": 0, "StartTime": 0, "StopTime": 1, "Mirror": false, "...": "..." },
+      "Curves": [ { "Path": "Body/Arm", "Type": "Transform", "Property": "m_LocalPosition.x",
+                    "Keys": [ { "Time": 0, "Value": 0, "InTangent": 2, "OutTangent": 2 },
+                              { "Time": 1, "Value": 2, "InTangent": 2, "OutTangent": 2 } ] } ],
+      "ObjectCurves": [ { "Path": "Body", "Type": "MeshRenderer", "Property": "m_Materials.Array.data[0]",
+                          "Keys": [ { "Time": 0.5, "Value": "Assets/Materials/Red.mat" } ] } ],
+      "Events": [ { "Time": 0.25, "Function": "Step", "Int": 3 } ]
+    }
+  ]
+}
+```
+
+`Clips` has one entry per clip: the clip of a `.anim`, the clips stored inside a `.controller` or a `.playable` (Timeline recordings), or the clips of a model named by path. A folder expands to `.anim` files and to the controllers and timelines that hold clips, and skips models. A model's export carries `"Imported": true`: its clips are read-only, extract one to `.anim` to change it.
+
+`Settings` holds the fields of `AnimationClipSettings` (`LoopBlend` is the inspector's Loop Pose), plus `AdditiveReferencePoseClip` and `AdditiveReferencePoseTime` when the clip has an additive reference pose. A curve is named by `Path` (the GameObject path below the animated root, empty for the root), `Type` and `Property`, the same names `RebindAnimation` takes. A key carries `InMode` and `OutMode` (`Free`, `Auto`, `Linear`, `Constant`, `ClampedAuto`) only when one side is not `Free`, `Broken` when its tangents are split, and `WeightedMode`, `InWeight` and `OutWeight` only on a weighted key. A constant tangent reads `"Infinity"`. An event lists `Float`, `Int`, `String` and `Object` only when they are set. Keys are never cut by `-maxarray`, so for a long clip (motion capture, hundreds of curves) export with `-nokeys` first.
 
 ## ImporterExport
 

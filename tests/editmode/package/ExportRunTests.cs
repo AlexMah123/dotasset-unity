@@ -57,6 +57,56 @@ namespace DotAsset.Tests
             Assert.AreEqual("If", (string)transition["Conditions"][0]["Mode"]);
         }
 
+        // Wave.anim: a float curve, a material swap, one event, looping at 30 frames per second.
+        static string NewClip()
+        {
+            string path = Folder + "/Wave.anim";
+            var clip = new AnimationClip { name = "Wave", frameRate = 30 };
+            AnimationUtility.SetEditorCurve(clip, EditorCurveBinding.FloatCurve("Body/Arm", typeof(Transform), "m_LocalPosition.x"),
+                AnimationCurve.Linear(0, 0, 1, 2));
+            AnimationUtility.SetObjectReferenceCurve(clip, EditorCurveBinding.PPtrCurve("Body", typeof(MeshRenderer), "m_Materials.Array.data[0]"),
+                new[] { new ObjectReferenceKeyframe { time = 0.5f, value = AssetDatabase.LoadAssetAtPath<Material>(Red) } });
+            AnimationUtility.SetAnimationEvents(clip, new[] { new AnimationEvent { time = 0.25f, functionName = "Step", intParameter = 3 } });
+            AnimationClipSettings settings = AnimationUtility.GetAnimationClipSettings(clip);
+            settings.loopTime = true;
+            AnimationUtility.SetAnimationClipSettings(clip, settings);
+            AssetDatabase.CreateAsset(clip, path);
+            return path;
+        }
+
+        [Test]
+        public void AnimationClipExportListsCurvesEventsAndSettings()
+        {
+            string wave = NewClip();
+            JToken clip = Export("AnimationClipExport", wave)["Clips"].Single();
+            Assert.AreEqual("Wave", (string)clip["Name"]);
+            Assert.AreEqual(30, (double)clip["FrameRate"]);
+            Assert.AreEqual(1, (double)clip["Length"]);
+            Assert.IsTrue((bool)clip["Settings"]["LoopTime"], clip.ToString());
+            JToken x = clip["Curves"].Single();
+            Assert.AreEqual(new[] { "Body/Arm", "Transform", "m_LocalPosition.x" }, new[] { (string)x["Path"], (string)x["Type"], (string)x["Property"] });
+            Assert.AreEqual(new[] { 0.0, 1.0 }, x["Keys"].Select(k => (double)k["Time"]).ToArray());
+            Assert.AreEqual(new[] { 0.0, 2.0 }, x["Keys"].Select(k => (double)k["Value"]).ToArray());
+            JToken swap = clip["ObjectCurves"].Single();
+            Assert.AreEqual(new[] { "Body", "MeshRenderer", "m_Materials.Array.data[0]" }, new[] { (string)swap["Path"], (string)swap["Type"], (string)swap["Property"] });
+            Assert.AreEqual(0.5, (double)swap["Keys"][0]["Time"]);
+            Assert.AreEqual(Red, (string)swap["Keys"][0]["Value"]);
+            JToken step = clip["Events"].Single();
+            Assert.AreEqual(new object[] { 0.25, "Step", 3 }, new object[] { (double)step["Time"], (string)step["Function"], (int)step["Int"] });
+            // -nokeys keeps every curve and counts its keys, for a long clip.
+            JToken bare = Export("AnimationClipExport", wave, "-nokeys")["Clips"][0]["Curves"][0];
+            Assert.IsNull(bare["Keys"], bare.ToString());
+            Assert.AreEqual(2, (int)bare["KeyCount"]);
+        }
+
+        [Test]
+        public void AnimationClipExportReadsTheClipsInsideAController()
+        {
+            AssetDatabase.AddObjectToAsset(new AnimationClip { name = "Inner" }, Door);
+            AssetDatabase.SaveAssetIfDirty(AssetDatabase.LoadMainAssetAtPath(Door));
+            Assert.AreEqual(new[] { "Inner" }, Export("AnimationClipExport", Door)["Clips"].Select(c => (string)c["Name"]).ToArray());
+        }
+
         [Test]
         public void AssetExportListsTheMainObject()
         {
@@ -127,11 +177,14 @@ namespace DotAsset.Tests
             var red = AssetDatabase.LoadAssetAtPath<Material>(Red);
             red.renderQueue = 2460;
             AssetDatabase.SaveAssetIfDirty(red);
+            NewClip();
             Dictionary<string, string> before = Fingerprint();
             Export("PrefabExport", Folder);
             Export("SceneExport", Folder);
             Export("MaterialExport", Folder);
             Export("AnimatorControllerExport", Folder);
+            // The folder holds Wave.anim and Door.controller without clips: only Wave.anim is exported.
+            Export("AnimationClipExport", Folder);
             Export("AssetExport", Red);
             Export("AssetReferenceExport", Red, "-scandir=" + Folder);
             CollectionAssert.AreEquivalent(before, Fingerprint());

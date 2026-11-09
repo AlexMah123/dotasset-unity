@@ -29,7 +29,7 @@ namespace DotAsset
         public bool UnclosedQuote { get; private set; }
 
         // Arguments that are switches. "-apply=false" must not switch anything on.
-        public static readonly string[] Switches = { "apply", "atomic", "full", "expand", "nosub", "recursive", "deep", "force", "permanent", "keepinstances", "metaonly", "overwrite", "buildonly" };
+        public static readonly string[] Switches = { "apply", "atomic", "full", "expand", "nosub", "recursive", "deep", "force", "permanent", "keepinstances", "metaonly", "overwrite", "buildonly", "nokeys" };
 
         // Switches given as =false, so a switch that is on by default (-atomic for Migrate) can be turned off.
         readonly HashSet<string> off = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

@@ -645,6 +645,9 @@ class EditorControl(Base):
             editor.stop.set()
         self.assertEqual(code, 1, out)
         self.assertEqual(self.requests_left(ops.OPEN_SCENE_REQUEST), [])
+        # R6-1: the editor exited, no 10 s passed. Say so, as --quit does.
+        self.assertIn("the editor exited without answering. Request withdrawn", out)
+        self.assertNotIn("did not answer within", out)
 
     def test_quit_counts_an_editor_that_exits_without_answering_as_closed(self):
         editor = FakeEditor(self.project, lambda t: result(t["RunName"]), claim=False)

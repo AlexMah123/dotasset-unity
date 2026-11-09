@@ -1411,9 +1411,17 @@ def open_scene(args, project):
         return EXIT_REFUSED
     request, answer = send_request(queue_root, OPEN_SCENE_REQUEST, {"Scenes": scenes, "Force": bool(args.force)})
     log("asked the editor to open %s%s" % (", ".join(scenes), ", discarding unsaved changes" if args.force else ""))
-    result = await_answer(request, answer, int(alive.get("Pid", 0)), time.time() + args.timeout)
+    result = await_answer(request, answer, int(alive.get("Pid", 0)), time.time() + args.timeout, gone={"Gone": True})
     if result is None:
         log("error: the editor did not answer within %ds. Request withdrawn" % args.timeout)
+        return EXIT_FAILED
+    if result.get("Gone"):
+        # Withdrawn, so an editor started on the project later does not act on it.
+        try:
+            os.remove(request)
+        except FileNotFoundError:
+            pass
+        log("error: the editor exited without answering. Request withdrawn")
         return EXIT_FAILED
     if args.json:
         print(json.dumps(result, indent=2))

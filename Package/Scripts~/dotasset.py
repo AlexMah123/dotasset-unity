@@ -1354,6 +1354,46 @@ def request_paths(queue_root, kind, request_id):
     return stem + REQUEST_SUFFIX, stem + RESULT_SUFFIX
 
 
+def send_request(queue_root, kind, body):
+    """Writes a request for the editor under a new id, whole or not at all. Returns the request and answer paths."""
+    request_id = uuid.uuid4().hex
+    request, answer = request_paths(queue_root, kind, request_id)
+    with open(request + ".tmp", "w", encoding="utf-8") as f:
+        json.dump(dict({"Id": request_id}, **body), f)
+    os.replace(request + ".tmp", request)
+    return request, answer
+
+
+def await_answer(request, answer, pid, deadline, gone=None):
+    """Waits until deadline for the editor's answer to a request, then removes it. An editor that exits without
+    answering gives gone. No answer gives None and withdraws the request, so the editor does not act on it later."""
+    result = None
+    while time.time() < deadline and result is None:
+        if os.path.exists(answer):
+            try:
+                with open(answer, encoding="utf-8") as f:
+                    result = json.load(f)
+            except (OSError, ValueError):
+                time.sleep(0.1)
+                continue
+        elif not is_unity_process(pid):
+            result = gone
+            break
+        else:
+            time.sleep(0.25)
+    if result is None:
+        try:
+            os.remove(request)
+        except FileNotFoundError:
+            pass
+        return None
+    try:
+        os.remove(answer)
+    except FileNotFoundError:
+        pass
+    return result
+
+
 def open_scene(args, project):
     """Asks the editor that has the project open to open scenes: the first replaces what is open, the rest are
     added. Prints the scenes that were open before as a last line, 'previously open: a.unity,b.unity'."""
@@ -1369,38 +1409,12 @@ def open_scene(args, project):
     if alive.get("State") == "paused":
         log("error: the editor's queue is paused (Window > DotAsset > Accept tasks), it cannot take the request")
         return EXIT_REFUSED
-    request_id = uuid.uuid4().hex
-    request, answer = request_paths(queue_root, OPEN_SCENE_REQUEST, request_id)
-    with open(request + ".tmp", "w", encoding="utf-8") as f:
-        json.dump({"Id": request_id, "Scenes": scenes, "Force": bool(args.force)}, f)
-    os.replace(request + ".tmp", request)
+    request, answer = send_request(queue_root, OPEN_SCENE_REQUEST, {"Scenes": scenes, "Force": bool(args.force)})
     log("asked the editor to open %s%s" % (", ".join(scenes), ", discarding unsaved changes" if args.force else ""))
-    deadline = time.time() + args.timeout
-    result = None
-    pid = int(alive.get("Pid", 0))
-    while time.time() < deadline and result is None:
-        if os.path.exists(answer):
-            try:
-                with open(answer, encoding="utf-8") as f:
-                    result = json.load(f)
-            except (OSError, ValueError):
-                time.sleep(0.1)
-                continue
-        elif not is_unity_process(pid):
-            break
-        else:
-            time.sleep(0.25)
+    result = await_answer(request, answer, int(alive.get("Pid", 0)), time.time() + args.timeout)
     if result is None:
-        try:
-            os.remove(request)
-        except FileNotFoundError:
-            pass
         log("error: the editor did not answer within %ds. Request withdrawn" % args.timeout)
         return EXIT_FAILED
-    try:
-        os.remove(answer)
-    except FileNotFoundError:
-        pass
     if args.json:
         print(json.dumps(result, indent=2))
     previous = result.get("Previous") or []
@@ -1430,39 +1444,15 @@ def quit_editor(args, project):
     if refusal:
         log("error: %s. Pass --not-mine to close it anyway" % refusal)
         return EXIT_REFUSED
-    request_id = uuid.uuid4().hex
-    request, answer = request_paths(queue_root, QUIT_REQUEST, request_id)
-    with open(request + ".tmp", "w", encoding="utf-8") as f:
-        json.dump({"Id": request_id, "Force": bool(args.force)}, f)
-    os.replace(request + ".tmp", request)
+    request, answer = send_request(queue_root, QUIT_REQUEST, {"Force": bool(args.force)})
     log("asked the editor (pid %d) to close%s" % (pid, ", discarding unsaved changes" if args.force else ""))
 
     deadline = time.time() + args.timeout
-    result = None
-    while time.time() < deadline and result is None:
-        if os.path.exists(answer):
-            try:
-                with open(answer, encoding="utf-8") as f:
-                    result = json.load(f)
-            except (OSError, ValueError):
-                time.sleep(0.1)
-                continue
-        elif not is_unity_process(pid):
-            result = {"Quit": True}
-        else:
-            time.sleep(0.25)
+    result = await_answer(request, answer, pid, deadline, gone={"Quit": True})
     if result is None:
-        try:
-            os.remove(request)
-        except FileNotFoundError:
-            pass
         state = (live_editor(queue_root) or {}).get("State")
         log("error: the editor did not answer within %ds (state: %s). Request withdrawn" % (args.timeout, state))
         return EXIT_FAILED
-    try:
-        os.remove(answer)
-    except FileNotFoundError:
-        pass
     if not result.get("Quit"):
         log("error: the editor refused to close: " + (result.get("Error") or "no reason given"))
         return EXIT_REFUSED

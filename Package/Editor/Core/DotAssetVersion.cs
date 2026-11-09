@@ -4,7 +4,7 @@ namespace DotAsset
     // Every export JSON and every run log carries this string.
     public static class DotAssetVersion
     {
-        public const string Version = "0.11.5";
+        public const string Version = "0.12.0";
 
         // The shape of every run result, export and audit report. Raised only on a breaking change to them, a key
         // removed or renamed or its meaning changed, never for a new key. Docs/AI-Guide.md "Stability".

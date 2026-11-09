@@ -6,6 +6,19 @@ Defined in `Package/Editor/Core/DotAssetVersion.cs` and `Package/package.json`, 
 
 Versions follow one rule. A patch (0.1.x) holds fixes, test upgrades and docs. A minor version (0.x.0) adds something new to call: a run, an op, a spec key, an argument or a wrapper option. While on 0.x, a change that breaks existing calls is also a minor version, marked breaking here. 1.0.0 comes when runs, specs and export JSON are promised to stay stable.
 
+### 0.12.0
+
+The start of the format contract, two new things to call, and the fixes found while building them. The three migrations once planned here (`RenameMethod`, and `RenameField` and `RenameShaderProperty` following `.anim` curves) wait for the December Unity 7 preview and move to a later minor.
+
+- Every run result, export header and audit report carries `"FormatVersion": 1`, and so does the wrapper's own `--json` report for a run it lost sight of. It goes up only on a breaking change to that JSON. A new Stability section in `Docs/AI-Guide.md` says what a script can rely on, and that a key, run, argument, spec key or exit code is deprecated for one minor release before it goes
+- `RebindAnimation -property=<old> -toproperty=<new> -type=<Component>` renames an animated property on the components `-type` names (a list for several), with its parts (`m_Color` to `m_Tint` also rewrites `m_Color.r`, not `m_ColorTemperature`), so a field rename no longer leaves its curves "(Missing!)". The run now also reaches the clips inside `.controller` and `.playable` (Timeline) files, each file one target with all its clips, so `-from`/`-to` rewrites those too
+- `dotasset.py --mcp` serves the runs as MCP tools (`dotasset_run`, `dotasset_list`) over stdin and stdout, standard library only, for MCP clients on Unity 2022.3 or in projects without `com.unity.pipeline`. Each call is routed like a `dotasset.py` call. See "As an MCP server" in `Docs/AI-Guide.md`
+- Changed: export, audit report and log file names carry the time in UTC, like `ExportedUtc` inside them. Names written before 0.12.0 carry local time, so while older files remain, tell the newest by its write time or its `ExportedUtc`
+- Fixed: logs are pruned and listed by write time, not by name. East of UTC, the name order deleted a run's own new log while older logs named in local time sorted after it
+- Fixed: a failed run's `Error`, the `error:` line, names the run and its failed targets once. Before, a target failed through the usual path read "MoveAsset failed for A -> B. MoveAsset failed for A -> B. Reason: nothing at A"
+- Docs: a "Which tool" table in `Docs/AI-Guide.md` says which jobs go to DotAsset, the Unity CLI, an MCP server, UniCli or a YAML parser, and SKILL.md says DotAsset changes assets only
+- Not planned: `AuditPrefab`, since `AuditMissingReference` already reports Missing Scripts with a ready `RemapScript` line and a fix spec (R2) and prefab instances whose source is missing (R4). Unity in CI through GameCI, since it needs a Unity licence as a secret on a public repo, and `tools/compile_check.py` (six targets) and the EditMode tests already run before every release. Later: testing the Unity CLI adapter on a second version waits for CLI beta.16 (beta.15 is installed), and Unity 6.7 LTS joins the matrix in the first release after it ships
+
 ### 0.11.5
 
 Fixes from the fifth review (2026-11-05), each with a test that failed on its parent commit. This closes the "Known issues in 0.11.4" list.

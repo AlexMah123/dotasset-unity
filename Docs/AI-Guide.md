@@ -186,7 +186,7 @@ What a script can rely on from 0.12.0 on:
 - New keys can appear in any release without it. Skip keys you do not know.
 - A key, run name, argument, spec key or exit code is never removed or renamed at once. It is marked deprecated in Version.md and kept for one more minor release, an input with a `warning:` line naming what replaces it, then removed in a release marked breaking.
 - Until 1.0.0 a breaking change comes in a minor release, from 1.0.0 in a major one.
-- Not covered: the wording of log lines (the `error:`, `warning:` and `output:` prefixes and the failure line shape are), key order, and files under `Library/DotAsset/` other than exports, audit reports and fix specs.
+- Not covered: the wording of log lines (the `error:`, `warning:`, `failed:`, `out:`, `plan:` and `log:` prefixes and the failure line shape are), key order, and files under `Library/DotAsset/` other than exports, audit reports and fix specs.
 
 ## Pitfalls
 

@@ -41,5 +41,31 @@ namespace DotAsset.Tests
             Assert.AreEqual(before, Text(Crate), "the second CreateAsset rebuilt Crate");
             Assert.IsNotNull(AssetDatabase.LoadAssetAtPath<Material>(Folder + "/Blue.mat"), "the new asset in the same spec was not made");
         }
+
+        [Test]
+        public void CreateAssetMakesAnimationClips()
+        {
+            string walk = Folder + "/Walk.anim";
+            string old = Folder + "/Old.anim";
+            Ok("CreateAsset", Spec(@"{'Assets': [
+                {'Kind': 'AnimationClip', 'Path': '" + walk + @"', 'FrameRate': 24, 'Settings': {'LoopTime': true},
+                 'Ops': [{'Op': 'SetCurve', 'Path': 'Body', 'Type': 'Transform', 'Property': 'm_LocalPosition.y',
+                          'Keys': [{'Time': 0, 'Value': 0}, {'Time': 1, 'Value': 1}]},
+                         {'Op': 'SetEvent', 'Time': 0.5, 'Function': 'Step'}]},
+                {'Kind': 'AnimationClip', 'Path': '" + old + @"', 'Legacy': true}]}"));
+            JToken clip = Export("AnimationClipExport", walk)["Clips"].Single();
+            Assert.AreEqual(new object[] { "Walk", 24.0, true }, new object[] { (string)clip["Name"], (double)clip["FrameRate"], (bool)clip["Settings"]["LoopTime"] });
+            Assert.AreEqual(new[] { 0.0, 1.0 }, clip["Curves"].Single()["Keys"].Select(k => (double)k["Value"]).ToArray());
+            Assert.AreEqual("Step", (string)clip["Events"].Single()["Function"]);
+            Assert.IsTrue((bool)Export("AnimationClipExport", old)["Clips"][0]["Legacy"]);
+            // A mistyped property fails before the clip exists on disk, and a clip path ends in .anim.
+            string bad = Folder + "/Bad.anim";
+            RunResult r = Run("CreateAsset", Spec(@"{'Assets': [
+                {'Kind': 'AnimationClip', 'Path': '" + bad + @"', 'Ops': [{'Op': 'SetCurve', 'Type': 'Transform', 'Property': 'm_LocalPositon.y', 'Keys': [{'Time': 0, 'Value': 1}]}]},
+                {'Kind': 'AnimationClip', 'Path': '" + Folder + @"/Bad.clip'}]}"));
+            Assert.AreEqual(1, r.ExitCode, string.Join("\n", r.Lines.ToArray()));
+            Assert.AreEqual(2, r.FailedTargets.Count, string.Join("\n", r.Lines.ToArray()));
+            Assert.IsFalse(System.IO.File.Exists(Absolute(bad)), "the failed clip was written");
+        }
     }
 }

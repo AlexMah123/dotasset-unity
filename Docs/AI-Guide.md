@@ -16,7 +16,7 @@ The call manual for agents. Arguments, spec shapes, exit codes and JSON fields a
 | What an asset uses, and what uses it | `AssetReferenceExport` | Export |
 | Which property paths a component or ScriptableObject type has, their defaults and enum options | `TypeCatalogExport` with `-filter=` | Export |
 | Which runs exist, including project-specific ones | `CommandCatalogExport`, or `dotasset.py --list` | Export |
-| Create folders, ScriptableObjects, materials, prefabs, variants, controllers, scenes | `CreateAsset` | Import |
+| Create folders, ScriptableObjects, materials, prefabs, variants, controllers, animation clips, scenes | `CreateAsset` | Import |
 | Add, delete, rename, move GameObjects in a prefab; add or remove components; set fields and references | `EditPrefab` | Edit |
 | The same in a scene, including a scene open in the editor | `EditScene` | Edit |
 | Put a prefab instance into a prefab or scene, revert or unpack an instance | `EditPrefab` / `EditScene` ops `AddPrefabInstance`, `RevertOverrides`, `UnpackPrefab` | Edit |

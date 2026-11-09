@@ -27,7 +27,7 @@ python dotasset.py <RunName> "<AssetList>" --args "<-key=value ...>" --agent
 | Look inside a prefab, scene, asset, material, controller, animation clip, importer | `PrefabExport`, `SceneExport`, `AssetExport`, `MaterialExport`, `AnimatorControllerExport`, `AnimationClipExport`, `ImporterExport` |
 | What uses an asset, what it uses | `AssetReferenceExport` |
 | Property names and defaults of a type | `TypeCatalogExport --args "-filter=Rigidbody"` |
-| Create folders, ScriptableObjects, materials, prefabs, variants, controllers, scenes | `CreateAsset` |
+| Create folders, ScriptableObjects, materials, prefabs, variants, controllers, animation clips, scenes | `CreateAsset` |
 | Change a prefab or scene: GameObjects, components, fields, prefab instances | `EditPrefab`, `EditScene` |
 | Change a ScriptableObject, material, importer, animator controller, animation clip | `EditAsset`, `EditMaterial`, `EditImporter`, `EditAnimatorController`, `EditAnimationClip` |
 | Move, copy, delete assets with references kept | `MoveAsset`, `DuplicateAsset`, `DeleteAsset` |

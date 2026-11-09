@@ -27,7 +27,7 @@ Every write goes through Unity's own API (`SerializedObject`, `PrefabUtility`, `
 | Group | Runs |
 | :-- | :-- |
 | **Export** | `PrefabExport` `SceneExport` `AssetExport` `MaterialExport` `AnimatorControllerExport` `AnimationClipExport` `ImporterExport` `AssetReferenceExport` `TypeCatalogExport` `CommandCatalogExport` |
-| **Import** | `CreateAsset` (folders, ScriptableObjects, materials, prefabs, prefab variants, Animator Controllers, scenes) |
+| **Import** | `CreateAsset` (folders, ScriptableObjects, materials, prefabs, prefab variants, Animator Controllers, animation clips, scenes) |
 | **Edit** | `EditPrefab` `EditScene` `EditAsset` `EditMaterial` `EditImporter` `EditAnimatorController` `EditAnimationClip` |
 | **Migrate** | `MoveAsset` `DuplicateAsset` `DeleteAsset` `ResaveAsset` `RemapReference` `RemapScript` `RenameField` `RenameSerializeReferenceType` `RemoveMissingScripts` `RebindAnimation` `RenameShaderProperty` `UndoRun` |
 | **Audit** | `AuditMissingReference` `AuditTexture` `AuditMaterial` `AuditUnusedAsset` |

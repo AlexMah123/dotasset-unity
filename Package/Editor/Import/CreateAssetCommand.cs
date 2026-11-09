@@ -19,17 +19,18 @@ namespace DotAsset
     //   {"Kind": "Prefab", "Path": "Assets/Prefabs/Crate.prefab", "Root": "Crate", "Components": [...], "Ops": [...]}
     //   {"Kind": "PrefabVariant", "Path": "Assets/Prefabs/RedCrate.prefab", "Base": "Assets/Prefabs/Crate.prefab", "Ops": [...]}
     //   {"Kind": "AnimatorController", "Path": "Assets/Anim/Door.controller", "Ops": [...]}
+    //   {"Kind": "AnimationClip", "Path": "Assets/Anim/Walk.anim", "FrameRate": 30, "Legacy": false, "Settings": {...}, "Ops": [...]}
     //   {"Kind": "Scene", "Path": "Assets/Scenes/Test.unity", "Setup": "Empty" | "Default", "Ops": [...]}
     // An existing path is skipped with a warning, never overwritten. Each entry is all or nothing.
     // Usage: dotasset.py CreateAsset --args '-spec="C:/temp/create.json"'
     // Docs/Import.md
     public sealed class CreateAssetCommand : DotAssetCommand
     {
-        static readonly string[] Kinds = { "Folder", "ScriptableObject", "Material", "Prefab", "PrefabVariant", "AnimatorController", "Scene" };
+        static readonly string[] Kinds = { "Folder", "ScriptableObject", "Material", "Prefab", "PrefabVariant", "AnimatorController", "AnimationClip", "Scene" };
 
         public override string Summary
         {
-            get { return "Creates folders, ScriptableObjects, materials, prefabs, variants, controllers and scenes from a spec"; }
+            get { return "Creates folders, ScriptableObjects, materials, prefabs, variants, controllers, animation clips and scenes from a spec"; }
         }
 
         public override bool TakesAssetList
@@ -85,9 +86,22 @@ namespace DotAsset
                     ctx.Log.Error("Assets[" + i + "]: \"Ops\" must be an array");
                     return ExitCode.Refused;
                 }
-                string opError = kind == "AnimatorController"
-                    ? EditAnimatorControllerCommand.ValidateOps(ops, "Assets[" + i + "]")
-                    : HierarchyEditor.ValidateOps(ops, "Assets[" + i + "]");
+                string opError;
+                if (kind == "AnimatorController")
+                {
+                    opError = EditAnimatorControllerCommand.ValidateOps(ops, "Assets[" + i + "]");
+                }
+                else if (kind == "AnimationClip")
+                {
+                    JToken legacy = Json.Get(entries[i], "Legacy");
+                    opError = legacy != null && legacy.Type != JTokenType.Boolean
+                        ? "Assets[" + i + "] Legacy: needs true or false"
+                        : EditAnimationClipCommand.Validate(entries[i], "Assets[" + i + "]");
+                }
+                else
+                {
+                    opError = HierarchyEditor.ValidateOps(ops, "Assets[" + i + "]");
+                }
                 if (opError != null)
                 {
                     ctx.Log.Error(opError);
@@ -148,6 +162,9 @@ namespace DotAsset
                         case "AnimatorController":
                             ok = CreateController(ctx, entry, path, out error);
                             break;
+                        case "AnimationClip":
+                            ok = CreateClip(ctx, entry, path, out error);
+                            break;
                         case "Scene":
                             ok = CreateScene(ctx, entry, path, out error);
                             break;
@@ -198,6 +215,9 @@ namespace DotAsset
                     break;
                 case "AnimatorController":
                     keys.AddRange(new[] { "Ops" });
+                    break;
+                case "AnimationClip":
+                    keys.AddRange(new[] { "FrameRate", "Legacy", "Settings", "Ops" });
                     break;
                 case "Scene":
                     keys.AddRange(new[] { "Setup", "Ops", "AddToBuild" });
@@ -549,6 +569,32 @@ namespace DotAsset
             {
                 File.Delete(specPath);
             }
+        }
+
+        // Filled through EditAnimationClip's ops before it exists on disk, so a failed op leaves no file.
+        static bool CreateClip(RunContext ctx, JToken entry, string path, out string error)
+        {
+            error = null;
+            if (!path.EndsWith(".anim", StringComparison.OrdinalIgnoreCase))
+            {
+                error = "an animation clip path ends in .anim";
+                return false;
+            }
+            var clip = new AnimationClip { name = Path.GetFileNameWithoutExtension(path), legacy = Json.Bool(entry, "Legacy", false) };
+            error = EditAnimationClipCommand.Fill(clip, entry);
+            if (error == null && ctx.TargetFailed())
+            {
+                error = ctx.TargetError;
+            }
+            if (error != null || !ParentFolder(path, out error) || !ctx.ReadyToSave(out error))
+            {
+                Object.DestroyImmediate(clip);
+                return false;
+            }
+            RunJournal.Keep(path);
+            AssetDatabase.CreateAsset(clip, path);
+            AssetDatabase.SaveAssetIfDirty(clip);
+            return true;
         }
 
         static bool CreateScene(RunContext ctx, JToken entry, string path, out string error)

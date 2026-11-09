@@ -38,6 +38,10 @@ Entries run in order, so a later entry can use what an earlier one created. Each
     { "Kind": "PrefabVariant", "Path": "Assets/Prefabs/HeavyCrate.prefab", "Base": "Assets/Prefabs/Crate.prefab",
       "Ops": [ { "Op": "Set", "Path": "HeavyCrate", "Component": "Rigidbody", "Properties": { "m_Mass": 50 } } ] },
 
+    { "Kind": "AnimationClip", "Path": "Assets/Anim/DoorOpen.anim", "FrameRate": 30,
+      "Ops": [ { "Op": "SetCurve", "Path": "Panel", "Type": "Transform", "Property": "m_LocalPosition.y",
+                 "Keys": [ { "Time": 0, "Value": 0 }, { "Time": 0.5, "Value": 2 } ] } ] },
+
     { "Kind": "AnimatorController", "Path": "Assets/Anim/Door.controller",
       "Ops": [
         { "Op": "AddParameter", "Name": "Open", "Type": "Bool" },
@@ -60,6 +64,7 @@ Entries run in order, so a later entry can use what an earlier one created. Each
 | `Prefab` | `Root` (the root's name while the ops run, default the file name; Unity names a saved prefab's root after its file, so keep them equal), `RectTransform: true` for UI, `Components` (type names, or `{Type, Properties}`), `Ops` ([hierarchy ops](Edit.md#hierarchy-ops)) |
 | `PrefabVariant` | `Base` (prefab or model), `Ops`. The variant's root is named after the file |
 | `AnimatorController` | `Ops` ([controller ops](Edit.md#editanimatorcontroller)) |
+| `AnimationClip` | `FrameRate`, `Legacy` (`true` for the legacy Animation component), `Settings` and `Ops` ([clip ops](Edit.md#editanimationclip)). The path ends in `.anim`. The clip is filled before it is written, so a failed op leaves no file |
 | `Scene` | `Setup`: `Empty` (default) or `Default` (camera and light), `Ops` (hierarchy ops, `Parent` omitted means a scene root), `AddToBuild` (appends it to the Build Settings scene list, `UndoRun` takes it out again) |
 
 Paths must be under `Assets/`. Every entry's `Kind`, `Path` and keys are checked before anything is created, and a mistake in any entry is refused with exit 2, so a misspelt `Propeties` cannot be dropped silently and a bad third entry leaves the first two uncreated. A path with a `.` or `..` segment, or starting `assets/` in the wrong case, is refused too.

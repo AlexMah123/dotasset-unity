@@ -163,8 +163,8 @@ namespace DotAsset
             return ctx.FailedTargets.Count > 0 ? ExitCode.Failed : ExitCode.Success;
         }
 
-        // Op names, op keys, key fields and setting names, before anything is changed.
-        static string Validate(JToken target, string where)
+        // Op names, op keys, key fields and setting names, before anything is changed. Also CreateAsset's AnimationClip entries.
+        internal static string Validate(JToken target, string where)
         {
             JToken opsToken = Json.Get(target, "Ops");
             if (opsToken != null && opsToken.Type != JTokenType.Null && !(opsToken is JArray))
@@ -213,6 +213,13 @@ namespace DotAsset
                 }
             }
             return null;
+        }
+
+        // Applies a spec's Ops, Settings and FrameRate to a clip, for CreateAsset. Null when it worked, else the first error.
+        internal static string Fill(AnimationClip clip, JToken spec)
+        {
+            var editor = new ClipEditor(clip);
+            return editor.Apply(spec) ? null : editor.Errors[0];
         }
 
         // The clip a target names: the only clip in the file, or the one called "Clip".

@@ -100,7 +100,7 @@ python dotasset.py --quit                                # close it, the project
 
 A scene open in the editor is edited in place on one undo group. When Unity completes something the run added on a later frame (a new Light gets its baking state), the queue saves the scene again before it reports the run, so the scene is left clean.
 
-Output: `Library/DotAsset/Export/<AssetPath>_<timestamp>.json`, the newest 10 per asset kept. Logs: `Library/DotAsset/Logs/`, the newest 200 kept, and `Window > DotAsset` in the editor.
+Output: `Library/DotAsset/Export/<AssetPath>_<timestamp>.json`, the time in UTC, the newest 10 per asset kept. Logs: `Library/DotAsset/Logs/`, the newest 200 kept, and `Window > DotAsset` in the editor.
 
 **Requirements:** Unity 2022.3 or 6000.x on Windows, Python 3.8 or newer (standard library only) for the wrapper. CI runs its unit tests on 3.8, 3.9 and the newest 3.x. macOS and Linux are not tested: the wrapper has code paths for them, but nothing confirms they work. Apart from the assets a run is asked to change, everything DotAsset writes (exports, reports, logs, the task queue) stays under `Library/DotAsset/`, which version control ignores.
 

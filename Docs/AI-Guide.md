@@ -140,7 +140,7 @@ Every run prints its log, then `[dotasset] <summary>` and the path of its log fi
 
 Failure lines have one shape: `<RunName> failed for <target>. Reason: <first error while writing it>`.
 
-Exports land in `Library/DotAsset/Export/<AssetPath>_<YYYYMMDD-HHMMSS>.json` and are printed as `output:` lines. They can be long: grep first, then read the line range.
+Exports land in `Library/DotAsset/Export/<AssetPath>_<YYYYMMDD-HHMMSS>.json`, the time in UTC, and are printed as `output:` lines. They can be long: grep first, then read the line range.
 
 ```bash
 grep -n '"Path": "Player/Model' Library/DotAsset/Export/Assets/Prefabs/Player.prefab_*.json

@@ -66,7 +66,7 @@ namespace DotAsset
             try
             {
                 logFiles = Directory.Exists(DotAssetPaths.LogRoot)
-                    ? Directory.GetFiles(DotAssetPaths.LogRoot, "*.log").OrderByDescending(f => Path.GetFileName(f)).Take(100).ToArray()
+                    ? DotAssetPaths.NewestFirst(new DirectoryInfo(DotAssetPaths.LogRoot).GetFiles("*.log")).Take(100).Select(f => f.FullName).ToArray()
                     : new string[0];
             }
             catch (Exception)

@@ -426,7 +426,7 @@ namespace DotAsset
                 Directory.CreateDirectory(DotAssetPaths.LogRoot);
                 string path = DotAssetPaths.Combine(DotAssetPaths.LogRoot, DotAssetPaths.Timestamp() + "_" + Sanitize(runName ?? "none") + "_" + Guid.NewGuid().ToString("N").Substring(0, 6) + ".log");
                 File.WriteAllText(path, string.Join("\n", result.Lines) + "\n", new UTF8Encoding(false));
-                var old = new DirectoryInfo(DotAssetPaths.LogRoot).GetFiles("*.log").OrderByDescending(f => f.Name).Skip(KeepLogs);
+                var old = DotAssetPaths.NewestFirst(new DirectoryInfo(DotAssetPaths.LogRoot).GetFiles("*.log")).Skip(KeepLogs).ToList();
                 foreach (var f in old)
                 {
                     f.Delete();

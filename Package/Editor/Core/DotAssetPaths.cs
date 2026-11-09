@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Globalization;
 using System.IO;
 using System.Linq;
@@ -39,9 +40,17 @@ namespace DotAsset
             get { return Combine(Root, "Logs"); }
         }
 
+        // UTC, like ExportedUtc inside the file. Names written before 0.12.0 carry local time.
         public static string Timestamp()
         {
-            return DateTime.Now.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+            return DateTime.UtcNow.ToString("yyyyMMdd-HHmmss", CultureInfo.InvariantCulture);
+        }
+
+        // Newest first by write time, then by name. A name alone misleads: one written before 0.12.0 carries local
+        // time, which east of UTC sorts after the UTC names written in the hours since.
+        public static IEnumerable<FileInfo> NewestFirst(IEnumerable<FileInfo> files)
+        {
+            return files.OrderByDescending(f => f.LastWriteTimeUtc).ThenByDescending(f => f.Name, StringComparer.Ordinal);
         }
 
         public static string Normalize(string path)
@@ -131,10 +140,7 @@ namespace DotAsset
                     return;
                 }
                 var sibling = new Regex("^" + Regex.Escape(m.Groups[1].Value) + @"_\d{8}-\d{6}(-\d+)?\.json$");
-                var old = new DirectoryInfo(dir).GetFiles("*.json")
-                    .Where(f => sibling.IsMatch(f.Name))
-                    .OrderByDescending(f => f.LastWriteTimeUtc).ThenByDescending(f => f.Name, StringComparer.Ordinal)
-                    .Skip(keep);
+                var old = NewestFirst(new DirectoryInfo(dir).GetFiles("*.json").Where(f => sibling.IsMatch(f.Name))).Skip(keep);
                 foreach (FileInfo f in old)
                 {
                     f.Delete();

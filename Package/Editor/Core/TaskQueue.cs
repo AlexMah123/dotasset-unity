@@ -33,7 +33,6 @@ namespace DotAsset
         public const string RequestSuffix = ".json";
         public const string ResultSuffix = ".result.json";
         public const double HeartbeatSeconds = 2.0;
-        public const double FreshnessSeconds = 15.0;
     }
 
     [InitializeOnLoad]

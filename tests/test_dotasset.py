@@ -896,6 +896,41 @@ class QueueRoute(Base):
         self.assertIn("running headless instead", out)
         self.assertIn("route: batchmode", out)
 
+    def test_route_editor_never_runs_headless(self):
+        # R6-2: every way route() reaches the headless route refuses under --route editor, and none starts Unity.
+        record = os.path.join(self.tmp, "unity-argv.json")
+        os.environ["FAKE_UNITY_RECORD"] = record
+        call = ("PrefabExport", "Assets/A.prefab", "--route", "editor", "--unity", self.fake_unity)
+        code, out = self.call(*call)
+        self.assertEqual(code, 2, out)
+        self.assertIn("no editor has this project open", out)
+
+        held = ops.BatchLock(os.path.join(self.project, ops.QUEUE_RELATIVE))
+        self.assertTrue(held.try_acquire())
+        try:
+            with mock.patch.object(ops, "project_locked", return_value=True):
+                code, out = self.call(*call)
+        finally:
+            held.release()
+        self.assertEqual(code, 2, out)
+        self.assertIn("held by a headless DotAsset run", out)
+
+        editor = FakeEditor(self.project, None, claim=False)
+        editor.start()
+
+        def die():
+            time.sleep(0.5)
+            self.editor_alive = False
+        threading.Thread(target=die, daemon=True).start()
+        try:
+            code, out = self.call(*call)
+        finally:
+            editor.stop.set()
+        self.assertEqual(code, 2, out)
+        self.assertIn("the editor exited before taking the task, --route editor does not run it headless", out)
+        self.assertNotIn("route: batchmode", out)
+        self.assertFalse(os.path.exists(record), "--route editor started a headless Unity:\n" + out)
+
     def test_heartbeat_of_another_project_is_ignored(self):
         queue = os.path.join(self.project, ops.QUEUE_RELATIVE)
         os.makedirs(queue, exist_ok=True)

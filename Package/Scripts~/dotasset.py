@@ -741,6 +741,9 @@ def wait_queue(args, queue_root, task_id, run, assets, extra, alive):
                 return EXIT_REFUSED
             if not is_unity_process(pid):
                 if withdraw(queue_root, task_id):
+                    if args.route == "editor":
+                        log("error: the editor exited before taking the task, --route editor does not run it headless. Task withdrawn")
+                        return EXIT_REFUSED
                     log("the editor exited before taking the task, running headless instead")
                     return None
                 if os.path.exists(processing_path):

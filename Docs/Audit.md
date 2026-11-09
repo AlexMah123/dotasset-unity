@@ -166,7 +166,7 @@ python dotasset.py AuditAudio --args "-scandir=Assets"
 | `-scandir=<dirs>` | default `Assets` |
 | `-rules=A1` | only these rules |
 
-A project without an AudioMixer has nothing to route to, so A1 does not apply there and the run checks nothing (exit 0). The report's `Mixers` lists the `.mixer` files found in the whole project. A group whose mixer was deleted reads as no group, and `AuditMissingReference` R1 names the missing mixer too. It scans `.prefab` and `.unity` files the way `AuditMesh` does, with the same `Object` field and the same rule for prefab instances. Audio clip import settings (load type, compression, sample rate, preload) are not checked: Unity's Project Auditor package does that, headless through the Unity CLI's `diagnostics run_audit` command. No fix spec, because which group a source plays to is a choice.
+A project without an AudioMixer has nothing to route to, so A1 does not apply there and the run checks nothing (exit 0). The report's `Mixers` lists the `.mixer` files found in the whole project. A group whose mixer was deleted reads as no group, and `AuditMissingReference` R1 names the missing mixer too. It scans `.prefab` and `.unity` files the way `AuditMesh` does, with the same `Object` field and the same rule for prefab instances. Audio clip import settings (load type, compression, sample rate, preload) are not checked: Unity's Project Auditor does that, and the Unity CLI's `diagnostics run_audit` command runs it and writes its issues to a CSV. No fix spec, because which group a source plays to is a choice.
 
 ## AuditUnusedAsset
 

@@ -62,7 +62,7 @@ DotAsset changes assets. It does not drive the editor. When the Unity CLI, an MC
 | Move, rename or delete assets, repoint references or scripts, keep values after a field or shader property rename | DotAsset Migrate | None of the others checked repoints references. A dry run first, a journal `UndoRun` takes back |
 | Change prefabs, scenes, materials, importers or controllers in a way that can be repeated and reviewed | DotAsset Edit, after an export | A spec in a file, the same value format as the export, all or nothing per asset |
 | Find broken references, unused assets, wrong texture or material settings, then fix them | DotAsset Audit and its fix spec | The report names the fix run and writes its spec |
-| Code and performance analysis | Unity CLI `audit` (Project Auditor) | DotAsset audits asset settings and references only |
+| Code and performance analysis | Unity CLI `diagnostics run_audit` (Project Auditor) | DotAsset audits asset settings and references only |
 | Compile, run tests, read the Console, enter play mode, build, take captures | Unity CLI, an MCP server or UniCli | DotAsset never controls the editor |
 | Try things in an open scene, undone with Ctrl+Z | Unity CLI or an MCP server | Editor Undo. DotAsset writes files and journals them instead |
 | Run any C# in the editor | Unity CLI `eval` or an MCP server's code tool | DotAsset has no eval. Its journal does not see what eval writes |

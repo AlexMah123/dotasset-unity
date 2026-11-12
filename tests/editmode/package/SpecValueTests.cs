@@ -112,5 +112,23 @@ namespace DotAsset.Tests
             Refused(r, built, "Setup: \"DefaultGameObjects\" is not Empty or Default");
             Assert.IsFalse(System.IO.File.Exists(Absolute(built)), "the failed scene was written");
         }
+
+        // N7-1: a clip's Settings were applied outside the per-op catch, so a wrong type in a reference there ended
+        // the run without failing the clip, and the clips after it never ran.
+        [Test]
+        public void AClipSettingsValueOfTheWrongTypeFailsOnlyThatClip()
+        {
+            string wave = NewClip();
+            string second = Folder + "/Second.anim";
+            Ok("CreateAsset", Spec(@"{'Assets': [{'Kind': 'AnimationClip', 'Path': '" + second + @"', 'FrameRate': 30,
+                'Ops': [{'Op': 'SetCurve', 'Path': 'Body', 'Type': 'Transform', 'Property': 'm_LocalPosition.y', 'Keys': [{'Time': 0, 'Value': 0}, {'Time': 1, 'Value': 1}]}]}]}"));
+            string before = Text(wave);
+            RunResult r = Run("EditAnimationClip", Spec(@"{'Targets': [
+                {'AssetPath': '" + wave + @"', 'Settings': {'AdditiveReferencePoseClip': {'Asset': '" + second + @"', 'Missing': 'yes'}}},
+                {'AssetPath': '" + second + @"', 'FrameRate': 24}]}") + " -apply");
+            Refused(r, wave, "Missing: \"yes\" is not true or false");
+            Assert.AreEqual(before, Text(wave));
+            Assert.AreEqual(24f, AssetDatabase.LoadAssetAtPath<AnimationClip>(second).frameRate, "the second clip did not run\n" + Lines(r));
+        }
     }
 }

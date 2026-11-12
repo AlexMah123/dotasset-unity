@@ -417,8 +417,18 @@ namespace DotAsset
                     }
                 }
                 var settings = Json.Get(target, "Settings") as JObject;
-                if (settings != null && !Settings(settings))
+                try
                 {
+                    if (settings != null && !Settings(settings))
+                    {
+                        return false;
+                    }
+                }
+                catch (Exception e)
+                {
+                    // N7-1: a wrong-typed value in a Settings reference, e.g. "Missing": "yes", fails this clip only.
+                    label = label ?? "Settings";
+                    Fail(e.Message);
                     return false;
                 }
                 if (Json.Has(target, "FrameRate"))

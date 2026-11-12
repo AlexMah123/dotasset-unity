@@ -130,5 +130,21 @@ namespace DotAsset.Tests
             Assert.AreEqual(before, Text(wave));
             Assert.AreEqual(24f, AssetDatabase.LoadAssetAtPath<AnimationClip>(second).frameRate, "the second clip did not run\n" + Lines(r));
         }
+
+        // N7-2: the Texture block cast its values, so 2.5 was saved as 2 and true as 1.
+        [Test]
+        public void ATextureValueOfTheWrongTypeFailsTheTexture()
+        {
+            string png = Folder + "/Rock.png";
+            WritePng(png);
+            string before = Text(png + ".meta");
+            foreach (string value in new[] { "'AnisoLevel': 2.5", "'AnisoLevel': true", "'CompressionQuality': 50.5" })
+            {
+                RunResult r = Run("EditImporter", Spec(@"{'Targets': [{'AssetPath': '" + png + @"', 'Texture': {" + value + "}}]}") + " -apply");
+                string shown = value.Substring(value.IndexOf(':') + 2).Replace('\'', '"');
+                Refused(r, png, "Texture." + value.Substring(1, value.IndexOf('\'', 1) - 1) + ": " + shown + " is not a whole number");
+                Assert.AreEqual(before, Text(png + ".meta"), value);
+            }
+        }
     }
 }

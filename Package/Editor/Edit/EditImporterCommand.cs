@@ -247,35 +247,36 @@ namespace DotAsset
                             error = SetEnum<TextureImporterShape>(v, x => t.textureShape = x);
                             break;
                         case "srgb":
-                            t.sRGBTexture = (bool)v;
+                            t.sRGBTexture = Json.Bool(tex, p.Name, t.sRGBTexture);
                             break;
                         case "alphasource":
                             error = SetEnum<TextureImporterAlphaSource>(v, x => t.alphaSource = x);
                             break;
                         case "alphaistransparency":
-                            t.alphaIsTransparency = (bool)v;
+                            t.alphaIsTransparency = Json.Bool(tex, p.Name, t.alphaIsTransparency);
                             break;
                         case "readwrite":
-                            t.isReadable = (bool)v;
+                            t.isReadable = Json.Bool(tex, p.Name, t.isReadable);
                             break;
                         case "mipmaps":
-                            t.mipmapEnabled = (bool)v;
+                            t.mipmapEnabled = Json.Bool(tex, p.Name, t.mipmapEnabled);
                             break;
                         case "maxsize":
-                            error = CheckSize((int)v);
+                            int size = Json.Int(tex, p.Name, t.maxTextureSize);
+                            error = CheckSize(size);
                             if (error == null)
                             {
-                                t.maxTextureSize = (int)v;
+                                t.maxTextureSize = size;
                             }
                             break;
                         case "compression":
                             error = SetEnum<TextureImporterCompression>(v, x => t.textureCompression = x);
                             break;
                         case "crunchedcompression":
-                            t.crunchedCompression = (bool)v;
+                            t.crunchedCompression = Json.Bool(tex, p.Name, t.crunchedCompression);
                             break;
                         case "compressionquality":
-                            t.compressionQuality = (int)v;
+                            t.compressionQuality = Json.Int(tex, p.Name, t.compressionQuality);
                             break;
                         case "npotscale":
                             error = SetEnum<TextureImporterNPOTScale>(v, x => t.npotScale = x);
@@ -287,7 +288,7 @@ namespace DotAsset
                             error = SetEnum<TextureWrapMode>(v, x => t.wrapMode = x);
                             break;
                         case "anisolevel":
-                            t.anisoLevel = (int)v;
+                            t.anisoLevel = Json.Int(tex, p.Name, t.anisoLevel);
                             break;
                         case "spritemode":
                             error = SetEnum<SpriteImportMode>(v, x => t.spriteImportMode = x);
@@ -302,7 +303,8 @@ namespace DotAsset
                 }
                 catch (SpecValueException e)
                 {
-                    error = e.Message;
+                    // N7-2: Json.Bool and Json.Int name the key, which the line below names already.
+                    error = e.Message.StartsWith(p.Name + ": ") ? e.Message.Substring(p.Name.Length + 2) : e.Message;
                 }
                 catch (Exception)
                 {

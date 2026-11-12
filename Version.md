@@ -6,6 +6,18 @@ Defined in `Package/Editor/Core/DotAssetVersion.cs` and `Package/package.json`, 
 
 Versions follow one rule. A patch (0.1.x) holds fixes, test upgrades and docs. A minor version (0.x.0) adds something new to call: a run, an op, a spec key, an argument or a wrapper option. While on 0.x, a change that breaks existing calls is also a minor version, marked breaking here. 1.0.0 comes when runs, specs and export JSON are promised to stay stable.
 
+### 0.13.2
+
+Fixes from the seventh review. 0.13.1 wrote "a spec value of the wrong type fails its target" into the docs, and these are the places that still did not. Each fix came with a test that failed on the code before it.
+
+- Fixed: a key that takes an object or a list (`Properties`, `Components`, `ArrayOps`, `Conditions`), given another shape, fails its target and names the key, e.g. `Properties: ["_Color", "#FF0000"] is not an object`. Before, it read as not given, so `"Components": {"Type": "BoxCollider"}` made a prefab with no collider and the run exited 0. A `Position` in `EditAnimatorController` that is not two numbers fails the same way instead of being ignored. The runs that check their spec up front (`EditPrefab`, `EditScene`, `CreateAsset`, `EditAsset`, `EditImporter`) refuse it with exit 2, the others fail the target with exit 1. A key left out or `null` is still not given
+- Fixed: a scene `Setup` other than `Empty` or `Default` fails its `CreateAsset` entry. It is read like an enum name, in any case, so `"default"` now makes a scene with a camera and light. Before, anything but `Default` made an empty scene
+- Fixed: a wrong-typed value in an `EditAnimationClip` `Settings` reference (`"Missing": "yes"`) fails that clip. Before, it ended the run without a failed target, and the clips after it never ran
+- Fixed: `EditImporter`'s `Texture` block reads `MaxSize`, `CompressionQuality`, `AnisoLevel` and its five true/false keys strictly, so `"AnisoLevel": 2.5` fails the texture instead of saving 2
+- Docs: a number property written through `Properties` also takes `true` or `false`, saved as 1 or 0. Specs use it for toggles, so it stays. A clip's true/false `Settings` and `Legacy` take only `true` or `false`. A text key such as `NewName` takes any value as text
+- Docs: the README comparison table names `com.unity.pipeline` 1.0.0 (stable since 2026-11-11, DotAsset's adapter not yet run against it) and IvanMurzak Unity-MCP 1.11.0
+- Tests: 122 unit tests (new: a guard that counts the loose shape reads left per file), 175 EditMode tests (new: `SpecShapeTests`, three `SpecValueTests`, and a `MoveAsset` spec that moves a prefab variant, its base and their material at once, the case uasset-workbench 2.7.15 fixed)
+
 ### 0.13.1
 
 Fixes from the sixth review, and a cleanup pass with no behaviour change. Each fix came with a test that failed on the code before it.

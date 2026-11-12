@@ -1705,6 +1705,40 @@ class PackageFiles(unittest.TestCase):
             body = body[:body.index("\n        }\n")]
             self.assertIn("throw new SpecValueException", body, "Json.%s falls back on a wrong type" % reader)
 
+    # R7-1: a spec read with `Json.Get(...) as JObject` or `as JArray` turns a wrong shape into "not given". The
+    # reads left are the ones whose caller fails a null with a message of its own, or that read a key checked up
+    # front. Every other object or array key goes through Json.Obj, Json.Arr or the keyed ValueCodec.Floats.
+    SHAPE_READS = {
+        "Core/AssetScan.cs": 1,
+        "Core/HierarchyEditor.cs": 2,
+        "Core/ValueCodec.cs": 5,
+        "Edit/EditAnimationClipCommand.cs": 6,
+        "Edit/EditAnimatorControllerCommand.cs": 3,
+        "Edit/EditImporterCommand.cs": 2,
+        "Edit/MaterialWriter.cs": 4,
+        "Import/CreateAssetCommand.cs": 5,
+    }
+
+    def test_spec_shapes_are_read_strictly(self):
+        pattern = re.compile(r"Json\.Get\([^;]*?\)\s+as\s+J(?:Object|Array)\b|\bFloats\(Json\.Get\(")
+        found = {}
+        editor = os.path.join(PACKAGE, "Editor")
+        for dirpath, _, files in os.walk(editor):
+            for name in files:
+                if name.endswith(".cs") and name != "TaskQueue.cs":
+                    path = os.path.join(dirpath, name)
+                    code = "\n".join(line.split("//")[0] for line in read(path).splitlines())
+                    n = len(pattern.findall(code))
+                    if n:
+                        found[os.path.relpath(path, editor).replace(os.sep, "/")] = n
+        self.assertEqual(found, self.SHAPE_READS)
+        json_cs = read(os.path.join(PACKAGE, "Editor", "Core", "Json.cs"))
+        for kind, reader in (("JObject", "Obj"), ("JArray", "Arr")):
+            self.assertIn("public static %s %s(" % (kind, reader), json_cs, "Json.%s is missing" % reader)
+            body = json_cs[json_cs.index("public static %s %s(" % (kind, reader)):]
+            body = body[:body.index("\n        }\n")]
+            self.assertIn("SpecValueException", body, "Json.%s drops a wrong shape" % reader)
+
     def test_file_writes_stay_in_known_places(self):
         pattern = re.compile(r"File\.(WriteAll\w*|Delete|Move|Copy|Replace|Create\w*|AppendAll\w*|SetAttributes|Open\w*)\("
                              r"|Directory\.(Delete|Move|CreateDirectory)\(|new (FileStream|StreamWriter)\(|Json\.WriteFile\("

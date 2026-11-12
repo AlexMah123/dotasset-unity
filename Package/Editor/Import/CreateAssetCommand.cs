@@ -107,12 +107,23 @@ namespace DotAsset
                     ctx.Log.Error(opError);
                     return ExitCode.Refused;
                 }
-                var components = Json.Get(entries[i], "Components") as JArray;
+                // R7-1: a key that takes an object or an array, given another shape, is refused, not read as absent.
+                string shape = Json.ShapeError(entries[i], "Components", JTokenType.Array)
+                    ?? Json.ShapeError(entries[i], "Properties", JTokenType.Object)
+                    ?? Json.ShapeError(entries[i], "ArrayOps", JTokenType.Array);
+                if (shape != null)
+                {
+                    ctx.Log.Error("Assets[" + i + "]: " + shape);
+                    return ExitCode.Refused;
+                }
+                var components = Json.Arr(entries[i], "Components");
                 if (components != null)
                 {
                     foreach (JToken c in components)
                     {
-                        string bad = c.Type == JTokenType.Object ? Json.UnknownKeys(c, "Type", "Properties") : null;
+                        string bad = c.Type == JTokenType.Object
+                            ? Json.UnknownKeys(c, "Type", "Properties") ?? Json.ShapeError(c, "Properties", JTokenType.Object)
+                            : null;
                         if (bad != null)
                         {
                             ctx.Log.Error("Assets[" + i + "] Components entry: " + bad);
@@ -302,6 +313,9 @@ namespace DotAsset
                 error = type.Name + " is abstract";
                 return false;
             }
+            // Read before the instance exists, so a wrong shape leaves nothing to destroy.
+            var properties = Json.Obj(entry, "Properties");
+            var arrayOps = Json.Arr(entry, "ArrayOps");
             var instance = ScriptableObject.CreateInstance(type);
             if (instance == null)
             {
@@ -309,8 +323,6 @@ namespace DotAsset
                 return false;
             }
             var wc = new WriteContext();
-            var properties = Json.Get(entry, "Properties") as JObject;
-            var arrayOps = Json.Get(entry, "ArrayOps") as JArray;
             if ((properties != null || arrayOps != null) && !PropertyIO.Write(instance, properties, arrayOps, wc))
             {
                 Object.DestroyImmediate(instance);
@@ -403,7 +415,7 @@ namespace DotAsset
             {
                 var editor = new HierarchyEditor(root, path, ctx.Log);
                 var ops = new JArray();
-                var components = Json.Get(entry, "Components") as JArray;
+                var components = Json.Arr(entry, "Components");
                 if (components != null)
                 {
                     foreach (JToken c in components)

@@ -49,6 +49,12 @@ namespace DotAsset
                 {
                     return ExitCode.Refused;
                 }
+                string shape = Json.ShapeError(targets[i], "Properties", JTokenType.Object);
+                if (shape != null)
+                {
+                    ctx.Log.Error("Targets[" + i + "]: " + shape);
+                    return ExitCode.Refused;
+                }
                 JToken tex = Json.Get(targets[i], "Texture");
                 if (tex != null && !Spec.CheckKeys(ctx, tex, "Targets[" + i + "].Texture", TextureKeys))
                 {
@@ -148,7 +154,7 @@ namespace DotAsset
                     ApplyTexture(ti, tex, errors);
                     Diff("Texture", before, TextureState(ti, platforms), changes);
                 }
-                var props = Json.Get(target, "Properties") as JObject;
+                var props = Json.Obj(target, "Properties");
                 if (errors.Count == 0 && props != null)
                 {
                     var wc = new WriteContext { Changes = changes };

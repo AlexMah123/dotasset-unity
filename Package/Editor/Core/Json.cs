@@ -8,7 +8,8 @@ using Newtonsoft.Json.Linq;
 
 namespace DotAsset
 {
-    // A spec value of the wrong type, thrown by Json.Bool and Json.Int. The op or target that read it fails with this message.
+    // A spec value of the wrong type or shape, thrown by Json.Bool, Json.Int, Json.Obj and Json.Arr. The op or target
+    // that read it fails with this message.
     public sealed class SpecValueException : FormatException
     {
         public SpecValueException(string message) : base(message)
@@ -179,6 +180,41 @@ namespace DotAsset
                 return result;
             }
             throw new SpecValueException(key + ": " + ValueCodec.Show(Get(token, key)) + " is not a whole number");
+        }
+
+        // A key that takes an object, null when it is absent or null. Another shape throws SpecValueException, so
+        // "Properties": ["_Color", "#FF0000"] fails the target instead of reading as "not given".
+        public static JObject Obj(JToken token, string key)
+        {
+            string error = ShapeError(token, key, JTokenType.Object);
+            if (error != null)
+            {
+                throw new SpecValueException(error);
+            }
+            return Get(token, key) as JObject;
+        }
+
+        // As Obj, for a key that takes an array.
+        public static JArray Arr(JToken token, string key)
+        {
+            string error = ShapeError(token, key, JTokenType.Array);
+            if (error != null)
+            {
+                throw new SpecValueException(error);
+            }
+            return Get(token, key) as JArray;
+        }
+
+        // The message Obj or Arr would throw, null when the key is absent, null or of that shape. For a spec
+        // check that refuses before anything runs.
+        public static string ShapeError(JToken token, string key, JTokenType type)
+        {
+            JToken value = Get(token, key);
+            if (value == null || value.Type == JTokenType.Null || value.Type == type)
+            {
+                return null;
+            }
+            return key + ": " + ValueCodec.Show(value) + (type == JTokenType.Object ? " is not an object" : " is not an array");
         }
 
         // For files DotAsset writes itself (queue requests, results), where a bad value falls back instead of throwing.

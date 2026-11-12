@@ -1039,6 +1039,22 @@ namespace DotAsset
             return true;
         }
 
+        // A spec key that takes count numbers: false when it is absent or null, SpecValueException for another shape.
+        public static bool Floats(JToken token, string key, int count, out float[] result)
+        {
+            JToken value = Json.Get(token, key);
+            if (value == null || value.Type == JTokenType.Null)
+            {
+                result = null;
+                return false;
+            }
+            if (!Floats(value, count, out result))
+            {
+                throw new SpecValueException(key + ": " + Show(value) + " is not " + count + " numbers");
+            }
+            return true;
+        }
+
         static bool Ints(JToken value, int count, out int[] result)
         {
             result = null;

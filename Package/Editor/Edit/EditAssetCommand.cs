@@ -41,6 +41,12 @@ namespace DotAsset
                 {
                     return ExitCode.Refused;
                 }
+                string shape = Json.ShapeError(targets[i], "Properties", JTokenType.Object) ?? Json.ShapeError(targets[i], "ArrayOps", JTokenType.Array);
+                if (shape != null)
+                {
+                    ctx.Log.Error("Targets[" + i + "]: " + shape);
+                    return ExitCode.Refused;
+                }
             }
 
             int written = 0;
@@ -67,8 +73,8 @@ namespace DotAsset
                     ctx.FailTarget(label, path + " is imported from a source file, change its import settings with EditImporter");
                     continue;
                 }
-                var properties = Json.Get(target, "Properties") as JObject;
-                var arrayOps = Json.Get(target, "ArrayOps") as JArray;
+                var properties = Json.Obj(target, "Properties");
+                var arrayOps = Json.Arr(target, "ArrayOps");
                 if (properties == null && arrayOps == null)
                 {
                     ctx.FailTarget(label, "needs \"Properties\" or \"ArrayOps\"");

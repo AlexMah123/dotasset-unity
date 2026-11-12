@@ -891,7 +891,7 @@ namespace DotAsset
                     return;
                 }
                 float[] pos;
-                if (ValueCodec.Floats(Json.Get(op, "Position"), 2, out pos))
+                if (ValueCodec.Floats(op, "Position", 2, out pos))
                 {
                     parent.AddStateMachine(leaf, new Vector3(pos[0], pos[1], 0));
                 }
@@ -928,7 +928,7 @@ namespace DotAsset
                     return;
                 }
                 float[] pos;
-                AnimatorState state = ValueCodec.Floats(Json.Get(op, "Position"), 2, out pos)
+                AnimatorState state = ValueCodec.Floats(op, "Position", 2, out pos)
                     ? owner.AddState(leaf, new Vector3(pos[0], pos[1], 0))
                     : owner.AddState(leaf);
                 SetStateFields(state, owner, op);
@@ -1018,7 +1018,7 @@ namespace DotAsset
                     Undo.RecordObject(owner, "Default state");
                     owner.defaultState = state;
                 }
-                var properties = Json.Get(op, "Properties") as JObject;
+                var properties = Json.Obj(op, "Properties");
                 if (properties != null)
                 {
                     var wc = new WriteContext { UseUndo = true };
@@ -1136,7 +1136,7 @@ namespace DotAsset
                         child.threshold = (float)d;
                     }
                     float[] pos;
-                    if (ValueCodec.Floats(Json.Get(c, "Position"), 2, out pos))
+                    if (ValueCodec.Floats(c, "Position", 2, out pos))
                     {
                         child.position = new Vector2(pos[0], pos[1]);
                     }
@@ -1396,7 +1396,7 @@ namespace DotAsset
                         st.canTransitionToSelf = Json.Bool(op, "CanTransitionToSelf", false);
                     }
                 }
-                var conditions = Json.Get(op, "Conditions") as JArray;
+                var conditions = Json.Arr(op, "Conditions");
                 if (conditions != null)
                 {
                     var list = new List<AnimatorCondition>();

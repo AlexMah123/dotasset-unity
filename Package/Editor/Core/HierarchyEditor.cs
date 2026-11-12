@@ -163,12 +163,19 @@ namespace DotAsset
                 {
                     return label + " " + name + ": " + strays;
                 }
-                var components = Json.Get(ops[i], "Components") as JArray;
+                string shape = Json.ShapeError(ops[i], "Components", JTokenType.Array);
+                if (shape != null)
+                {
+                    return label + " " + name + ": " + shape;
+                }
+                var components = Json.Arr(ops[i], "Components");
                 if (components != null)
                 {
                     foreach (JToken c in components)
                     {
-                        string bad = c.Type == JTokenType.Object ? Json.UnknownKeys(c, "Type", "Properties") : null;
+                        string bad = c.Type == JTokenType.Object
+                            ? Json.UnknownKeys(c, "Type", "Properties") ?? Json.ShapeError(c, "Properties", JTokenType.Object)
+                            : null;
                         if (bad != null)
                         {
                             return label + " Components entry: " + bad;
@@ -436,7 +443,7 @@ namespace DotAsset
             {
                 return;
             }
-            var components = Json.Get(op, "Components") as JArray;
+            var components = Json.Arr(op, "Components");
             if (components != null)
             {
                 foreach (JToken entry in components)
@@ -446,7 +453,7 @@ namespace DotAsset
                         return;
                     }
                     string type = entry.Type == JTokenType.String ? (string)entry : Json.Str(entry, "Type");
-                    var props = entry.Type == JTokenType.Object ? Json.Get(entry, "Properties") as JObject : null;
+                    var props = entry.Type == JTokenType.Object ? Json.Obj(entry, "Properties") : null;
                     if (AddComponentTo(go, type, props, label) == null)
                     {
                         return;
@@ -697,7 +704,7 @@ namespace DotAsset
             {
                 return;
             }
-            AddComponentTo(go, Json.Str(op, "Type"), Json.Get(op, "Properties") as JObject, label);
+            AddComponentTo(go, Json.Str(op, "Type"), Json.Obj(op, "Properties"), label);
         }
 
         Component AddComponentTo(GameObject go, string typeName, JObject properties, string label)
@@ -802,8 +809,8 @@ namespace DotAsset
                 Fail(label, error);
                 return;
             }
-            var properties = Json.Get(op, "Properties") as JObject;
-            var arrayOps = Json.Get(op, "ArrayOps") as JArray;
+            var properties = Json.Obj(op, "Properties");
+            var arrayOps = Json.Arr(op, "ArrayOps");
             if (properties == null && arrayOps == null)
             {
                 Fail(label, "needs \"Properties\" or \"ArrayOps\"");

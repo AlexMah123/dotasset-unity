@@ -109,7 +109,7 @@ namespace DotAsset
             }
 
             Shader s = mat.shader;
-            var properties = Json.Get(block, "Properties") as JObject;
+            var properties = Json.Obj(block, "Properties");
             if (properties != null)
             {
                 if (s == null)

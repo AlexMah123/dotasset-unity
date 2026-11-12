@@ -65,11 +65,11 @@ Entries run in order, so a later entry can use what an earlier one created. Each
 | `PrefabVariant` | `Base` (prefab or model), `Ops`. The variant's root is named after the file |
 | `AnimatorController` | `Ops` ([controller ops](Edit.md#editanimatorcontroller)) |
 | `AnimationClip` | `FrameRate`, `Legacy` (`true` for the legacy Animation component), `Settings` and `Ops` ([clip ops](Edit.md#editanimationclip)). The path ends in `.anim`. The clip is filled before it is written, so a failed op leaves no file |
-| `Scene` | `Setup`: `Empty` (default) or `Default` (camera and light), `Ops` (hierarchy ops, `Parent` omitted means a scene root), `AddToBuild` (appends it to the Build Settings scene list, `UndoRun` takes it out again) |
+| `Scene` | `Setup`: `Empty` (default) or `Default` (camera and light), in any case, anything else fails the entry, `Ops` (hierarchy ops, `Parent` omitted means a scene root), `AddToBuild` (appends it to the Build Settings scene list, `UndoRun` takes it out again) |
 
 Paths must be under `Assets/`. Every entry's `Kind`, `Path` and keys are checked before anything is created, and a mistake in any entry is refused with exit 2, so a misspelt `Propeties` cannot be dropped silently and a bad third entry leaves the first two uncreated. A path with a `.` or `..` segment, or starting `assets/` in the wrong case, is refused too.
 
-A value of the wrong type (`"AddToBuild": "yes"`, `"SiblingIndex": "last"`) fails its entry with a message naming the key, and nothing of that entry is created. The other entries still run. The accepted forms are the ones in [Edit.md](Edit.md).
+A value of the wrong type or shape (`"AddToBuild": "yes"`, `"SiblingIndex": "last"`, `"Components": "BoxCollider"`) fails its entry with a message naming the key, and nothing of that entry is created. The other entries still run. The accepted forms are the ones in [Edit.md](Edit.md).
 
 ## Exit codes
 

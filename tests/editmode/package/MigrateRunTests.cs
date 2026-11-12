@@ -157,6 +157,24 @@ namespace DotAsset.Tests
             Assert.AreEqual(blue, MaterialOf(Crate));
         }
 
+        // uasset-workbench 2.7.15 fixed a crash when one batch moved assets that reference each other. Here a
+        // variant, its base and their material move in one spec, and every reference still resolves.
+        [Test]
+        public void MoveAssetMovesAVariantItsBaseAndTheirMaterialInOneSpec()
+        {
+            string heavy = Folder + "/Moved/HeavyCrate2.prefab";
+            string crate = Folder + "/Moved/Crate2.prefab";
+            string red = Folder + "/Moved/Red2.mat";
+            Ok("MoveAsset", Spec(@"{'Moves': [{'From': '" + Heavy + @"', 'To': '" + heavy + @"'},
+                {'From': '" + Crate + @"', 'To': '" + crate + @"'}, {'From': '" + Red + @"', 'To': '" + red + @"'}]}") + " -apply");
+            var moved = AssetDatabase.LoadAssetAtPath<GameObject>(heavy);
+            Assert.IsNotNull(moved, "the variant is not at its new path");
+            Assert.AreEqual(crate, AssetDatabase.GetAssetPath(PrefabUtility.GetCorrespondingObjectFromSource(moved)));
+            Assert.AreEqual(50f, moved.GetComponent<Rigidbody>().mass, "the variant lost its override");
+            Assert.AreEqual(red, AssetDatabase.GetAssetPath(moved.GetComponentInChildren<MeshRenderer>().sharedMaterial));
+            Assert.AreEqual(crate, (string)Node(Export("SceneExport", Scene), "Crate")["PrefabInstance"]["Source"]);
+        }
+
         static string Curve(string path)
         {
             string keys = "";

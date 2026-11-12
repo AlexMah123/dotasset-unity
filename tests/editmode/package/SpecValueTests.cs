@@ -99,5 +99,18 @@ namespace DotAsset.Tests
             Assert.IsFalse(System.IO.File.Exists(Absolute(built)), "the failed scene was written");
             Assert.IsFalse(EditorBuildSettings.scenes.Any(s => s.path == built), "the failed scene was added to the build");
         }
+
+        // R7-2: Setup is Empty or Default, in any case like an enum name. Anything else made an empty scene.
+        [Test]
+        public void ASceneSetupIsEmptyOrDefaultAndNothingElse()
+        {
+            string lower = Folder + "/Lower.unity";
+            Ok("CreateAsset", Spec(@"{'Assets': [{'Kind': 'Scene', 'Path': '" + lower + @"', 'Setup': 'default'}]}"));
+            StringAssert.Contains("Camera:", Text(lower), "\"default\" made an empty scene");
+            string built = Folder + "/Built.unity";
+            RunResult r = Run("CreateAsset", Spec(@"{'Assets': [{'Kind': 'Scene', 'Path': '" + built + @"', 'Setup': 'DefaultGameObjects'}]}"));
+            Refused(r, built, "Setup: \"DefaultGameObjects\" is not Empty or Default");
+            Assert.IsFalse(System.IO.File.Exists(Absolute(built)), "the failed scene was written");
+        }
     }
 }

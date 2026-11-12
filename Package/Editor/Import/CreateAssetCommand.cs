@@ -599,7 +599,15 @@ namespace DotAsset
                 error = "a scene path ends in .unity";
                 return false;
             }
-            NewSceneSetup setup = Json.Str(entry, "Setup", "Empty") == "Default" ? NewSceneSetup.DefaultGameObjects : NewSceneSetup.EmptyScene;
+            // R7-2: Empty or Default in any case, as an enum name is read. Anything else made an empty scene.
+            string setupName = Json.Str(entry, "Setup", "Empty");
+            bool emptyScene = string.Equals(setupName, "Empty", StringComparison.OrdinalIgnoreCase);
+            if (!emptyScene && !string.Equals(setupName, "Default", StringComparison.OrdinalIgnoreCase))
+            {
+                error = "Setup: " + ValueCodec.Show(Json.Get(entry, "Setup")) + " is not Empty or Default";
+                return false;
+            }
+            NewSceneSetup setup = emptyScene ? NewSceneSetup.EmptyScene : NewSceneSetup.DefaultGameObjects;
             // Read before the save, a wrong type here must not fail an entry whose scene is already written.
             bool addToBuild = Json.Bool(entry, "AddToBuild", false);
             if (!ParentFolder(path, out error))
